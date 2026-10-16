@@ -1,0 +1,185 @@
+// Shulkers in Inventory. Open a shulker box, bundle or your ender chest from the
+// inventory or an open chest, without placing anything. Universal jar, needed on both
+// sides: the server owns every change (sessions, the dupe guard, the ender chest sync),
+// the client the tooltip view and, later, the panels. Built on SlotKit and MenuKit.
+// Design: Inventory Suite drive, mods/shulkers-in-inventory/design.md.
+//
+// Included from the root settings.gradle as `:shulkers-in-inventory`. Build with
+// `./gradlew :shulkers-in-inventory:build` from the workspace root.
+
+plugins {
+    // The Loom plugin id is namespaced from 1.15 on. The version is pinned at the workspace root.
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
+    id 'java'
+    id 'com.modrinth.minotaur' version '2.+'
+}
+
+version = property('shulkersininventory_version')
+group   = property('maven_group')
+
+base.archivesName = 'shulkers-in-inventory'
+
+java {
+    // Minecraft 26.x runs on Java 25.
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+repositories {
+    maven { url 'https://maven.fabricmc.net/' }
+}
+
+// MenuKit and SlotKit have separate main and client source sets. A
+// project dependency sees only main, so their client halves are added by output, which
+// needs them evaluated first. A published jar holds both halves.
+evaluationDependsOn(':menukit')
+evaluationDependsOn(':slotkit')
+
+dependencies {
+    // 26.x is unobfuscated: no mappings line, and plain Java configurations.
+    minecraft "com.mojang:minecraft:${property('minecraft_version')}"
+    implementation "net.fabricmc:fabric-loader:${property('loader_version')}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
+
+    implementation project(':menukit')
+    implementation project(':slotkit')
+}
+
+loom {
+    // src/main holds what a server loads (the take, the ender chest sync); src/client
+    // holds the tooltip view. The compiler refuses a main class that reaches a client one.
+    splitEnvironmentSourceSets()
+    mods {
+        shulkersininventory {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+    runs {
+        client { ideConfigGenerated = false }
+        server { ideConfigGenerated = false }
+        // Test Gallery: boots straight into the generated test world in run/saves/TestGallery.
+        // Generate it with `test-gallery/run-scene.sh shulkers-in-inventory <scene>` (which also runs this).
+        testGallery {
+            inherit client
+            name 'Test Gallery'
+            programArgs '--quickPlaySingleplayer', 'TestGallery'
+            ideConfigGenerated = false
+        }
+    }
+}
+
+// Client-only dependencies, after loom {} so its client configurations exist.
+dependencies {
+    clientImplementation rootProject.project(':menukit').sourceSets.client.output
+    clientImplementation rootProject.project(':slotkit').sourceSets.client.output
+
+}
+
+jar {
+    from('LICENSE') { rename { "${it}_${project.name}" } }
+}
+
+// Stamp the real project version into fabric.mod.json at build. The manifest
+// declares "version": "${version}", because a hardcoded manifest version
+// silently breaks every dependency gate against this mod.
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
+}
+
+// ── Modrinth Publishing ────────────────────────────────────────────────
+// Shulkers in Inventory (slug shulkers-in-inventory). Lead creates the project at the
+// first release and fills in its id; empty until then (new-mod-setup.md step 7).
+// Lead @ Trevlar Mods owns the publish.
+modrinth {
+    token = System.getenv("MODRINTH_TOKEN")
+    projectId = ""
+    versionNumber = property('shulkersininventory_version')
+    versionName = "Shulkers in Inventory ${property('shulkersininventory_version')}"
+    versionType = "release"
+    // ci-cd.md stage 5: the player-facing changelog lives in changelog.md, one entry,
+    // overwritten each release (git keeps the history).
+    changelog = file('changelog.md').text
+    // ci-cd.md stage 7: the README is the public description; `modrinthSyncBody` pushes it.
+    syncBodyFrom = file('README.md').text
+    // 26.x: no remap step, `jar` IS the shippable artifact.
+    uploadFile = jar
+    gameVersions = [property('minecraft_version')]
+    loaders = ["fabric"]
+    dependencies {
+        required.project "fabric-api"
+        required.project "menukit"
+        required.project "slotkit"
+    }
+}
+
+// The shipped jar must self-report the bumped version. A jar that
+// says the wrong version silently breaks every dependency gate against it, so this
+// fails the build instead of relying on someone remembering to unzip and look.
+tasks.register('verifyJarVersion') {
+    dependsOn 'jar'
+    doLast {
+        def jar = tasks.named('jar').get().archiveFile.get().asFile
+        def modJson = zipTree(jar).matching { include 'fabric.mod.json' }.singleFile
+        def stamped = new groovy.json.JsonSlurper().parse(modJson).version
+        if (stamped != project.version.toString()) {
+            throw new GradleException("${jar.name}: fabric.mod.json says ${stamped}, expected ${project.version}")
+        }
+        println "verifyJarVersion: ${jar.name} reports ${stamped}"
+    }
+}
+build.dependsOn verifyJarVersion
+
+// This mod must pin each Kit to the major it was built against.
+// The floor guarantees every Kit call it makes exists at load time; the ceiling stops a
+// future breaking major from loading against code that never saw it. Both halves matter:
+// a floor alone lets a new major rename an API out from under a shipped jar, and the
+// player gets a NoSuchMethodError hours into a session instead of a refusal at launch.
+// Commas are rejected outright: Fabric parses ">=5.0.0,<6.0.0" without complaint and the
+// resulting predicate then matches NO version at all, which silently disables the mod.
+tasks.register('verifyKitRanges') {
+    def src = file('src/main/resources/fabric.mod.json')
+    // Each Kit id in `depends`, checked against its own version property. MenuKit and
+    // SlotKit each keep their own version; neither re-versions the other.
+    def kits = [menukit: 'menukit_version', slotkit: 'slotkit_version']
+    def versions = kits.collectEntries { id, prop -> [(id): (project.findProperty(prop) ?: '').toString()] }
+    inputs.file src
+    inputs.property 'kit_versions', versions
+    doLast {
+        def depends = new groovy.json.JsonSlurper().parse(src).depends ?: [:]
+        if (depends['menukit-containers'] != null) {
+            throw new GradleException(
+                "fabric.mod.json: depends on 'menukit-containers'. Containers is SlotKit now: " +
+                "depend on 'slotkit' instead (Amethyst spec 4.1).")
+        }
+        kits.each { id, prop ->
+            def declared = depends[id]?.toString()
+            if (declared == null) return
+            def version = versions[id]
+            if (!version) throw new GradleException("verifyKitRanges: '${id}' is declared but ${prop} is not set")
+            if (declared.contains(',')) {
+                throw new GradleException(
+                    "fabric.mod.json: '${id}' is '${declared}'. Fabric accepts a comma here and the " +
+                    "predicate then matches no version at all. Separate the bounds with a space.")
+            }
+            // Floor at major.minor, not just major: a minor can add API that a consumer
+            // built against it calls, and flooring at the major alone would let that jar
+            // load on an older minor and die with NoSuchMethodError.
+            def parts = version.replaceAll(/\+.*$/, '').tokenize('.')
+            def major = Integer.parseInt(parts[0])
+            def minor = Integer.parseInt(parts[1])
+            def expected = ">=${major}.${minor}.0 <${major + 1}.0.0".toString()
+            if (declared != expected) {
+                throw new GradleException(
+                    "fabric.mod.json: '${id}' is '${declared}', expected '${expected}'. This mod is " +
+                    "built against ${id} ${version}, so it floors at that major.minor and stops " +
+                    "below the next major. See guidelines/ci-cd.md, 'MenuKit version pinning'.")
+            }
+            println "verifyKitRanges: ${id} '${expected}' (built against ${version})"
+        }
+    }
+}
+build.dependsOn verifyKitRanges

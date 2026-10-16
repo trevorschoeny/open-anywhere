@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "shulkersininventory",
+  "version": "${version}",
+  "name": "Shulkers in Inventory",
+  "description": "Open shulker boxes, bundles and your ender chest right from your inventory, without placing anything. Goes with Inventory Plus.",
+  "authors": [
+    "trevorschoeny"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/shulkers-in-inventory",
+    "sources": "https://github.com/trevorschoeny/shulkers-in-inventory"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "mixins": [
+    "shulkersininventory.mixins.json",
+    {
+      "config": "shulkersininventory.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "entrypoints": {
+    "main": [
+      "com.trevorschoeny.shulkersininventory.ShulkersInInventory"
+    ],
+    "client": [
+      "com.trevorschoeny.shulkersininventory.ShulkersInInventoryClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~26.3",
+    "menukit": ">=7.2.0 <8.0.0",
+    "slotkit": ">=1.1.0 <2.0.0"
+  },
+  "suggests": {
+    "inventoryplus": "*"
+  },
+  "custom": {
+    "configkit": {
+      "suite": "inventoryplus"
+    }
+  }
+}
