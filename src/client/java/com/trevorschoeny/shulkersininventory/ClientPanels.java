@@ -5,6 +5,8 @@ import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.slotkit.api.slot.ClientSlots;
@@ -43,27 +45,38 @@ final class ClientPanels {
         ParityGroup group = Groups.of(kind);
         Panel panel = Panel.builder(kind.panelId())
                 .add(SlotFlowElement.of(group))
-                .add(closeButton(kind))
                 .style(PanelStyle.RAISED)
                 .position(position)
                 .build()
                 .pinnedWidth(ROW_WIDTH)
                 .visibleWhen(() -> ClientSlots.isShown(group.id()));
         new ScreenPanelAdapter(panel, PADDING).onMatching(ScreenMatcher.all());
+        closePanel(kind, panel);
     }
 
     /**
-     * A raised button with a plain "x", centred on the panel's top-right corner so it
-     * sits over both edges. Positions are content-relative; the corner is a padding out.
-     * ponytail: an element of the item's panel until MenuKit can place a panel on
-     * another panel's corner (asked 2026-10-16); then its own NONE panel, as Trev asked.
+     * The close button: a raised button with a plain "x", in its own unstyled panel
+     * centred on the item panel's top-right corner, so it sits over both edges and the
+     * whole button takes clicks (Trev, 2026-10-16). It follows the item panel wherever
+     * MenuKit places it, read each frame ({@code Panel.placedBounds}).
      */
-    private static Button closeButton(Openable kind) {
-        return Button.builder()
-                .label(Component.literal("x"))
-                .size(CLOSE_SIZE, CLOSE_SIZE)
-                .at(ROW_WIDTH + PADDING - CLOSE_SIZE / 2, -PADDING - CLOSE_SIZE / 2)
-                .onClick(() -> ClientPlayNetworking.send(new CloseC2S(kind)))
-                .build();
+    private static void closePanel(Openable kind, Panel itemPanel) {
+        Panel close = Panel.builder(kind.panelId() + "_close")
+                .add(Button.builder()
+                        .label(Component.literal("x"))
+                        .size(CLOSE_SIZE, CLOSE_SIZE)
+                        .onClick(() -> ClientPlayNetworking.send(new CloseC2S(kind)))
+                        .build())
+                .style(PanelStyle.NONE)
+                .position(PanelPosition.pixel(() -> {
+                    Reference box = itemPanel.placedBounds();
+                    // Off screen until the item panel is placed (the panel is hidden then anyway).
+                    if (box == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
+                    return new ScreenOrigin(box.leftPos() + box.imageWidth() - CLOSE_SIZE / 2,
+                            box.topPos() - CLOSE_SIZE / 2);
+                }))
+                .build()
+                .visibleWhen(itemPanel::isVisible);
+        new ScreenPanelAdapter(close, 0).onMatching(ScreenMatcher.all());
     }
 }
