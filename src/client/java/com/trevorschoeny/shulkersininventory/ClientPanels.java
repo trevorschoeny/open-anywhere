@@ -68,46 +68,15 @@ final class ClientPanels {
                         .onClick(() -> ClientPlayNetworking.send(new CloseC2S(kind)))
                         .build())
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.pixel(new CornerOf(itemPanel)))
+                .position(PanelPosition.pixel(() -> {
+                    Reference box = itemPanel.placedBounds();
+                    // Off screen until the item panel is placed (hidden then anyway).
+                    if (box == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
+                    return new ScreenOrigin(box.leftPos() + box.imageWidth() - CLOSE_SIZE / 2,
+                            box.topPos() - CLOSE_SIZE / 2);
+                }))
                 .build()
                 .visibleWhen(itemPanel::isVisible);
         new ScreenPanelAdapter(close, 0).onMatching(ScreenMatcher.all());
-    }
-
-    /**
-     * The item panel's top-right corner, minus half the button, so the button is
-     * centred on it.
-     *
-     * <p>ponytail: re-entry guard. {@code placedBounds()} lays out the screen's panels,
-     * this one included, whose position is this supplier, so it would recurse until the
-     * stack overflows (crashed in game, 2026-10-16; reported to MenuKit). While a call
-     * is under way, the nested one answers last frame's corner. Remove once MenuKit's
-     * {@code placedBounds} doesn't re-enter layout.
-     */
-    private static final class CornerOf implements java.util.function.Supplier<ScreenOrigin> {
-        private final Panel itemPanel;
-        private boolean measuring = false;
-        // Off screen until the item panel is first placed (hidden then anyway).
-        private ScreenOrigin last = new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
-
-        CornerOf(Panel itemPanel) {
-            this.itemPanel = itemPanel;
-        }
-
-        @Override
-        public ScreenOrigin get() {
-            if (measuring) return last;
-            measuring = true;
-            try {
-                Reference box = itemPanel.placedBounds();
-                if (box != null) {
-                    last = new ScreenOrigin(box.leftPos() + box.imageWidth() - CLOSE_SIZE / 2,
-                            box.topPos() - CLOSE_SIZE / 2);
-                }
-                return last;
-            } finally {
-                measuring = false;
-            }
-        }
     }
 }
