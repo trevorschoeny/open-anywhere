@@ -1,11 +1,15 @@
 package com.trevorschoeny.shulkersininventory;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.lang3.math.Fraction;
 import org.jspecify.annotations.Nullable;
 
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
@@ -38,5 +42,17 @@ final class BundleView {
     /** How many of {@code stack} the bundle would take, by vanilla's own rule (a dry run). */
     static int fit(BundleContents contents, ItemStack stack) {
         return contents.asMutable().tryInsert(stack.copy());
+    }
+
+    /** True when {@code stack} is the same item, components included, as bundle stack {@code index}. */
+    static boolean sameItem(BundleContents contents, int index, ItemStack stack) {
+        return ItemStack.isSameItemSameComponents(contents.items().get(index).create(), stack);
+    }
+
+    /** How many of {@code stack} the bundle would take with stack {@code index} taken out. */
+    static int fitWithout(BundleContents contents, int index, ItemStack stack) {
+        List<ItemStackTemplate> rest = new ArrayList<>(contents.items());
+        rest.remove(index);
+        return new BundleContents(rest).asMutable().tryInsert(stack.copy());
     }
 }

@@ -109,9 +109,13 @@ public final class Groups {
     }
 
     /**
-     * Each bundle slot's rule, set by its address: a filled slot can be taken from and
-     * never grows (more of the same goes in through the add slot, as with a bundle in
-     * hand); the add slot takes as much as vanilla's 64-weight rule allows.
+     * Each bundle slot's rule, set by its address, following a bundle in hand:
+     * <ul>
+     *   <li>The add slot takes as much as vanilla's 64-weight rule allows.</li>
+     *   <li>A filled slot never grows: more of the same goes in through the add slot.</li>
+     *   <li>A filled slot swaps with a different item on the cursor, when that item fits
+     *       the bundle once the slot's stack is out (Trev, 2026-10-16).</li>
+     * </ul>
      */
     private static void bundleRules() {
         for (int i = 0; i < Openable.BUNDLE.slots; i++) {
@@ -119,7 +123,10 @@ public final class Groups {
             Window.slot(Address.createdSlot(bundle.id(), index)).gate(new SlotGate() {
                 @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
                     BundleContents contents = BundleView.contents(ctx.actingPlayer());
-                    return contents != null && index == BundleView.addSlot(contents) && BundleView.fit(contents, stack) > 0;
+                    if (contents == null) return false;
+                    if (index == BundleView.addSlot(contents)) return BundleView.fit(contents, stack) > 0;
+                    if (index >= contents.size() || BundleView.sameItem(contents, index, stack)) return false;
+                    return BundleView.fitWithout(contents, index, stack) >= stack.getCount();
                 }
                 @Override public boolean mayPickup(Player player, GatingContext ctx) {
                     return true;
@@ -127,8 +134,11 @@ public final class Groups {
                 @Override public int maxStackSize(ItemStack stack, int vanillaMax) {
                     BundleContents contents = BundleView.contents(GatingContext.current().actingPlayer());
                     if (contents == null) return vanillaMax;
-                    if (index < contents.size()) return Math.min(vanillaMax, stack.getCount());
-                    return Math.min(vanillaMax, BundleView.fit(contents, stack));
+                    if (index >= contents.size()) return Math.min(vanillaMax, BundleView.fit(contents, stack));
+                    // Asked about the slot's own stack (a merge): it stays as it is.
+                    if (BundleView.sameItem(contents, index, stack)) return Math.min(vanillaMax, stack.getCount());
+                    // Asked about a different stack (a swap): what fits in its place.
+                    return Math.min(vanillaMax, BundleView.fitWithout(contents, index, stack));
                 }
             });
         }

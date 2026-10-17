@@ -14,7 +14,7 @@ import com.trevlar.slotkit.api.slot.ParityGroup;
 import com.trevlar.slotkit.api.slot.SlotFlowElement;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /**
  * The panels the opened items show in: one MenuKit panel per kind, holding SlotKit's
@@ -33,7 +33,13 @@ final class ClientPanels {
     private static final int PADDING = 7;
     /** A row of 9 vanilla slots (18 pixels each): the width the panels wrap at. */
     private static final int ROW_WIDTH = 9 * 18;
-    private static final int CLOSE_SIZE = 11;
+    /**
+     * A 9 px raised button around a 5 px "x" (MenuKit insets an icon 2 px). A text label
+     * can't be this small: MenuKit pads a label to about 17 px each way, and wraps it
+     * taller when the button is narrower.
+     */
+    private static final int CLOSE_SIZE = 9;
+    private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "close");
 
     static void register() {
         panel(Openable.SHULKER, PanelPosition.region(OutsideRegion.TOP_CENTER).priority(10));
@@ -55,7 +61,7 @@ final class ClientPanels {
     }
 
     /**
-     * The close button: a raised button with a plain "x", in its own unstyled panel
+     * The close button: a raised button with a small "x", in its own unstyled panel
      * centred on the item panel's top-right corner, so it sits over both edges and the
      * whole button takes clicks (Trev, 2026-10-16). It follows the item panel wherever
      * MenuKit places it, read each frame ({@code Panel.placedBounds}).
@@ -63,7 +69,7 @@ final class ClientPanels {
     private static void closePanel(Openable kind, Panel itemPanel) {
         Panel close = Panel.builder(kind.panelId() + "_close")
                 .add(Button.builder()
-                        .label(Component.literal("x"))
+                        .icon(CLOSE_ICON)
                         .size(CLOSE_SIZE, CLOSE_SIZE)
                         .onClick(() -> ClientPlayNetworking.send(new CloseC2S(kind)))
                         .build())
