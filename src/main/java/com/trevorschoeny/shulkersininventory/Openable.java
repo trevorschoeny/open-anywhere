@@ -1,13 +1,11 @@
 package com.trevorschoeny.shulkersininventory;
 
-import net.minecraft.world.Container;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 
-/** Which items this mod opens, and where an ender chest's contents live on each side. */
+/** Which items this mod opens. */
 public final class Openable {
 
     private Openable() {}
@@ -29,13 +27,4 @@ public final class Openable {
         return stack.is(Items.ENDER_CHEST);
     }
 
-    /**
-     * The player's ender chest as this side knows it. The server has the real one. The
-     * client's own copy on the player is never filled by vanilla (and is replaced with the
-     * player on every dimension change), so the client keeps the copy the server sends
-     * in {@link EnderMirror}.
-     */
-    public static Container enderChest(Player player) {
-        return player.level().isClientSide() ? EnderMirror.CLIENT : player.getEnderChestInventory();
-    }
 }

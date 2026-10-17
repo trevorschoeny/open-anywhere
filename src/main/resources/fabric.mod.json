@@ -13,13 +13,6 @@
   },
   "license": "MIT",
   "environment": "*",
-  "mixins": [
-    "shulkersininventory.mixins.json",
-    {
-      "config": "shulkersininventory.client.mixins.json",
-      "environment": "client"
-    }
-  ],
   "entrypoints": {
     "main": [
       "com.trevorschoeny.shulkersininventory.ShulkersInInventory"
