@@ -1,0 +1,77 @@
+package com.trevorschoeny.shulkersininventory;
+
+import com.trevlar.slotkit.api.storage.Storage;
+
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BundleContents;
+
+/**
+ * The bundle panel's slots on the server: one slot per stack the opened bundle holds,
+ * in the bundle's own order, then empty slots. Live like {@link ShulkerStorage}: every
+ * change is written straight back into the bundle's {@code minecraft:bundle_contents}.
+ *
+ * <p>Writing back drops the emptied slots, so taking a stack from the middle moves the
+ * ones after it up by one, as in the bundle itself, and vanilla's slot sync shows the
+ * shift. What may go in, and how much, is the panel's per-slot gate
+ * ({@link BundleRules}): the 64-weight rule is checked before an item moves, never after.
+ */
+final class BundleStorage implements Storage {
+
+    private final Player player;
+    private ItemStack loadedBundle = ItemStack.EMPTY;
+    private BundleContents loadedFrom = null;
+    private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
+
+    BundleStorage(Player player) {
+        this.player = player;
+    }
+
+    private ItemStack bundle() {
+        Session session = Sessions.get(player, Openable.BUNDLE);
+        if (session == null) return null;
+        ItemStack bundle = session.stack();
+        BundleContents contents = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+        if (bundle != loadedBundle || contents != loadedFrom) {
+            for (int i = 0; i < live.size(); i++) live.set(i, ItemStack.EMPTY);
+            int i = 0;
+            for (ItemStack stack : (Iterable<ItemStack>) contents.itemCopies()::iterator) live.set(i++, stack);
+            loadedBundle = bundle;
+            loadedFrom = contents;
+        }
+        return bundle;
+    }
+
+    @Override
+    public ItemStack getStack(int i) {
+        return bundle() == null ? ItemStack.EMPTY : live.get(i);
+    }
+
+    @Override
+    public void setStack(int i, ItemStack stack) {
+        ItemStack bundle = bundle();
+        if (bundle == null) return;
+        live.set(i, stack);
+        writeBack(bundle);
+    }
+
+    @Override
+    public int size() {
+        return live.size();
+    }
+
+    @Override
+    public void markDirty() {
+        ItemStack bundle = bundle();
+        if (bundle != null) writeBack(bundle);
+    }
+
+    private void writeBack(ItemStack bundle) {
+        BundleContents old = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+        bundle.set(DataComponents.BUNDLE_CONTENTS, old.copyWithContents(live.stream().filter(s -> !s.isEmpty())));
+        // Reloaded on the next read, which also packs the emptied slots out.
+        loadedFrom = null;
+    }
+}
