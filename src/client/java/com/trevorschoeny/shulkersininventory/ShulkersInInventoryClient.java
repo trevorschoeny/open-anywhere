@@ -28,7 +28,7 @@ public final class ShulkersInInventoryClient implements ClientModInitializer {
 
     /** Vanilla's small cross, the one its own close buttons use. */
     private static final Identifier CLOSE = Identifier.withDefaultNamespace("widget/cross_button");
-    private static final int CLOSE_SIZE = 8;
+    private static final int CLOSE_SIZE = 11;
 
     @Override
     public void onInitializeClient() {
@@ -36,12 +36,13 @@ public final class ShulkersInInventoryClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Sessions.CLIENT_SHOWN.clear());
 
-        // A small X in each panel's top-right corner, in the panel's top padding.
+        // A small raised X centred on each panel's top-right corner, over both edges.
+        // Element positions are content-relative; the corner is a padding out.
         for (Openable kind : Openable.values()) {
             ClientContainerPanel.of(kind.panelId()).chrome(() -> List.of(Button.builder()
-                    .sprite(CLOSE)
+                    .icon(CLOSE)
                     .size(CLOSE_SIZE, CLOSE_SIZE)
-                    .at(Panels.ROW_WIDTH - 1, -CLOSE_SIZE + 1)
+                    .at(Panels.ROW_WIDTH + Panels.PADDING - CLOSE_SIZE / 2, -Panels.PADDING - CLOSE_SIZE / 2)
                     .onClick(() -> ClientPlayNetworking.send(new CloseC2S(kind)))
                     .build()));
         }

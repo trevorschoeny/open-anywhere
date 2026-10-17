@@ -9,6 +9,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
@@ -84,9 +85,15 @@ final class BundleStorage {
         if (bundle != null) writeBack(bundle);
     }
 
+    /**
+     * Writes the panel's stacks into the bundle in the panel's order, so a stack stays
+     * where it was put. Not {@code BundleContents.copyWithContents}: that re-inserts
+     * every stack through vanilla's {@code tryInsert}, which adds each one at the front,
+     * reversing the bundle on every write (found in game, 2026-10-16).
+     */
     private void writeBack(ItemStack bundle) {
-        BundleContents old = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
-        bundle.set(DataComponents.BUNDLE_CONTENTS, old.copyWithContents(live.stream().filter(s -> !s.isEmpty())));
+        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(live.stream()
+                .filter(s -> !s.isEmpty()).map(ItemStackTemplate::fromNonEmptyStack).toList()));
         // Reloaded on the next read, which also packs the emptied slots out.
         loadedFrom = null;
     }

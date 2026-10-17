@@ -23,8 +23,10 @@ public final class ClientMarks {
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
         }
         if (created != null && !slot.hasItem() && isAddSlot(created)) {
-            plus(graphics, slot.x + 1, slot.y + 1, ADD_SHADOW);
-            plus(graphics, slot.x, slot.y, ADD_MARK);
+            // MenuKit measures from the slot's 18 px frame, one pixel up and left of the item.
+            int frameX = slot.x - 1, frameY = slot.y - 1;
+            plus(graphics, frameX + 1, frameY + 1, ADD_SHADOW);
+            plus(graphics, frameX, frameY, ADD_MARK);
         }
     }
 
@@ -34,7 +36,7 @@ public final class ClientMarks {
     }
 
     /**
-     * A 6 x 6 plus of 2 px bars, centred in the slot at {@code (x, y)}: MenuKit's
+     * A 6 x 6 plus of 2 px bars, centred in the 18 px slot frame at {@code (x, y)}: MenuKit's
      * {@code ItemPicker.drawAddMark}, which is package-private, so the same two fills.
      */
     private static void plus(GuiGraphicsExtractor g, int x, int y, int color) {

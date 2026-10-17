@@ -40,6 +40,9 @@ public final class Panels {
 
     private Panels() {}
 
+    /** Space between a panel's edge and its slots. */
+    public static final int PADDING = 7;
+
     /** A grid of 9 vanilla slots (18 pixels each): the width the panels wrap at. */
     public static final int ROW_WIDTH = 9 * 18;
 
@@ -69,7 +72,7 @@ public final class Panels {
 
     private static ContainerPanel.Builder panel(Openable kind, PanelPosition position) {
         return ContainerPanel.define(kind.panelId())
-                .at(position, 7)
+                .at(position, PADDING)
                 .style(PanelStyle.RAISED)
                 .pinnedWidth(ROW_WIDTH)
                 .visibleWhen(() -> Sessions.CLIENT_SHOWN.contains(kind));
