@@ -56,15 +56,11 @@ public final class Sessions {
         }
     }
 
-    /** Opens {@code session}, replacing the same kind and, for a shulker or bundle, the other one. */
+    /** Records {@code session}, replacing one of the same kind. */
     static void put(Player player, Session session) {
         Map<Player, EnumMap<Openable, Session>> table = side(player);
         synchronized (table) {
             EnumMap<Openable, Session> open = table.computeIfAbsent(player, p -> new EnumMap<>(Openable.class));
-            if (!session.kind().isEnderChest()) {
-                open.remove(Openable.SHULKER);
-                open.remove(Openable.BUNDLE);
-            }
             open.put(session.kind(), session);
         }
     }

@@ -1,8 +1,6 @@
 package com.trevorschoeny.shulkersininventory;
 
 import java.util.List;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
 import com.trevlar.slotkit.api.slot.CreatedSlot;
@@ -11,7 +9,6 @@ import com.trevlar.slotkit.api.slot.QuickMoveRoutes;
 import com.trevlar.slotkit.api.slot.QuickMoveRoutes.Dest;
 import com.trevlar.slotkit.api.slot.SlotSpec;
 import com.trevlar.slotkit.api.storage.EphemeralStorage;
-import com.trevlar.slotkit.api.storage.Storage;
 import com.trevlar.slotkit.api.window.Address;
 import com.trevlar.slotkit.api.window.GatingContext;
 import com.trevlar.slotkit.api.window.SlotGate;
@@ -28,10 +25,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * The slots the opened items show, as SlotKit groups: one group per kind, on every
- * menu, with no live slots until the server opens an item of that kind
- * ({@link #open}). A group's backing is always the same kind; only the opened item
- * behind it changes. The panels that show them are the client's ({@code ClientPanels}).
+ * The bundle's slots, as a SlotKit group on every menu, with no live slots until the
+ * server opens a bundle ({@link #open}). A shulker box and the ender chest open
+ * vanilla's own menus instead ({@link ServerSessions}). The panel that shows the bundle
+ * is the client's ({@code ClientPanels}).
  *
  * <p>Also here, because both sides need them: the slot lock on the opened item, the
  * bundle's per-slot rules, and where a shift-click goes (design, Rule 6).
@@ -43,23 +40,16 @@ public final class Groups {
     /** Every group's id within its owner: {@code shulkersininventory:shulker:slots}, and so on. */
     public static final String GROUP = "slots";
 
-    static final SlotGroupCategory ENDER_CHEST_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "ender_chest");
     static final SlotGroupCategory BUNDLE_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "bundle");
 
-    private static ParityGroup shulker, bundle, enderChest;
+    private static ParityGroup bundle;
 
-    public static ParityGroup of(Openable kind) {
-        return switch (kind) {
-            case SHULKER -> shulker;
-            case BUNDLE -> bundle;
-            case ENDER_CHEST -> enderChest;
-        };
+    /** The bundle's group. (A shulker box and the ender chest open vanilla's own menus.) */
+    public static ParityGroup bundle() {
+        return bundle;
     }
 
     static void register() {
-        shulker = grid(Openable.SHULKER, SlotGroupCategory.SHULKER_STORAGE, ShulkerStorage::new,
-                // As vanilla's ShulkerBoxSlot: no shulker boxes, nothing that can't go inside one.
-                stack -> Openable.of(stack) != Openable.SHULKER && stack.getItem().canFitInsideContainerItems());
         bundle = ParityGroup.register(Openable.BUNDLE.panelId(), SlotSpec.at(GROUP, BUNDLE_STORAGE)
                 .count(Openable.BUNDLE.slots)
                 .storage(player -> player.level().isClientSide()
@@ -67,7 +57,6 @@ public final class Groups {
                 .shiftClickIn(true)
                 .activeCount(0));
         bundleRules();
-        enderChest = grid(Openable.ENDER_CHEST, ENDER_CHEST_STORAGE, EnderStorage::new, stack -> true);
 
         // The opened item's own slot refuses every operation while it's open, from
         // vanilla's clicks, keys and drops to any other mod's (SlotKit's slot lock).
@@ -77,35 +66,21 @@ public final class Groups {
         QuickMoveRoutes.register(Groups::route);
     }
 
-    /** A shulker box or the ender chest: 27 slots, live only while one is open. */
-    private static ParityGroup grid(Openable kind, SlotGroupCategory category,
-                                    Function<Player, Storage> serverStorage, Predicate<ItemStack> accepts) {
-        return ParityGroup.register(kind.panelId(), SlotSpec.at(GROUP, category).count(kind.slots)
-                // The server's storage is the opened item. The client's is a plain mirror
-                // that vanilla's slot sync fills, as for any synced slot.
-                .storage(player -> player.level().isClientSide()
-                        ? EphemeralStorage.of(kind.slots) : serverStorage.apply(player))
-                .shiftClickIn(true)
-                .activeCount(0)
-                .accepts(accepts));
-    }
-
-    /** How many of a kind's slots are live with this item open. */
-    static int liveCount(Openable kind, Player player) {
-        if (kind != Openable.BUNDLE) return kind.slots;
+    /** How many of the bundle's slots are live with it open. */
+    static int liveCount(Player player) {
         BundleContents contents = BundleView.contents(player);
         if (contents == null) return 0;
         // Its stacks, plus the add slot unless it's full.
         return BundleView.addSlot(contents) >= 0 ? contents.size() + 1 : contents.size();
     }
 
-    /** Opens the kind's slots for this player, sized to the open item. */
+    /** Opens the bundle's slots for this player, sized to the open bundle. */
     static void open(ServerPlayer player, Openable kind) {
-        of(kind).setActiveCount(player, liveCount(kind, player));
+        bundle.setActiveCount(player, liveCount(player));
     }
 
     static void close(ServerPlayer player, Openable kind) {
-        of(kind).setActiveCount(player, 0);
+        bundle.setActiveCount(player, 0);
     }
 
     /**
@@ -145,20 +120,16 @@ public final class Groups {
     }
 
     /**
-     * Rule 6: with an item open, a shift-click goes into it, from the inventory or the
-     * open container; out of it, back to what holds it. With only the ender chest open,
-     * the ender chest is that item. Whatever doesn't fit goes where vanilla sends it
-     * (Trev, 2026-10-16).
+     * Rule 6 for the bundle: a shift-click goes into it, and out of it back to what holds
+     * it; what doesn't fit goes where vanilla sends it (Trev, 2026-10-16). A shulker box
+     * and the ender chest get this from vanilla's own menus.
      */
     private static @Nullable List<Dest> route(net.minecraft.world.inventory.AbstractContainerMenu menu, Player player, Slot source) {
-        Session item = Sessions.get(player, Openable.SHULKER);
-        if (item == null) item = Sessions.get(player, Openable.BUNDLE);
-        Session target = item != null ? item : Sessions.get(player, Openable.ENDER_CHEST);
-        if (target == null) return null;
-        // Out of the item: back to what holds it.
-        if (isIn(source, target.kind())) return back(target);
-        // From the inventory, a chest, or the ender chest beside it: into the item.
-        return List.of(Dest.group(of(target.kind()).id()), Dest.VANILLA);
+        Session open = Sessions.get(player, Openable.BUNDLE);
+        if (open == null) return null;
+        // Out of the bundle: back to what holds it. From anywhere else: into it.
+        if (isIn(source, Openable.BUNDLE)) return back(open);
+        return List.of(Dest.group(bundle.id()), Dest.VANILLA);
     }
 
     /**

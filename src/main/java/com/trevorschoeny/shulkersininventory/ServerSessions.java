@@ -1,10 +1,15 @@
 package com.trevorschoeny.shulkersininventory;
 
-import com.trevlar.slotkit.api.slot.CreatedSlot;
+import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
+
+import org.jspecify.annotations.Nullable;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.InventoryMenu;
@@ -12,21 +17,28 @@ import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
-/** Opening and closing items on the server, where every rule is checked. */
+/**
+ * Opening and closing items on the server, where every rule is checked.
+ *
+ * <p>A shulker box or the ender chest opens natively: the server opens vanilla's own
+ * shulker box or ender chest menu, so the client shows vanilla's own screen, exactly as
+ * a placed one opens (Trev, 2026-10-16). Closing it steps back to where it was opened
+ * from. The bundle still opens as a panel on the inventory screen, until it gets a menu
+ * of its own.
+ */
 final class ServerSessions {
 
     private ServerSessions() {}
 
     /**
      * The player asked to open the item in {@code menuSlot} of their open menu. Opens it,
-     * closes it if it's already the open one (shift+right-click again), or does nothing
-     * when any rule says no. A refused request changes nothing, so a modified client
-     * gains nothing by sending one.
+     * closes it if it's the open one (shift+right-click again), or does nothing when any
+     * rule says no. A refused request changes nothing, so a modified client gains nothing
+     * by sending one.
      */
     static void open(ServerPlayer player, int menuSlot) {
         AbstractContainerMenu menu = player.containerMenu;
-        if (!opensOn(menu) || menuSlot < 0 || menuSlot >= menu.slots.size()) return;
-        if (!menu.getCarried().isEmpty()) return;
+        if (menuSlot < 0 || menuSlot >= menu.slots.size() || !menu.getCarried().isEmpty()) return;
 
         Slot slot = menu.getSlot(menuSlot);
         ItemStack stack = slot.getItem();
@@ -35,63 +47,127 @@ final class ServerSessions {
         // A stack of boxes (Carpet) shares one contents list: editing it would copy items
         // into every box (QuickShulker #68).
         if (kind == Openable.SHULKER && stack.getCount() != 1) return;
-        // Open from a vanilla slot, or from the open ender chest's panel (a shulker kept
-        // in the ender chest). Never from the shulker panel itself, whose backing is the
-        // very item being swapped out.
-        CreatedSlot created = CreatedSlot.of(slot);
-        if (created != null && !created.panelId().equals(Openable.ENDER_CHEST.slotPanelId())) return;
 
+        // Shift+right-click on the open item closes it.
         Session current = Sessions.get(player, kind);
         if (current != null && current.stack() == stack) {
-            close(player, kind);
+            closeAndStepBack(player, kind);
             return;
         }
-        // One player per item: someone else looking into the same chest can't open the same box.
+        // One player per item: two players can't have the same box open.
         if (Sessions.isOpenByAnyone(stack)) return;
 
-        // Rule 2: one item at a time, plus the ender chest. Opening a shulker swaps out
-        // the open shulker or bundle; opening the ender chest swaps out the ender chest.
-        for (Session open : Sessions.of(player)) {
-            if (open.kind().isEnderChest() == kind.isEnderChest()) close(player, open.kind());
+        Session ender = Sessions.get(player, Openable.ENDER_CHEST);
+        boolean inOpenEnderChest = ender != null && menu == ender.menu() && slot.container != player.getInventory();
+        if (kind == Openable.BUNDLE) {
+            // The bundle's panel lives on the inventory screen for now.
+            if (!(menu instanceof InventoryMenu)) return;
+            openBundle(player, menu, slot, menuSlot, stack);
+            return;
         }
-        Sessions.put(player, new Session(kind, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));
-        // The client hears the session first, then the live count, then the contents.
-        ServerPlayNetworking.send(player, new SessionS2C(kind, menuSlot));
-        Groups.open(player, kind);
+        // Where items open natively from, for now (design, Rule 3): the inventory, and a
+        // shulker kept in the open ender chest. Placed chests wait for the step that shows
+        // a chest and an item together.
+        if (!(menu instanceof InventoryMenu) && !inOpenEnderChest && !isOpenNative(player, menu)) return;
+        // From the ender chest, closing the shulker steps back to it.
+        Session parent = inOpenEnderChest && kind == Openable.SHULKER ? ender : null;
+        openNative(player, kind, slot.container, slot.getContainerSlot(), stack, parent);
     }
 
-    static void close(ServerPlayer player, Openable kind) {
-        if (Sessions.get(player, kind) == null) return;
+    /** True when {@code menu} is one this mod opened natively (opening another from it swaps). */
+    private static boolean isOpenNative(ServerPlayer player, AbstractContainerMenu menu) {
+        for (Session s : Sessions.of(player)) if (s.menu() == menu && s.kind() != Openable.BUNDLE) return true;
+        return false;
+    }
+
+    /**
+     * Opens vanilla's menu for a shulker box or the ender chest. Vanilla closes whatever
+     * menu was open first, so the sessions on it end; the new session finds the opened
+     * item's slot on the new menu, for the client's lock and grey.
+     */
+    private static void openNative(ServerPlayer player, Openable kind, Container container, int containerSlot,
+                                   ItemStack stack, @Nullable Session parent) {
+        for (Session s : Sessions.of(player)) {
+            Sessions.remove(player, s.kind());
+            if (s.kind() == Openable.BUNDLE) Groups.close(player, s.kind());
+            ServerPlayNetworking.send(player, SessionS2C.closed(s.kind(), false));
+        }
+
+        if (kind == Openable.ENDER_CHEST) {
+            // A real ender chest elsewhere may still be set as the active one; its
+            // distance check would close this menu at once.
+            player.getEnderChestInventory().setActiveChest(null);
+            player.openMenu(new SimpleMenuProvider((id, inventory, p) ->
+                    ChestMenu.threeRows(id, inventory, player.getEnderChestInventory()),
+                    Component.translatable("container.enderchest")));
+        } else {
+            Container contents = new StorageContainerAdapter(new ShulkerStorage(stack));
+            player.openMenu(new SimpleMenuProvider((id, inventory, p) -> new ShulkerBoxMenu(id, inventory, contents),
+                    stack.getHoverName()));
+        }
+
+        AbstractContainerMenu opened = player.containerMenu;
+        int menuSlot = slotOf(opened, container, containerSlot);
+        Sessions.put(player, new Session(kind, opened, container, containerSlot, menuSlot, stack, parent));
+        ServerPlayNetworking.send(player, SessionS2C.opened(kind, menuSlot));
+    }
+
+    private static void openBundle(ServerPlayer player, AbstractContainerMenu menu, Slot slot, int menuSlot, ItemStack stack) {
+        Session open = Sessions.get(player, Openable.BUNDLE);
+        if (open != null) closeAndStepBack(player, Openable.BUNDLE);
+        Sessions.put(player, new Session(Openable.BUNDLE, menu, slot.container, slot.getContainerSlot(), menuSlot, stack, null));
+        // The client hears the session first, then the live count, then the contents.
+        ServerPlayNetworking.send(player, SessionS2C.opened(Openable.BUNDLE, menuSlot));
+        Groups.open(player, Openable.BUNDLE);
+    }
+
+    /** Where a container slot sits on a menu, or -1 when the menu doesn't show it. */
+    private static int slotOf(AbstractContainerMenu menu, Container container, int containerSlot) {
+        for (Slot s : menu.slots) if (s.container == container && s.getContainerSlot() == containerSlot) return s.index;
+        return -1;
+    }
+
+    /**
+     * The close button, or shift+right-click on the open item: closes it and steps back,
+     * to the ender chest it was opened from, else to the inventory screen.
+     */
+    static void closeAndStepBack(ServerPlayer player, Openable kind) {
+        Session session = Sessions.get(player, kind);
+        if (session == null) return;
         Sessions.remove(player, kind);
-        Groups.close(player, kind);
-        ServerPlayNetworking.send(player, new SessionS2C(kind, -1));
+        if (kind == Openable.BUNDLE) {
+            Groups.close(player, kind);
+            ServerPlayNetworking.send(player, SessionS2C.closed(kind, false));
+            return;
+        }
+        Session parent = session.parent();
+        if (parent != null && parent.stillInPlace()) {
+            openNative(player, parent.kind(), parent.container(), parent.containerSlot(), parent.stack(), parent.parent());
+            return;
+        }
+        player.closeContainer();
+        ServerPlayNetworking.send(player, SessionS2C.closed(kind, true));
     }
 
     /**
      * The guard SlotKit's slot lock can't be: every tick, each open item must still be
-     * the same stack in the same place on the same open menu. A hopper under the chest,
-     * another player, the chest broken, death, a dimension change, a command, another
-     * mod: whatever moved it, the panel closes. Nothing is lost by closing, because
-     * every change was already written into the item.
+     * the same stack in the same place, with its menu open. A hopper, another player,
+     * death, a dimension change, a command, another mod: whatever moved it, the item
+     * closes, and so does its screen. Nothing is lost by closing, because every change
+     * was already written into the item. Closing the screen (Escape) ends it the same way.
      */
     static void tick(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             for (Session s : Sessions.of(player)) {
-                boolean valid = player.isAlive()
-                        && player.containerMenu == s.menu()
-                        && s.stillInPlace()
+                boolean menuOpen = player.containerMenu == s.menu();
+                boolean valid = player.isAlive() && menuOpen && s.stillInPlace()
                         && (s.kind() != Openable.SHULKER || s.stack().getCount() == 1);
-                if (!valid) close(player, s.kind());
+                if (valid) continue;
+                Sessions.remove(player, s.kind());
+                if (s.kind() == Openable.BUNDLE) Groups.close(player, s.kind());
+                else if (menuOpen) player.closeContainer();
+                ServerPlayNetworking.send(player, SessionS2C.closed(s.kind(), false));
             }
         }
-    }
-
-    /**
-     * The screens items open on, for now (design, Rule 3): the player's inventory and
-     * chest-like ones. A furnace or anvil draws the inventory into one fixed
-     * background, so a panel there waits.
-     */
-    private static boolean opensOn(AbstractContainerMenu menu) {
-        return menu instanceof InventoryMenu || menu instanceof ChestMenu || menu instanceof ShulkerBoxMenu;
     }
 }
