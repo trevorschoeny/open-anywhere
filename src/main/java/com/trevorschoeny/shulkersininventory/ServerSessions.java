@@ -55,12 +55,15 @@ final class ServerSessions {
             if (open.kind().isEnderChest() == kind.isEnderChest()) close(player, open.kind());
         }
         Sessions.put(player, new Session(kind, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));
+        // The client hears the session first, then the live count, then the contents.
         ServerPlayNetworking.send(player, new SessionS2C(kind, menuSlot));
+        Groups.open(player, kind);
     }
 
     static void close(ServerPlayer player, Openable kind) {
         if (Sessions.get(player, kind) == null) return;
         Sessions.remove(player, kind);
+        Groups.close(player, kind);
         ServerPlayNetworking.send(player, new SessionS2C(kind, -1));
     }
 

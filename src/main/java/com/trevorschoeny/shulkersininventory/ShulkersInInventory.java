@@ -10,7 +10,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
  * the screen you're on, without placing it. Design: Inventory Suite drive,
  * {@code mods/shulkers-in-inventory/design.md}.
  *
- * <p>Common init, both sides: the panels and the slot lock ({@link Panels}), the three
+ * <p>Common init, both sides: the slot groups, the slot lock and the shift-click routes ({@link Groups}), the three
  * payloads, and the server's open, close and per-tick check ({@link ServerSessions}).
  */
 public final class ShulkersInInventory implements ModInitializer {
@@ -19,7 +19,7 @@ public final class ShulkersInInventory implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        Panels.register();
+        Groups.register();
 
         PayloadTypeRegistry.serverboundPlay().register(OpenC2S.TYPE, OpenC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CloseC2S.TYPE, CloseC2S.CODEC);

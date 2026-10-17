@@ -32,12 +32,11 @@ public enum Openable {
     }
 
     /**
-     * The id SlotKit gives a grid panel's built slots ({@code CreatedSlot.panelId()}):
-     * the panel id and its group, {@code shulkersininventory:ender_chest:slots}. (The
-     * bundle's slots are one group each, {@code ...:bundle:s0} on.)
+     * The id SlotKit gives this kind's built slots ({@code CreatedSlot.panelId()}): the
+     * owner and the group, {@code shulkersininventory:shulker:slots}.
      */
     public String slotPanelId() {
-        return panelId() + ":" + Panels.GROUP;
+        return panelId() + ":" + Groups.GROUP;
     }
 
     /** Whether this is the one that may stay open beside another (design, Rule 2). */

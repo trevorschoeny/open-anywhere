@@ -25,16 +25,6 @@ final class BundleView {
         return bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
     }
 
-    /**
-     * Whether bundle slot {@code index} shows: every filled one, plus the next one to add
-     * to, unless the bundle is full (64 weight, or 64 stacks).
-     */
-    static boolean shows(@Nullable BundleContents contents, int index) {
-        if (contents == null) return false;
-        if (index < contents.size()) return true;
-        return index == contents.size() && !full(contents);
-    }
-
     /** The slot that adds to the bundle (the plus), or -1 when it's full. */
     static int addSlot(@Nullable BundleContents contents) {
         return contents == null || full(contents) ? -1 : contents.size();

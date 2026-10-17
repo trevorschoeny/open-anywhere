@@ -3,12 +3,9 @@ package com.trevorschoeny.shulkersininventory;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
 
@@ -17,8 +14,8 @@ import net.minecraft.world.entity.player.Player;
 
 /**
  * Who has what open, on this side. The server's entries are the truth; the client
- * mirrors its own from {@link SessionS2C} so its panels, gates and slot lock predict
- * the server's answers.
+ * mirrors its own from {@link SessionS2C} so its slot lock, grey mark and shift-click
+ * routes predict the server's answers.
  *
  * <p>At most two per player: the ender chest, and one shulker box or bundle
  * (design, Rule 2). Keyed weakly by player, so a player object that's gone (respawn,
@@ -41,25 +38,6 @@ public final class Sessions {
         return player.level().isClientSide() ? CLIENT : SERVER;
     }
 
-    /**
-     * Which panels the client shows. The panels' reveal predicates take no player, so
-     * the client's own sessions are mirrored here as a plain set.
-     */
-    public static final Set<Openable> CLIENT_SHOWN = Collections.synchronizedSet(EnumSet.noneOf(Openable.class));
-
-    /**
-     * The client's player, for the reveal predicates that need its bundle. Set by the
-     * client init; null on a dedicated server, where nothing reveals.
-     */
-    private static volatile Supplier<Player> clientPlayer = () -> null;
-
-    public static void clientPlayer(Supplier<Player> player) {
-        clientPlayer = player;
-    }
-
-    static @Nullable Player clientPlayer() {
-        return clientPlayer.get();
-    }
 
     public static @Nullable Session get(Player player, Openable kind) {
         Map<Player, EnumMap<Openable, Session>> table = side(player);

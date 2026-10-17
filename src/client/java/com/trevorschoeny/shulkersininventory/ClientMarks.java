@@ -32,7 +32,7 @@ public final class ClientMarks {
 
     private static boolean isAddSlot(CreatedSlot created) {
         int add = BundleView.addSlot(BundleView.contents(Minecraft.getInstance().player));
-        return add >= 0 && created.panelId().equals(Openable.BUNDLE.panelId() + ":" + Panels.bundleGroup(add));
+        return add >= 0 && created.panelId().equals(Openable.BUNDLE.slotPanelId()) && created.getLocalIndex() == add;
     }
 
     /**
