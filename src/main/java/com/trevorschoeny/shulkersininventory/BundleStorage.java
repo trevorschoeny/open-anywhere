@@ -1,5 +1,8 @@
 package com.trevorschoeny.shulkersininventory;
 
+import java.util.Map;
+import java.util.WeakHashMap;
+
 import com.trevlar.slotkit.api.storage.Storage;
 
 import net.minecraft.core.NonNullList;
@@ -9,24 +12,45 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * The bundle panel's slots on the server: one slot per stack the opened bundle holds,
- * in the bundle's own order, then empty slots. Live like {@link ShulkerStorage}: every
- * change is written straight back into the bundle's {@code minecraft:bundle_contents}.
+ * The bundle panel on the server: one slot per stack the opened bundle holds, in the
+ * bundle's own order, then the slot that adds one. Live like {@link ShulkerStorage}:
+ * every change is written straight back into the bundle's {@code minecraft:bundle_contents}.
+ *
+ * <p>Each bundle slot is its own one-slot SlotKit group, so each can be shown or hidden
+ * on its own and the panel grows as the bundle fills ({@link Panels}). They all read one
+ * list per player, this class; {@link #slot} is the view one group gets.
  *
  * <p>Writing back drops the emptied slots, so taking a stack from the middle moves the
  * ones after it up by one, as in the bundle itself, and vanilla's slot sync shows the
- * shift. What may go in, and how much, is the panel's per-slot gate
- * ({@link BundleRules}): the 64-weight rule is checked before an item moves, never after.
+ * shift. What may go in, and how much, is each slot's gate ({@link Panels}), checked
+ * before an item moves, never after.
  */
-final class BundleStorage implements Storage {
+final class BundleStorage {
+
+    // Server players only, so one entity id is one player.
+    private static final Map<Player, BundleStorage> BY_PLAYER = new WeakHashMap<>();
+
+    static synchronized BundleStorage of(Player player) {
+        return BY_PLAYER.computeIfAbsent(player, BundleStorage::new);
+    }
 
     private final Player player;
     private ItemStack loadedBundle = ItemStack.EMPTY;
     private BundleContents loadedFrom = null;
     private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
 
-    BundleStorage(Player player) {
+    private BundleStorage(Player player) {
         this.player = player;
+    }
+
+    /** Bundle slot {@code index} as a one-slot storage. */
+    Storage slot(int index) {
+        return new Storage() {
+            @Override public ItemStack getStack(int i) { return get(index); }
+            @Override public void setStack(int i, ItemStack stack) { set(index, stack); }
+            @Override public int size() { return 1; }
+            @Override public void markDirty() { writeBackIfOpen(); }
+        };
     }
 
     private ItemStack bundle() {
@@ -44,26 +68,18 @@ final class BundleStorage implements Storage {
         return bundle;
     }
 
-    @Override
-    public ItemStack getStack(int i) {
-        return bundle() == null ? ItemStack.EMPTY : live.get(i);
+    private ItemStack get(int index) {
+        return bundle() == null ? ItemStack.EMPTY : live.get(index);
     }
 
-    @Override
-    public void setStack(int i, ItemStack stack) {
+    private void set(int index, ItemStack stack) {
         ItemStack bundle = bundle();
         if (bundle == null) return;
-        live.set(i, stack);
+        live.set(index, stack);
         writeBack(bundle);
     }
 
-    @Override
-    public int size() {
-        return live.size();
-    }
-
-    @Override
-    public void markDirty() {
+    private void writeBackIfOpen() {
         ItemStack bundle = bundle();
         if (bundle != null) writeBack(bundle);
     }

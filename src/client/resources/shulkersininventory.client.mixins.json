@@ -4,7 +4,8 @@
   "package": "com.trevorschoeny.shulkersininventory.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
-    "HoveredSlotAccessor"
+    "HoveredSlotAccessor",
+    "SlotMarksMixin"
   ],
   "injectors": {
     "defaultRequire": 1

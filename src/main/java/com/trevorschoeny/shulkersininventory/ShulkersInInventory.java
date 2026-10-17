@@ -28,7 +28,7 @@ public final class ShulkersInInventory implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(OpenC2S.TYPE,
                 (payload, context) -> ServerSessions.open(context.player(), payload.menuSlot()));
         ServerPlayNetworking.registerGlobalReceiver(CloseC2S.TYPE,
-                (payload, context) -> ServerSessions.closeTop(context.player()));
+                (payload, context) -> ServerSessions.close(context.player(), payload.kind()));
         ServerTickEvents.END_SERVER_TICK.register(ServerSessions::tick);
     }
 }

@@ -58,13 +58,6 @@ final class ServerSessions {
         ServerPlayNetworking.send(player, new SessionS2C(kind, menuSlot));
     }
 
-    /** Escape: the item closes first, the ender chest next. */
-    static void closeTop(ServerPlayer player) {
-        Session top = null;
-        for (Session s : Sessions.of(player)) if (top == null || top.kind().isEnderChest()) top = s;
-        if (top != null) close(player, top.kind());
-    }
-
     static void close(ServerPlayer player, Openable kind) {
         if (Sessions.get(player, kind) == null) return;
         Sessions.remove(player, kind);

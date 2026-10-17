@@ -32,8 +32,9 @@ public enum Openable {
     }
 
     /**
-     * The id SlotKit gives the panel's built slots ({@code CreatedSlot.panelId()}): the
-     * panel id and its group, {@code shulkersininventory:shulker:slots}.
+     * The id SlotKit gives a grid panel's built slots ({@code CreatedSlot.panelId()}):
+     * the panel id and its group, {@code shulkersininventory:ender_chest:slots}. (The
+     * bundle's slots are one group each, {@code ...:bundle:s0} on.)
      */
     public String slotPanelId() {
         return panelId() + ":" + Panels.GROUP;
