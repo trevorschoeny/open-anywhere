@@ -4,7 +4,9 @@ import java.util.function.Supplier;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.panel.OutsideRegion;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.Reference;
@@ -72,7 +74,9 @@ final class ClientPanels {
         Panel panel = Panel.builder(Openable.BUNDLE.panelId())
                 .add(SlotFlowElement.of(group))
                 .style(PanelStyle.RAISED)
-                .position(PanelPosition.region(OutsideRegion.TOP_CENTER).priority(10))
+                // Both modes: it shows only with a bundle open, and an open bundle outlives a
+                // /gamemode switch, so its place must too.
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.TOP_CENTER).priority(10)))
                 .build()
                 .pinnedWidth(ROW_WIDTH)
                 .visibleWhen(() -> ClientSlots.isShown(group.id()));
@@ -99,12 +103,13 @@ final class ClientPanels {
                         })
                         .build())
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.pixel(() -> {
+                // Both modes, like the session it closes (see the bundle panel).
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> {
                     Reference b = box.get();
                     // Off screen when there's nothing to close (hidden then anyway).
                     if (b == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
                     return new ScreenOrigin(b.leftPos() + b.imageWidth() - CLOSE_SIZE / 2, b.topPos() - CLOSE_SIZE / 2);
-                }))
+                })))
                 .build()
                 .visibleWhen(() -> session.get() != null);
         new ScreenPanelAdapter(close, 0).onMatching(ScreenMatcher.all());

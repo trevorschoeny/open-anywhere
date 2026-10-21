@@ -1,5 +1,6 @@
 package com.trevorschoeny.shulkersininventory;
 
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
 
 import org.jspecify.annotations.Nullable;
@@ -37,6 +38,9 @@ final class ServerSessions {
      * by sending one.
      */
     static void open(ServerPlayer player, int menuSlot) {
+        // Survival only for now (design, Rule 4). The server checks too: a client's word
+        // on its own mode isn't trusted.
+        if (!ModeScope.SURVIVAL.includes(player)) return;
         AbstractContainerMenu menu = player.containerMenu;
         if (menuSlot < 0 || menuSlot >= menu.slots.size() || !menu.getCarried().isEmpty()) return;
 

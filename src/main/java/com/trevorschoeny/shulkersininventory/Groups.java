@@ -2,6 +2,7 @@ package com.trevorschoeny.shulkersininventory;
 
 import java.util.List;
 
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
 import com.trevlar.slotkit.api.slot.CreatedSlot;
 import com.trevlar.slotkit.api.slot.ParityGroup;
@@ -60,8 +61,10 @@ public final class Groups {
 
         // The opened item's own slot refuses every operation while it's open, from
         // vanilla's clicks, keys and drops to any other mod's (SlotKit's slot lock).
-        // Hoppers and dispensers don't ask; the per-tick check covers those.
-        SlotOperations.veto((ref, operation) -> Sessions.isOpenAt(ref.container(), ref.containerSlot()));
+        // Hoppers and dispensers don't ask; the per-tick check covers those. Both modes:
+        // opening is survival only, but a session open when the player turns creative
+        // stays locked until it closes.
+        SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Sessions.isOpenAt(ref.container(), ref.containerSlot()));
 
         QuickMoveRoutes.register(Groups::route);
     }
@@ -95,7 +98,7 @@ public final class Groups {
     private static void bundleRules() {
         for (int i = 0; i < Openable.BUNDLE.slots; i++) {
             int index = i;
-            Window.slot(Address.createdSlot(bundle.id(), index)).gate(new SlotGate() {
+            Window.slot(ModeScope.BOTH, Address.createdSlot(bundle.id(), index)).gate(new SlotGate() {
                 @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
                     BundleContents contents = BundleView.contents(ctx.actingPlayer());
                     if (contents == null) return false;

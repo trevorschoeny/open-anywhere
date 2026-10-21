@@ -76,6 +76,25 @@ dependencies {
 
 }
 
+// Self-checks: Fabric client gametests in src/gametest, run with
+// `./gradlew :shulkers-in-inventory:runClientGameTest`. The run opens its own window, runs
+// every check against the scenes' check worlds and closes; it never touches run/ or a scene client.
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'shulkersininventory_checks'
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
+    }
+}
+apply from: rootProject.file('Trevlar Mods Codebases/test-gallery/kit/checks.gradle')   // SceneWorld
+dependencies {
+    gametestImplementation sourceSets.client.output
+    gametestImplementation rootProject.project(':menukit').sourceSets.client.output
+    gametestImplementation rootProject.project(':slotkit').sourceSets.client.output
+}
+
 jar {
     from('LICENSE') { rename { "${it}_${project.name}" } }
 }

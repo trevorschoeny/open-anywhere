@@ -31,8 +31,8 @@
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": "~26.3",
-    "menukit": ">=7.3.0 <8.0.0",
-    "slotkit": ">=2.0.0 <3.0.0"
+    "menukit": ">=7.4.0 <8.0.0",
+    "slotkit": ">=2.1.0 <3.0.0"
   },
   "suggests": {
     "inventoryplus": "*"

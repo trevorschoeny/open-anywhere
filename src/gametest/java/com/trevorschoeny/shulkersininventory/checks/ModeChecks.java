@@ -1,0 +1,241 @@
+package com.trevorschoeny.shulkersininventory.checks;
+
+import com.google.gson.JsonObject;
+import com.mojang.blaze3d.platform.InputConstants;
+import com.trevlar.slotkit.api.slot.ClientSlots;
+import com.trevorschoeny.shulkersininventory.Groups;
+import com.trevorschoeny.shulkersininventory.OpenC2S;
+import com.trevorschoeny.shulkersininventory.Openable;
+import com.trevorschoeny.shulkersininventory.Sessions;
+
+import net.fabricmc.fabric.api.client.creativetab.v1.FabricCreativeModeInventoryScreen;
+import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
+import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.Slot;
+import testgallery.SceneWorld;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
+/**
+ * Checks for the modes scene (test-gallery/scenes/shulkers-in-inventory/modes.json): opening
+ * is survival only for now (design, Rule 4), read from the player's mode, not from which
+ * screen is open. Every check opens the way a hand does, shift+right-click through the mouse.
+ */
+public class ModeChecks implements FabricClientGameTest {
+
+    private static final String SHULKER = "minecraft:shulker_box[container=[{slot:0,item:{id:\"minecraft:stone\",count:32}}]]";
+    private static final String BUNDLE = "minecraft:bundle[bundle_contents=[{id:\"minecraft:stone\",count:4}]]";
+
+    private ClientGameTestContext ctx;
+    private SceneWorld.Opened scene;
+    private final List<String> failures = new ArrayList<>();
+
+    @Override
+    public void runTest(ClientGameTestContext ctx) {
+        this.ctx = ctx;
+        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "modes")) {
+            this.scene = scene;
+            run("shulkersininventory:survival_shulker", this::survivalShulker);
+            run("shulkersininventory:survival_ender", this::survivalEnder);
+            run("shulkersininventory:survival_bundle", this::survivalBundle);
+            run("shulkersininventory:creative_inventory_tab", this::creativeInventoryTab);
+            run("shulkersininventory:creative_item_tab", this::creativeItemTab);
+            run("shulkersininventory:mode_switch", this::modeSwitch);
+        }
+        if (!failures.isEmpty()) throw new AssertionError("mode checks failed:\n- " + String.join("\n- ", failures));
+    }
+
+    /** One station from a clean survival player holding a box, an ender chest and a bundle. */
+    private void run(String id, Runnable check) {
+        JsonObject station = scene.station(id);
+        try {
+            scene.standAt(station, 30);
+            for (String c : new String[] {"gamemode survival @p", "clear @p",
+                    "item replace entity @p hotbar.0 with " + SHULKER,
+                    "item replace entity @p hotbar.1 with minecraft:ender_chest",
+                    "item replace entity @p hotbar.2 with " + BUNDLE}) command(c);
+            ctx.waitTicks(3);
+            check.run();
+        } catch (AssertionError e) {
+            failures.add(id + ": " + e.getMessage());
+        } finally {
+            ctx.takeScreenshot("modes-" + id.substring(id.indexOf(':') + 1));
+            ctx.runOnClient(mc -> { if (mc.player != null) mc.player.closeContainer(); });
+            ctx.waitTicks(3);
+        }
+    }
+
+    // ── Stations ───────────────────────────────────────────────────────────
+
+    private void survivalShulker() {
+        openInventory();
+        shiftRightClick(hotbar(0), "shulker box");
+        expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
+        expectServerSession(Openable.SHULKER, true);
+    }
+
+    private void survivalEnder() {
+        openInventory();
+        shiftRightClick(hotbar(1), "ender chest");
+        expectScreen(ContainerScreen.class, "shift+right-click on the ender chest");
+        expectServerSession(Openable.ENDER_CHEST, true);
+    }
+
+    private void survivalBundle() {
+        openInventory();
+        shiftRightClick(hotbar(2), "bundle");
+        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.bundle().id())))
+            throw new AssertionError("the bundle's slots didn't show");
+    }
+
+    /** Creative's Survival Inventory tab: the click is vanilla's, nothing opens or copies. */
+    private void creativeInventoryTab() {
+        command("gamemode creative @p");
+        openCreative(CreativeModeTab.Type.INVENTORY);
+        shiftRightClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
+        // Vanilla's shift-click on the inventory tab moves the box: still one box.
+        nothingOpened(1);
+        // The server checks the mode itself: a client asking anyway gets nothing.
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(36)));
+        ctx.waitTicks(3);
+        expectServerSession(Openable.SHULKER, false);
+    }
+
+    /** An item tab shows only the hotbar; nothing opens from it and no bundle slots appear. */
+    private void creativeItemTab() {
+        command("gamemode creative @p");
+        openCreative(CreativeModeTab.Type.CATEGORY);
+        shiftRightClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
+        // Vanilla's shift-click on an item tab's hotbar deletes the stack (ItemPickerMenu's
+        // quick move): no box left is the proof vanilla had the click, not this mod.
+        nothingOpened(0);
+        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.bundle().id())))
+            throw new AssertionError("bundle slots shown on an item tab");
+    }
+
+    /**
+     * Opened in survival, then /gamemode creative with the box's screen up: the lock (scoped to
+     * both modes) still holds and the close button still closes it.
+     */
+    private void modeSwitch() {
+        openInventory();
+        shiftRightClick(hotbar(0), "shulker box");
+        expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
+        command("gamemode creative @p");
+        ctx.waitTicks(3);
+        // Click the opened box's own slot: locked, it stays where it is.
+        click(hotbar(0).and(s -> s.getItem().is(Items.SHULKER_BOX)), "the opened box");
+        int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
+        if (carried != 0) throw new AssertionError("the opened box was picked up after switching to creative");
+        // The X: a close request for the open box; back to the inventory.
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.shulkersininventory.CloseC2S(Openable.SHULKER)));
+        ctx.waitTicks(5);
+        expectServerSession(Openable.SHULKER, false);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    private void command(String c) {
+        scene.world().getServer().runCommand(c);
+    }
+
+    private void openInventory() {
+        ctx.setScreen(() -> new InventoryScreen(Minecraft.getInstance().player));
+        ctx.waitTicks(3);
+    }
+
+    private void openCreative(CreativeModeTab.Type type) {
+        ctx.waitTicks(3);
+        ctx.getInput().pressKey(o -> o.keyInventory);
+        ctx.waitTicks(3);
+        ctx.runOnClient(mc -> {
+            if (!(mc.gui.screen() instanceof CreativeModeInventoryScreen screen))
+                throw new AssertionError("the inventory key opened " + mc.gui.screen() + " in creative");
+            ((FabricCreativeModeInventoryScreen) screen).setSelectedTab(CreativeModeTabs.allTabs().stream()
+                    .filter(t -> t.getType() == type).findFirst().orElseThrow());
+        });
+        ctx.waitTicks(3);
+    }
+
+    /** The player's hotbar slot, shown, on a survival screen. */
+    private static Predicate<Slot> hotbar(int i) {
+        return s -> s.container instanceof Inventory && s.getContainerSlot() == i && s.isActive();
+    }
+
+    /** The shown slot holding this item (creative's wrappers carry no usable index). */
+    private static Predicate<Slot> item(net.minecraft.world.item.Item item) {
+        return s -> s.isActive() && s.getItem().is(item);
+    }
+
+    /** Still creative's screen, no session on the server, and {@code boxes} boxes after vanilla's own click. */
+    private void nothingOpened(int boxes) {
+        ctx.waitTicks(3);
+        String screen = ctx.computeOnClient(mc -> String.valueOf(mc.gui.screen()));
+        if (!screen.contains("CreativeModeInventoryScreen")) throw new AssertionError("the screen changed to " + screen);
+        expectServerSession(Openable.SHULKER, false);
+        int found = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.SHULKER_BOX));
+        if (found != boxes) throw new AssertionError("expected " + boxes + " shulker box(es) after vanilla's click, found " + found);
+    }
+
+    private void expectScreen(Class<?> type, String after) {
+        ctx.waitTicks(3);
+        Object screen = ctx.computeOnClient(mc -> mc.gui.screen());
+        if (!type.isInstance(screen)) throw new AssertionError(after + " opened " + screen + ", not a " + type.getSimpleName());
+    }
+
+    private void expectServerSession(Openable kind, boolean open) {
+        boolean isOpen = scene.world().getServer().computeOnServer(s ->
+                Sessions.get(s.getPlayerList().getPlayers().getFirst(), kind) != null);
+        if (isOpen != open) throw new AssertionError("server " + (open ? "has no " : "still has a ") + kind + " session");
+    }
+
+    private void hover(Predicate<Slot> p, String what) {
+        double[] at = ctx.computeOnClient(mc -> {
+            if (!(mc.gui.screen() instanceof AbstractContainerScreen<?> screen)) throw new AssertionError("no container screen for " + what);
+            Slot found = null;
+            for (Slot s : screen.getMenu().slots) if (p.test(s)) { found = s; break; }
+            if (found == null) throw new AssertionError("no " + what + " on " + screen);
+            var edge = (com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor) screen;
+            var w = mc.getWindow();
+            double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
+            return new double[] {(edge.shulkersininventory$leftPos() + found.x + 8) * f, (edge.shulkersininventory$topPos() + found.y + 8) * f};
+        });
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
+    }
+
+    private void click(Predicate<Slot> p, String what) {
+        hover(p, what);
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
+    }
+
+    /**
+     * Fabric's TestInput clicks carry no modifiers, and 26.3 reads shift from the click itself,
+     * so this presses through the MouseHandler hook with GLFW's shift bit (1) set (as Simple
+     * Elytra Slot's checks do).
+     */
+    private void shiftRightClick(Predicate<Slot> p, String what) {
+        hover(p, what);
+        for (int action : new int[] {1, 0}) {
+            ctx.runOnClient(mc -> ((net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler)
+                    .invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_RIGHT, 1), action));
+            ctx.waitTick();
+        }
+        ctx.waitTicks(5);
+    }
+}
