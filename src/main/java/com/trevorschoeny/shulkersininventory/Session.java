@@ -4,6 +4,7 @@ import org.jspecify.annotations.Nullable;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -17,17 +18,25 @@ import net.minecraft.world.item.ItemStack;
  * session the moment it isn't ({@link ServerSessions#tick}).
  *
  * @param menu          the menu the item opened: vanilla's shulker box or ender chest
- *                      menu, or (for the bundle) the menu its panel sits on
+ *                      menu, or, for an item stacked below a chest ({@link #stacked()}),
+ *                      the chest's menu; for the bundle, the menu it sits on
  * @param container     the container holding the opened item (the player's inventory,
- *                      or the ender chest for a shulker kept there); null on the client
+ *                      or the chest or ender chest it is kept in); null on the client
  *                      when that container isn't on the open screen
  * @param containerSlot its index in that container
  * @param menuSlot      its index in {@code menu}, or -1 when it isn't on that menu
- * @param parent        the session to step back to on close (the ender chest a shulker
- *                      was opened from), or null to step back to the inventory
  */
 public record Session(Openable kind, AbstractContainerMenu menu, @Nullable Container container, int containerSlot,
-                      int menuSlot, ItemStack stack, @Nullable Session parent) {
+                      int menuSlot, ItemStack stack) {
+
+    /**
+     * True when the item opened in a section below the screen's container (MenuKit's
+     * container list) rather than as vanilla's own screen: a shulker box opened on a
+     * chest's screen, and the bundle, whose slots are always this mod's own.
+     */
+    public boolean stacked() {
+        return kind == Openable.BUNDLE || (kind == Openable.SHULKER && menu instanceof ChestMenu);
+    }
 
     /** True while the opened stack is still exactly where it was opened. */
     public boolean stillInPlace() {

@@ -26,10 +26,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * The bundle's slots, as a SlotKit group on every menu, with no live slots until the
- * server opens a bundle ({@link #open}). A shulker box and the ender chest open
- * vanilla's own menus instead ({@link ServerSessions}). The panel that shows the bundle
- * is the client's ({@code ClientPanels}).
+ * The bundle's slots, and a shulker box's when it opens on a chest's screen, each a
+ * SlotKit group on every menu, with no live slots until the server opens one
+ * ({@link #open}). From the inventory a shulker box and the ender chest open vanilla's
+ * own menus instead ({@link ServerSessions}). What shows the groups is the client's
+ * ({@code ClientPanels}).
  *
  * <p>Also here, because both sides need them: the slot lock on the opened item, the
  * bundle's per-slot rules, and where a shift-click goes (design, Rule 6).
@@ -43,11 +44,26 @@ public final class Groups {
 
     static final SlotGroupCategory BUNDLE_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "bundle");
 
-    private static ParityGroup bundle;
+    static final SlotGroupCategory SHULKER_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "shulker");
 
-    /** The bundle's group. (A shulker box and the ender chest open vanilla's own menus.) */
+    private static ParityGroup bundle;
+    private static ParityGroup shulker;
+
+    /** The bundle's group. */
     public static ParityGroup bundle() {
         return bundle;
+    }
+
+    /**
+     * The group for a shulker box opened on a chest's screen, shown as a section below the
+     * chest. From the inventory a box opens vanilla's own screen instead.
+     */
+    public static ParityGroup shulker() {
+        return shulker;
+    }
+
+    public static ParityGroup of(Openable kind) {
+        return kind == Openable.BUNDLE ? bundle : shulker;
     }
 
     static void register() {
@@ -59,6 +75,25 @@ public final class Groups {
                 .activeCount(0));
         bundleRules();
 
+        shulker = ParityGroup.register(Openable.SHULKER.panelId(), SlotSpec.at(GROUP, SHULKER_STORAGE)
+                .count(Openable.SHULKER.slots)
+                .storage(player -> player.level().isClientSide()
+                        ? EphemeralStorage.of(Openable.SHULKER.slots) : StackedShulkerStorage.of(player))
+                .shiftClickIn(true)
+                .activeCount(0));
+        // A box refuses what vanilla's shulker box slot refuses: other boxes, anything that
+        // can't go in a container item.
+        for (int i = 0; i < Openable.SHULKER.slots; i++) {
+            Window.slot(ModeScope.BOTH, Address.createdSlot(shulker.id(), i)).gate(new SlotGate() {
+                @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
+                    return stack.getItem().canFitInsideContainerItems();
+                }
+                @Override public boolean mayPickup(Player player, GatingContext ctx) {
+                    return true;
+                }
+            });
+        }
+
         // The opened item's own slot refuses every operation while it's open, from
         // vanilla's clicks, keys and drops to any other mod's (SlotKit's slot lock).
         // Hoppers and dispensers don't ask; the per-tick check covers those. Both modes:
@@ -69,21 +104,22 @@ public final class Groups {
         QuickMoveRoutes.register(Groups::route);
     }
 
-    /** How many of the bundle's slots are live with it open. */
-    static int liveCount(Player player) {
+    /** How many of a kind's slots are live with it open. */
+    static int liveCount(Player player, Openable kind) {
+        if (kind == Openable.SHULKER) return Openable.SHULKER.slots;
         BundleContents contents = BundleView.contents(player);
         if (contents == null) return 0;
         // Its stacks, plus the add slot unless it's full.
         return BundleView.addSlot(contents) >= 0 ? contents.size() + 1 : contents.size();
     }
 
-    /** Opens the bundle's slots for this player, sized to the open bundle. */
+    /** Opens a kind's slots for this player, the bundle's sized to the open bundle. */
     static void open(ServerPlayer player, Openable kind) {
-        bundle.setActiveCount(player, liveCount(player));
+        of(kind).setActiveCount(player, liveCount(player, kind));
     }
 
     static void close(ServerPlayer player, Openable kind) {
-        bundle.setActiveCount(player, 0);
+        of(kind).setActiveCount(player, 0);
     }
 
     /**
@@ -123,16 +159,20 @@ public final class Groups {
     }
 
     /**
-     * Rule 6 for the bundle: a shift-click goes into it, and out of it back to what holds
-     * it; what doesn't fit goes where vanilla sends it (Trev, 2026-10-16). A shulker box
-     * and the ender chest get this from vanilla's own menus.
+     * Rule 6 for what this mod shows in its own slots, the bundle and a box below a chest:
+     * a shift-click goes into it, and out of it back to what holds it; what doesn't fit
+     * goes where vanilla sends it (Trev, 2026-10-16). A box opened from the inventory, and
+     * the ender chest, get this from vanilla's own menus.
      */
     private static @Nullable List<Dest> route(net.minecraft.world.inventory.AbstractContainerMenu menu, Player player, Slot source) {
-        Session open = Sessions.get(player, Openable.BUNDLE);
-        if (open == null) return null;
-        // Out of the bundle: back to what holds it. From anywhere else: into it.
-        if (isIn(source, Openable.BUNDLE)) return back(open);
-        return List.of(Dest.group(bundle.id()), Dest.VANILLA);
+        for (Openable kind : new Openable[] {Openable.SHULKER, Openable.BUNDLE}) {
+            Session open = Sessions.get(player, kind);
+            if (open == null || !open.stacked() || open.menu() != menu) continue;
+            // Out of it: back to what holds it. From anywhere else: into it.
+            if (isIn(source, kind)) return back(open);
+            return List.of(Dest.group(of(kind).id()), Dest.VANILLA);
+        }
+        return null;
     }
 
     /**

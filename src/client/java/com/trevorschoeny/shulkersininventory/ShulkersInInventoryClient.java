@@ -66,6 +66,6 @@ public final class ShulkersInInventoryClient implements ClientModInitializer {
         Slot slot = onMenu ? menu.getSlot(payload.menuSlot()) : null;
         Sessions.put(player, new Session(kind, menu, slot == null ? null : slot.container,
                 slot == null ? -1 : slot.getContainerSlot(), payload.menuSlot(),
-                slot == null ? ItemStack.EMPTY : slot.getItem(), null));
+                slot == null ? ItemStack.EMPTY : slot.getItem()));
     }
 }
