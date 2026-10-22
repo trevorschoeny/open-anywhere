@@ -47,13 +47,15 @@ final class SlotScroll {
      * quarters of the frame rate.
      */
     private static final class Grid extends ScrollContainer {
+        final SlotGroupId id;
         final List<SlotElement> nine;
         final boolean narrows;
         /** {@code [0]}: slots live; {@code [1]}: 1 while eight a row; {@code [2]}: 1 while counting. */
         final int[] state;
 
-        Grid(ScrollContainer.Builder b, List<SlotElement> nine, boolean narrows, int[] state) {
+        Grid(ScrollContainer.Builder b, SlotGroupId id, List<SlotElement> nine, boolean narrows, int[] state) {
             super(b);
+            this.id = id;
             this.nine = nine;
             this.narrows = narrows;
             this.state = state;
@@ -89,13 +91,21 @@ final class SlotScroll {
 
     private static final int LANE = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
 
-    private static final List<Grid> GRIDS = new ArrayList<>();
+    // Weak: MenuKit builds a grid each time an item opens and lets it go when it closes.
+    private static final java.util.Set<Grid> GRIDS = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /** True while a grid on screen (drawn in the last frames) has a scrollbar. */
     static boolean anyScrolling() {
         long now = net.minecraft.util.Util.getMillis();
         for (Grid g : GRIDS) if (g.scrolls && now - g.drawn < 100) return true;
         return false;
+    }
+
+    /** When group {@code id}'s grid last drew, in {@code Util.getMillis()} time; 0 for never. */
+    static long drawnAt(SlotGroupId id) {
+        long at = 0;
+        for (Grid g : GRIDS) if (g.id.equals(id)) at = Math.max(at, g.drawn);
+        return at;
     }
 
     /**
@@ -127,7 +137,7 @@ final class SlotScroll {
         Grid scroll = new Grid(ScrollContainer.builder()
                 .size(ContainerRegion.CONTENT_WIDTH + LANE, MIN_ROWS * ROW)
                 .fitHeight()
-                .content(cells), nine, narrows, state);
+                .content(cells), id, nine, narrows, state);
         GRIDS.add(scroll);
         return scroll;
     }

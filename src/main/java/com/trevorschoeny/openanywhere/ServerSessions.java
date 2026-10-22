@@ -3,7 +3,6 @@ package com.trevorschoeny.openanywhere;
 
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -20,7 +19,7 @@ import net.minecraft.world.item.ItemStack;
  * <p>Every opened item is a tab in MenuKit's container list (Trev, 2026-10-22): on a
  * chest's screen beside the chest, and from the inventory on the host screen
  * ({@link ContainerHost}), vanilla's chest screen with no rows of its own. Any number open
- * at once, up to the lanes there are.
+ * at once.
  */
 final class ServerSessions {
 
@@ -102,34 +101,24 @@ final class ServerSessions {
     }
 
     /**
-     * Opens an item in a free lane of its kind on the open menu, beside whatever else is
-     * open (design, Rule 2). With every lane of its kind taken, nothing opens. The ender
-     * chest has one lane, and another ender chest item takes it over.
+     * Opens an item on the open menu, beside whatever else is open (design, Rule 2): its
+     * slots join the menu, and their number there is its lane. There is one ender chest,
+     * so another ender chest item takes the open one's place.
      */
     private static void openStacked(ServerPlayer player, Openable kind, AbstractContainerMenu menu, Slot slot,
                                     int menuSlot, ItemStack stack) {
-        int lane = kind == Openable.ENDER_CHEST ? 0 : freeLane(player, kind);
-        if (lane < 0) {
-            // ponytail: a fixed number of lanes (12 boxes, 3 bundles); goes when SlotKit adds
-            // a group on demand. Until then, say why nothing opened, above the hotbar.
-            player.sendOverlayMessage(Component.translatable("openanywhere.too_many"));
-            return;
+        if (kind == Openable.ENDER_CHEST) {
+            Session old = Sessions.at(player, kind, 0);
+            if (old != null) end(player, old);
         }
-        Session old = Sessions.at(player, kind, lane);
-        if (old != null) end(player, old);
+        int lane = Groups.add(player, kind, stack);
+        if (lane < 0) return; // a client that can't show it
         Sessions.put(player, new Session(kind, lane, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));
-        // The live count and the contents go first, the session last, so the client has the
+        // The slots and their contents go first, the session last, so the client has the
         // box's slots filled the moment it hears it opened: its tab shows full on the first
         // frame, with no frame of the box greyed in the chest or of an empty grid.
-        Groups.open(player, kind, lane);
         menu.broadcastChanges();
         ServerPlayNetworking.send(player, SessionS2C.opened(kind, lane, menuSlot));
-    }
-
-    /** The lowest lane of {@code kind} with nothing open in it, or -1. */
-    private static int freeLane(ServerPlayer player, Openable kind) {
-        for (int lane = 0; lane < kind.lanes; lane++) if (Sessions.at(player, kind, lane) == null) return lane;
-        return -1;
     }
 
     /** Ends a session without touching the screen: its slots close, the client hears. */
@@ -143,7 +132,7 @@ final class ServerSessions {
             }
         }
         Sessions.remove(player, s.kind(), s.lane());
-        if (s.stacked()) Groups.close(player, s.kind(), s.lane());
+        if (s.stacked()) Groups.remove(s.menu(), s.kind(), s.lane());
         ServerPlayNetworking.send(player, SessionS2C.closed(s.kind(), s.lane(), false));
     }
 
@@ -171,7 +160,7 @@ final class ServerSessions {
             return;
         }
         Sessions.remove(player, session.kind(), session.lane());
-        if (session.stacked()) Groups.close(player, session.kind(), session.lane());
+        if (session.stacked()) Groups.remove(session.menu(), session.kind(), session.lane());
         player.closeContainer();
         ServerPlayNetworking.send(player, SessionS2C.closed(session.kind(), session.lane(), true));
     }

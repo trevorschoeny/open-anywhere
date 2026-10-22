@@ -1,9 +1,10 @@
 package com.trevorschoeny.openanywhere;
 
-import java.util.Map;
-import java.util.WeakHashMap;
 
+import com.trevlar.slotkit.api.slot.OnDemandGroup;
 import com.trevlar.slotkit.api.storage.Storage;
+
+import org.jspecify.annotations.Nullable;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
@@ -14,7 +15,7 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * One bundle lane's slots on the server: one slot per stack the opened bundle holds, in the
+ * An open bundle's slots on the server: one slot per stack it holds, in the
  * bundle's own order, then the slot that adds one. Live like {@link ShulkerStorage}:
  * every change is written straight back into the bundle's {@code minecraft:bundle_contents},
  * and the group's live count follows, so the add slot appears and moves as things go
@@ -27,36 +28,39 @@ import net.minecraft.world.item.component.BundleContents;
  */
 final class BundleStorage implements Storage {
 
-    // Server players only, so one entity id is one player.
-    private static final Map<Player, BundleStorage[]> BY_PLAYER = new WeakHashMap<>();
-
-    static synchronized BundleStorage of(Player player, int lane) {
-        BundleStorage[] lanes = BY_PLAYER.computeIfAbsent(player, p -> new BundleStorage[Openable.BUNDLE.lanes]);
-        if (lanes[lane] == null) lanes[lane] = new BundleStorage(player, lane);
-        return lanes[lane];
-    }
-
     private final Player player;
-    private final int lane;
-    private ItemStack loadedBundle = ItemStack.EMPTY;
+    private final ItemStack bundle;
     private BundleContents loadedFrom = null;
     private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
+    // The slots it shows in, whose live count follows the bundle. Set right after they're added.
+    private OnDemandGroup.@Nullable Instance shownIn;
 
-    private BundleStorage(Player player, int lane) {
+    BundleStorage(Player player, ItemStack bundle) {
         this.player = player;
-        this.lane = lane;
+        this.bundle = bundle;
+    }
+
+    /** The slots this storage shows in, now added: sized to the bundle from here on. */
+    void shownIn(OnDemandGroup.Instance instance) {
+        shownIn = instance;
+        instance.setActiveCount(liveCount(contents(bundle)));
+    }
+
+    private static BundleContents contents(ItemStack bundle) {
+        return bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+    }
+
+    /** How many of the bundle's slots are live: its stacks, plus the add slot unless it's full. */
+    static int liveCount(BundleContents contents) {
+        return BundleView.addSlot(contents) >= 0 ? contents.size() + 1 : contents.size();
     }
 
     private ItemStack bundle() {
-        Session session = Sessions.at(player, Openable.BUNDLE, lane);
-        if (session == null) return null;
-        ItemStack bundle = session.stack();
-        BundleContents contents = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
-        if (bundle != loadedBundle || contents != loadedFrom) {
+        BundleContents contents = contents(bundle);
+        if (contents != loadedFrom) {
             for (int i = 0; i < live.size(); i++) live.set(i, ItemStack.EMPTY);
             int i = 0;
             for (ItemStack stack : (Iterable<ItemStack>) contents.itemCopies()::iterator) live.set(i++, stack);
-            loadedBundle = bundle;
             loadedFrom = contents;
         }
         return bundle;
@@ -112,6 +116,6 @@ final class BundleStorage implements Storage {
                 .filter(s -> !s.isEmpty()).map(ItemStackTemplate::fromNonEmptyStack).toList()));
         // Reloaded on the next read, which also packs the emptied slots out.
         loadedFrom = null;
-        if (player instanceof ServerPlayer server) Groups.open(server, Openable.BUNDLE, lane);
+        if (shownIn != null) shownIn.setActiveCount(liveCount(contents(bundle)));
     }
 }

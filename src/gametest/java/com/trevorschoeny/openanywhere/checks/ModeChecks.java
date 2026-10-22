@@ -119,14 +119,14 @@ public class ModeChecks implements FabricClientGameTest {
         expectScreen(ContainerScreen.class, "double-click on the bundle");
         if (!ctx.computeOnClient(mc -> ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
             throw new AssertionError("the bundle's screen isn't on its host menu");
-        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
+        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.BUNDLE, 0))))
             throw new AssertionError("the bundle's slots didn't show");
         String first = ctx.computeOnClient(mc -> {
             var screen = (AbstractContainerScreen<?>) mc.gui.screen();
             var edge = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
             for (Slot sl : screen.getMenu().slots) {
                 var c = com.trevlar.slotkit.api.slot.CreatedSlot.of(sl);
-                if (c == null || !c.panelId().equals(Openable.BUNDLE.slotPanelId(0)) || c.getLocalIndex() != 0) continue;
+                if (c == null || !c.panelId().equals(Groups.id(Openable.BUNDLE, 0).panelId()) || c.getLocalIndex() != 0) continue;
                 int top = edge.openanywhere$topPos();
                 boolean drawn = sl.isActive() && top + sl.y >= 0 && top + sl.y + 16 <= screen.height;
                 return (drawn ? "drawn" : "not drawn") + " " + sl.getItem();
@@ -170,7 +170,7 @@ public class ModeChecks implements FabricClientGameTest {
         doubleClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
         // Vanilla's right-click picks the box up: still one box, on the cursor.
         nothingOpened(1);
-        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
+        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.BUNDLE, 0))))
             throw new AssertionError("bundle slots shown on an item tab");
     }
 

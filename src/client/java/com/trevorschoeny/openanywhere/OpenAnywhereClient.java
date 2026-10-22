@@ -59,8 +59,12 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         if (AWAITING.isEmpty()) return false;
         var screen = Minecraft.getInstance().gui.screen();
         long now = net.minecraft.util.Util.getMillis();
-        AWAITING.keySet().removeIf(id -> screen == null || ContainerRegion.anchor(id).box(screen) != null
-                || now - AWAITING_SINCE.getOrDefault(id, 0L) > AWAIT_MS);
+        // Its tab shows once its grid has drawn.
+        AWAITING.entrySet().removeIf(e -> {
+            long since = AWAITING_SINCE.getOrDefault(e.getKey(), 0L);
+            return screen == null || now - since > AWAIT_MS
+                    || SlotScroll.drawnAt(Groups.id(e.getValue().kind(), e.getValue().lane())) >= since;
+        });
         AWAITING_SINCE.keySet().retainAll(AWAITING.keySet());
         for (Session s : AWAITING.values()) if (s.container() == slot.container && s.containerSlot() == slot.getContainerSlot()) return true;
         return false;
@@ -268,7 +272,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         // shows it a frame later; until then its slot isn't greyed, so that frame looks as
         // it did before the click instead of flashing the box greyed in the chest.
         if (session.stacked()) {
-            String id = ClientPanels.sectionIdOf(session);
+            String id = Tabs.idOf(session);
             Tabs.pick(id);
             AWAITING.put(id, session);
             AWAITING_SINCE.put(id, net.minecraft.util.Util.getMillis());

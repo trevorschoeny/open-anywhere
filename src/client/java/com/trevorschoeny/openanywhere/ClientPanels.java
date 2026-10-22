@@ -4,9 +4,9 @@ import java.util.function.Supplier;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.MKTooltip;
-import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
+import com.trevlar.menukit.api.panel.ContainerTabs;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
@@ -50,35 +50,16 @@ final class ClientPanels {
     private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "close");
 
     /**
-     * Where an opened item came from, which decides where its section sits: under the
-     * screen's own container, under the ender chest's section, or after both, for an item
-     * opened from the player's inventory (Trev, 2026-10-21: what opened from what).
+     * Where an opened item came from: the screen's own container, the ender chest's
+     * section, or the player's inventory. Its tab's tooltip says so.
      */
-    enum Source {
-        CONTAINER(100), ENDER_CHEST(300), INVENTORY(500);
+    enum Source { CONTAINER, ENDER_CHEST, INVENTORY }
 
-        /** The first order in the column for this source's sections. */
-        final int order;
-
-        Source(int order) {
-            this.order = order;
-        }
-    }
-
-    /** The screen's own container's section. */
+    /** The screen's own container's section, and its tab. */
     static final String CHEST_ID = OpenAnywhere.MOD_ID + ":chest";
 
-    /** Lane {@code lane}'s section id under {@code source}: {@code openanywhere:shulker_0_container}. */
-    static String sectionId(Openable kind, int lane, Source source) {
-        return kind.panelId(lane) + "_" + source.name().toLowerCase(java.util.Locale.ROOT);
-    }
-
-    /** Where lane {@code lane}'s section sits in the column under {@code source}. */
-    static int orderOf(Openable kind, int lane, Source source) {
-        if (kind == Openable.ENDER_CHEST) return Source.ENDER_CHEST.order;
-        // Boxes, then bundles, each in lane order, after their source's container.
-        return source.order + 1 + (kind == Openable.SHULKER ? 0 : 50) + lane;
-    }
+    /** The screen's own container first; then what opened, in the order it opened (the keys' order). */
+    private static final int CHEST_ORDER = 100, OPENED_ORDER = 200;
 
     static void register() {
         closeButton("native", ClientPanels::nativeSession, () -> {
@@ -100,95 +81,82 @@ final class ClientPanels {
     }
 
     /**
-     * On a chest's screen, opened items stack below the chest as one column in MenuKit's
-     * container list, with the inventory in its own panel below (Trev, 2026-10-21). Each
-     * section's content is one SlotKit group, found by its id on the open menu: the chest's
-     * own, then the ender chest's, then each lane's. Each lane has a section per source,
-     * shown only while the item in the lane came from there, so the column reads: the chest
-     * and what opened from it, the ender chest and what opened from it, then what opened
-     * from the inventory. The list grows, then centres, then scrolls; that and the wheel
-     * and resource packs are MenuKit's.
+     * On a chest's screen, the chest and each opened item are sections of MenuKit's
+     * container list, one shown at a time, picked by tabs (Trev, 2026-10-21). Each section's
+     * content is one SlotKit group: the chest's own, or the one the server added to the menu
+     * when the item opened. MenuKit makes an item's section and tab when it opens and drops
+     * them when it closes, so any number can be open.
      */
     private static void containerList() {
         // One container at a time, picked by tabs on the panel's top edge, the panel fitting
         // the one shown (Trev, 2026-10-21). The pick is ours (Tabs); MenuKit draws the row.
         Tabs.fit();
         // No source: the screen's own container, so MenuKit names and dresses it from the
-        // block the screen was opened on. Shown only with an item open below it; otherwise
-        // the screen is vanilla's own.
+        // block the screen was opened on. Shown only with an item open; otherwise the screen
+        // is vanilla's own.
         ContainerRegion.section(CHEST_ID, ModeScope.BOTH)
-                .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                        ? screen.getTitle() : Component.translatable("container.chest"))
+                .title(ClientPanels::screenTitle)
                 // The screen's own grid: vanilla's slots, six rows at most, so it never needs the
                 // grid scroll (and its vanilla slots don't present inside one).
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
-                .order(Source.CONTAINER.order)
-                .visibleWhen(Tabs.tab(CHEST_ID, Source.CONTAINER.order, ClientPanels::anyOpenHere, ClientPanels::screenBlock,
-                        () -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen ? screen.getTitle() : null))
+                .order(CHEST_ORDER)
+                .visibleWhen(() -> CHEST_ID.equals(Tabs.shown()))
                 .onHiddenLanding(() -> Tabs.pick(CHEST_ID))
                 .declare();
         // Asked for now, while MenuKit takes declarations: read later to tell whether it shows.
         ContainerRegion.anchor(CHEST_ID);
-
-        // The ender chest opened from its item. Its source is the item, so MenuKit names it
-        // "Ender Chest" and gives it the chest's art, as a placed one has.
-        String ender = Openable.ENDER_CHEST.panelId(0);
-        ContainerRegion.section(ender, ModeScope.BOTH)
-                .title(() -> Component.translatable("container.enderchest"))
-                .source(() -> {
-                    Session s = clientSession(Openable.ENDER_CHEST, 0);
-                    return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
-                })
-                .content(SlotScroll.of(Groups.group(Openable.ENDER_CHEST, 0).id(), Openable.ENDER_CHEST.slots, false))
+        ContainerTabs.tab(CHEST_ID, ModeScope.BOTH)
+                .icon(ClientPanels::screenBlock)
+                .tooltip(ClientPanels::screenTitle)
                 .on(ContainerScreen.class)
-                .order(Source.ENDER_CHEST.order)
-                .visibleWhen(Tabs.tab(ender, Source.ENDER_CHEST.order, () -> clientSession(Openable.ENDER_CHEST, 0) != null,
-                        () -> stackOf(Openable.ENDER_CHEST, 0),
-                        () -> tooltip(Component.translatable("container.enderchest"), clientSession(Openable.ENDER_CHEST, 0))))
-                .onHiddenLanding(() -> Tabs.pick(ender))
+                .order(CHEST_ORDER)
+                .visibleWhen(() -> Tabs.row().size() > 1 && Tabs.row().contains(CHEST_ID))
+                .selectedWhen(() -> CHEST_ID.equals(Tabs.shown()))
+                .onClick(() -> Tabs.pick(CHEST_ID))
                 .declare();
-        sectionClose(ender, Openable.ENDER_CHEST, 0);
 
-        for (Openable kind : new Openable[] {Openable.SHULKER, Openable.BUNDLE}) {
-            for (int lane = 0; lane < kind.lanes; lane++) {
-                for (Source source : Source.values()) itemSection(kind, lane, source);
-            }
-        }
+        ContainerRegion.sections(Tabs.KIND, ModeScope.BOTH, Tabs::keys)
+                .section((key, section) -> openedSection(key, section))
+                .tab((key, tab) -> {
+                    String id = Tabs.idOf(key);
+                    tab.icon(() -> stackOf(key))
+                            .tooltip(() -> tooltip(title(key), clientSession(key)))
+                            .order(OPENED_ORDER)
+                            .visibleWhen(() -> Tabs.row().size() > 1)
+                            .selectedWhen(() -> id.equals(Tabs.shown()))
+                            .onClick(() -> Tabs.pick(id));
+                })
+                .on(ContainerScreen.class)
+                .declare();
+        shownClose();
     }
 
-    /** Lane {@code lane}'s section under {@code source}, shown while its item came from there. */
-    private static void itemSection(Openable kind, int lane, Source source) {
-        String id = sectionId(kind, lane, source);
-        Component plain = kind == Openable.SHULKER ? Component.translatable("container.shulkerBox")
-                : Component.translatable("item.minecraft.bundle");
-        var section = ContainerRegion.section(id, ModeScope.BOTH)
-                .title(() -> title(kind, lane, plain))
-                .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots, kind == Openable.BUNDLE))
-                .on(ContainerScreen.class)
-                .order(orderOf(kind, lane, source))
-                .visibleWhen(Tabs.tab(id, orderOf(kind, lane, source), () -> sourceOf(clientSession(kind, lane)) == source,
-                        () -> stackOf(kind, lane), () -> tooltip(title(kind, lane, plain), clientSession(kind, lane))))
+    /** An opened item's section: its slots, its name, and (for a block) the block's look. */
+    private static void openedSection(Tabs.Key key, ContainerRegion.Builder section) {
+        String id = Tabs.idOf(key);
+        section.title(() -> title(key))
+                .content(SlotScroll.of(Groups.id(key.kind(), key.lane()), key.kind().slots, key.kind() == Openable.BUNDLE))
+                .order(OPENED_ORDER)
+                .visibleWhen(() -> id.equals(Tabs.shown()))
                 .onHiddenLanding(() -> Tabs.pick(id));
-        if (kind == Openable.SHULKER) {
-            section.source(() -> {
-                Session s = clientSession(kind, lane);
-                return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
-            });
-        } else {
+        if (key.kind() == Openable.BUNDLE) {
             // A bundle isn't a block, so it gets no source; this is its name when two
             // sections need telling apart.
-            section.name(() -> title(kind, lane, plain));
+            section.name(() -> title(key));
+        } else {
+            // A box or the ender chest: MenuKit names it and gives it the block's art.
+            section.source(() -> {
+                ItemStack stack = stackOf(key);
+                return stack.isEmpty() ? null : ContainerRegion.Source.of(stack);
+            });
         }
-        section.declare();
-        sectionClose(id, kind, lane);
     }
 
-    /** The section {@code session} shows in: the ender chest's own, or its lane's under where it came from. */
-    static String sectionIdOf(Session session) {
-        if (session.kind() == Openable.ENDER_CHEST) return Openable.ENDER_CHEST.panelId(0);
-        Source source = sourceOf(session);
-        return sectionId(session.kind(), session.lane(), source == null ? Source.INVENTORY : source);
+    /** The screen's title, the chest's tab tooltip and section title. */
+    private static Component screenTitle() {
+        return Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
+                ? screen.getTitle() : Component.translatable("container.chest");
     }
 
     /**
@@ -218,9 +186,9 @@ final class ClientPanels {
         return Source.CONTAINER;
     }
 
-    /** The item open in lane {@code lane}, its tab's icon. */
-    private static ItemStack stackOf(Openable kind, int lane) {
-        Session s = clientSession(kind, lane);
+    /** The item open as {@code key}, its tab's icon. */
+    private static ItemStack stackOf(Tabs.Key key) {
+        Session s = clientSession(key);
         return s == null ? ItemStack.EMPTY : s.stack();
     }
 
@@ -236,41 +204,46 @@ final class ClientPanels {
         return block == null ? new ItemStack(net.minecraft.world.item.Items.CHEST) : new ItemStack(block);
     }
 
-    /** True with any section open on the screen's menu. */
-    static boolean anyOpenHere() {
-        var mc = Minecraft.getInstance();
-        if (mc.player == null || !(mc.gui.screen() instanceof AbstractContainerScreen<?> screen)) return false;
-        for (Session s : Sessions.of(mc.player)) if (s.stacked() && s.menu() == screen.getMenu()) return true;
-        return false;
-    }
-
-    static @Nullable Session clientSession(Openable kind, int lane) {
+    static @Nullable Session clientSession(Tabs.Key key) {
         var player = Minecraft.getInstance().player;
-        return player == null ? null : Sessions.at(player, kind, lane);
+        return player == null ? null : Sessions.at(player, key.kind(), key.lane());
     }
 
     /**
      * An opened item's title: its own name, as the inventory shows it ("Red Shulker Box", or
-     * the name the player gave it), so several open boxes can be told apart; {@code plain}
-     * until the item is known.
+     * the name the player gave it), so several open boxes can be told apart; the kind's
+     * plain name until the item is known.
      */
-    static Component title(Openable kind, int lane, Component plain) {
-        Session s = clientSession(kind, lane);
-        return s == null || s.stack().isEmpty() ? plain : s.stack().getHoverName();
+    static Component title(Tabs.Key key) {
+        ItemStack stack = stackOf(key);
+        if (!stack.isEmpty()) return stack.getHoverName();
+        return Component.translatable(switch (key.kind()) {
+            case SHULKER -> "container.shulkerBox";
+            case BUNDLE -> "item.minecraft.bundle";
+            case ENDER_CHEST -> "container.enderchest";
+        });
+    }
+
+    /** The session whose section shows now, or null when it's the screen's own container. */
+    private static @Nullable Session shownSession() {
+        var player = Minecraft.getInstance().player;
+        String shown = Tabs.shown();
+        if (player == null || shown == null) return null;
+        for (Session s : Sessions.of(player)) if (s.stacked() && shown.equals(Tabs.idOf(s))) return s;
+        return null;
     }
 
     /**
-     * The shown section's close button, centred on the container panel's top-right corner,
+     * The shown item's close button, centred on the container panel's top-right corner,
      * as on vanilla's own screens this mod opens (Trev, 2026-10-16), so it sits over the
-     * frame's edge and never over a slot or a tab. It rides on MenuKit's anchor for the
-     * section: only the shown section's anchor is there, so only its X shows.
+     * frame's edge and never over a slot or a tab. One button for whichever item is shown;
+     * none while the screen's own container is.
      */
-    private static void sectionClose(String sectionId, Openable kind, int lane) {
-        Anchor anchor = ContainerRegion.anchor(sectionId);
-        Panel close = closePanel(sectionId.replace(':', '_'), () -> clientSession(kind, lane),
-                Placement.around(anchor, PanelPosition.pixel(() -> {
+    private static void shownClose() {
+        Panel close = closePanel("shown", ClientPanels::shownSession,
+                Placement.around(ContainerRegion.CONTAINERS, PanelPosition.pixel(() -> {
                     var screen = Minecraft.getInstance().gui.screen();
-                    Reference list = screen == null || anchor.box(screen) == null ? null : ContainerRegion.CONTAINERS.box(screen);
+                    Reference list = screen == null ? null : ContainerRegion.CONTAINERS.box(screen);
                     if (list == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
                     return new ScreenOrigin(list.leftPos() + list.imageWidth() - CLOSE_SIZE / 2 - 1, list.topPos() - CLOSE_SIZE / 2);
                 })));

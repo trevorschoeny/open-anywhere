@@ -23,7 +23,7 @@ public final class ClientMarks {
         if (Sessions.isOpenOnClient(slot.container, slot.getContainerSlot()) && !OpenAnywhereClient.awaitingTab(slot)) {
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
         }
-        if (created != null && !slot.hasItem() && isAddSlot(created)) {
+        if (created != null && !slot.hasItem() && isAddSlot(slot, created)) {
             // MenuKit measures from the slot's 18 px frame, one pixel up and left of the item.
             int frameX = slot.x - 1, frameY = slot.y - 1;
             plus(graphics, frameX + 1, frameY + 1, ADD_SHADOW);
@@ -45,13 +45,11 @@ public final class ClientMarks {
         return drawn;
     }
 
-    private static boolean isAddSlot(CreatedSlot created) {
-        for (int lane = 0; lane < Openable.BUNDLE.lanes; lane++) {
-            if (!created.panelId().equals(Openable.BUNDLE.slotPanelId(lane))) continue;
-            int add = BundleView.addSlot(BundleView.contents(Minecraft.getInstance().player, lane));
-            return add >= 0 && created.getLocalIndex() == add;
-        }
-        return false;
+    private static boolean isAddSlot(Slot slot, CreatedSlot created) {
+        int lane = Groups.laneOf(slot, Openable.BUNDLE);
+        if (lane < 0) return false;
+        int add = BundleView.addSlot(BundleView.contents(Minecraft.getInstance().player, lane));
+        return add >= 0 && created.getLocalIndex() == add;
     }
 
     /**

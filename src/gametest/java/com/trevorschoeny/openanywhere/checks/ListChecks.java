@@ -121,7 +121,7 @@ public class ListChecks implements FabricClientGameTest {
         // Again on the same box: it closes, the barrel's screen stays.
         doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box again");
         expectServerSession(Openable.SHULKER, false);
-        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.SHULKER, 0).id())))
+        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.SHULKER, 0))))
             throw new AssertionError("the box's slots still show after closing it");
         if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen))
             throw new AssertionError("closing the box closed the barrel's screen too");
@@ -143,7 +143,7 @@ public class ListChecks implements FabricClientGameTest {
         expectChestSection();
         // Stone the bundle already holds stacks onto its stone (Trev, 2026-10-22): still two stacks.
         command("item replace entity @p inventory.0 with minecraft:stone 3");
-        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:bundle_0_inventory"));
+        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:opened#bundle_0"));
         ctx.waitTicks(3);
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.STONE), "the stone");
         String contents = scene.world().getServer().computeOnServer(sv -> String.valueOf(
@@ -242,7 +242,7 @@ public class ListChecks implements FabricClientGameTest {
         if (lanes.length != 3) throw new AssertionError(lanes.length + " boxes open, not 3");
         if (lanes[0] == lanes[1] || lanes[1] == lanes[2] || lanes[0] == lanes[2]) throw new AssertionError("two boxes share a lane");
         for (int lane : lanes) {
-            if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.SHULKER, lane).id())))
+            if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.SHULKER, lane))))
                 throw new AssertionError("lane " + lane + "'s slots don't show");
         }
         ctx.takeScreenshot("list-many-three-open");
@@ -268,38 +268,35 @@ public class ListChecks implements FabricClientGameTest {
                 .filter(x -> x.kind() == Openable.SHULKER).count());
         if (left != 2) throw new AssertionError("closing one box left " + left + " open, not 2");
 
-        // Fill every lane from boxes in the inventory (its panel never scrolls, unlike the
-        // chest's grid with this many sections), then one more: refused.
+        // Open a box from each of eleven inventory slots (its panel never scrolls, unlike the
+        // chest's grid with this many sections): thirteen at once, past the twelve there used
+        // to be room for. Nothing caps them now.
         String[] colors = {"white", "gray", "black", "brown", "pink", "lime", "yellow", "light_blue", "magenta", "blue", "purple"};
         for (int i = 0; i < colors.length; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:" + colors[i] + "_shulker_box");
         ctx.waitTicks(3);
-        for (int i = 0; i < colors.length - 1; i++) {
+        for (int i = 0; i < colors.length; i++) {
             int slot = 10 + i;   // inventory.N is container slot 9 + N
-            if (scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()
-                    .filter(x -> x.kind() == Openable.SHULKER).count()) >= Openable.SHULKER.lanes) break;
             doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == slot, colors[i] + " box");
         }
-        // The purple box is never reached above: it is the one too many.
-        int purpleSlot = 9 + colors.length;
-        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == purpleSlot, "the purple box, one too many");
-        // What's above the hotbar: Hud's own field, read by reflection (dev names), test only.
-        String said = ctx.computeOnClient(mc -> {
-            try {
-                var field = net.minecraft.client.gui.Hud.class.getDeclaredField("overlayMessageString");
-                field.setAccessible(true);
-                Object overlay = field.get(mc.gui.hud);
-                return overlay == null ? "nothing" : ((net.minecraft.network.chat.Component) overlay).getString();
-            } catch (ReflectiveOperationException e) {
-                return "unreadable: " + e;
-            }
-        });
-        if (!said.equals("Too many open, close one first")) throw new AssertionError("the refused box said \"" + said + "\" above the hotbar");
         int open = scene.world().getServer().computeOnServer(server -> (int) Sessions.of(player(server)).stream()
                 .filter(x -> x.kind() == Openable.SHULKER).count());
-        boolean purpleOpen = scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()
-                .anyMatch(x -> net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(x.stack().getItem()).getPath().equals("purple_shulker_box")));
-        if (purpleOpen) throw new AssertionError("a box opened with every lane taken");
-        if (open != Openable.SHULKER.lanes) throw new AssertionError(open + " boxes open with the lanes full, not " + Openable.SHULKER.lanes);
+        if (open != 2 + colors.length) throw new AssertionError(open + " boxes open, not " + (2 + colors.length));
+        // The newest box is the one shown, its slots on screen.
+        int last = scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).getLast().lane());
+        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.SHULKER, last))))
+            throw new AssertionError("the thirteenth box's slots aren't shown");
+        // Its tab is the one shown, and it's in view: the row pages to it.
+        String inView = ctx.computeOnClient(mc -> {
+            var edge = com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP;
+            var drawn = com.trevlar.menukit.inject.ContainerTabRows.rowForChecks(edge);
+            int at = drawn.indexOf(com.trevorschoeny.openanywhere.Tabs.shown());
+            var g = com.trevlar.menukit.inject.ContainerRegions.geometry(mc.gui.screen());
+            var fit = com.trevlar.menukit.inject.ContainerTabRows.fit(com.trevlar.menukit.inject.ContainerTabRows.line(g, edge).width(),
+                    drawn.size(), com.trevlar.menukit.inject.ContainerTabRows.firstForChecks(edge));
+            return at >= fit.first() && at < fit.first() + fit.shown() ? null
+                    : "tab " + at + " of " + drawn.size() + ", tabs " + fit.first() + " to " + (fit.first() + fit.shown() - 1) + " in view";
+        });
+        if (inView != null) throw new AssertionError("the newest box's tab is out of view: " + inView);
         ctx.takeScreenshot("list-many-full");
     }
 
@@ -320,7 +317,7 @@ public class ListChecks implements FabricClientGameTest {
         Session s = scene.world().getServer().computeOnServer(server -> firstOf(player(server), kind));
         if (s == null) throw new AssertionError("no " + kind + " session on the server");
         if (!s.stacked()) throw new AssertionError("the " + kind + " opened its own screen, not below the chest");
-        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(kind, 0).id())))
+        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(kind, 0))))
             throw new AssertionError("the " + kind + "'s slots don't show");
         if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen))
             throw new AssertionError("the chest's screen didn't stay open");
@@ -401,7 +398,7 @@ public class ListChecks implements FabricClientGameTest {
     private static Slot groupSlot(AbstractContainerScreen<?> screen, int i) {
         for (Slot s : screen.getMenu().slots) {
             var created = com.trevlar.slotkit.api.slot.CreatedSlot.of(s);
-            if (created != null && created.panelId().equals(Openable.SHULKER.slotPanelId(0)) && created.getLocalIndex() == i) return s;
+            if (created != null && created.panelId().equals(Groups.id(Openable.SHULKER, 0).panelId()) && created.getLocalIndex() == i) return s;
         }
         throw new AssertionError("no shulker slot " + i + " on the menu");
     }

@@ -7,12 +7,11 @@ import java.util.Map;
 
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
-import com.trevlar.slotkit.api.slot.CreatedSlot;
-import com.trevlar.slotkit.api.slot.ParityGroup;
+import com.trevlar.slotkit.api.group.SlotGroupId;
+import com.trevlar.slotkit.api.slot.OnDemandGroup;
 import com.trevlar.slotkit.api.slot.QuickMoveRoutes;
 import com.trevlar.slotkit.api.slot.QuickMoveRoutes.Dest;
 import com.trevlar.slotkit.api.slot.SlotSpec;
-import com.trevlar.slotkit.api.storage.EphemeralStorage;
 import com.trevlar.slotkit.api.storage.Storage;
 import com.trevlar.slotkit.api.window.Address;
 import com.trevlar.slotkit.api.window.GatingContext;
@@ -31,11 +30,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * The slot groups items open in, one per lane: {@link Openable#lanes} for each kind, each
- * a SlotKit group on every menu with no live slots until the server opens an item in it
- * ({@link #open}). From the inventory a shulker box and the ender chest open vanilla's
- * own menus instead ({@link ServerSessions}). What shows the groups is the client's
- * ({@code ClientPanels}).
+ * The slot groups items open in: one SlotKit {@link OnDemandGroup} per kind, on no menu
+ * until the server opens an item, when an instance of it joins the open menu ({@link #add}),
+ * and leaves when the item closes. As many open at once as the player likes (Trev,
+ * 2026-10-22). An instance's number on its menu is the session's lane
+ * ({@link Session#lane()}): SlotKit gives the lowest free one, the client hears the same.
+ * What shows the groups is the client's ({@code ClientPanels}).
  *
  * <p>Also here, because both sides need them: the slot lock on opened items, the bundle's
  * per-slot rules, and where a shift-click goes (design, Rule 6).
@@ -52,19 +52,17 @@ public final class Groups {
             Openable.BUNDLE, new SlotGroupCategory(OpenAnywhere.MOD_ID, "bundle"),
             Openable.ENDER_CHEST, new SlotGroupCategory(OpenAnywhere.MOD_ID, "ender_chest")));
 
-    private static final Map<Openable, ParityGroup[]> GROUPS = new EnumMap<>(Openable.class);
+    private static final Map<Openable, OnDemandGroup> GROUPS = new EnumMap<>(Openable.class);
 
-    /** The group for {@code kind}'s lane {@code lane}. */
-    public static ParityGroup group(Openable kind, int lane) {
-        return GROUPS.get(kind)[lane];
+    /** The group of {@code kind} open in lane {@code lane}: what its slots, routes and the screen's grid name. */
+    public static SlotGroupId.Created id(Openable kind, int lane) {
+        return GROUPS.get(kind).instanceId(lane);
     }
 
     /** The lane of {@code kind} whose group {@code slot} belongs to, or -1 for none. */
     public static int laneOf(Slot slot, Openable kind) {
-        CreatedSlot created = CreatedSlot.of(slot);
-        if (created == null) return -1;
-        for (int lane = 0; lane < kind.lanes; lane++) if (created.panelId().equals(kind.slotPanelId(lane))) return lane;
-        return -1;
+        OnDemandGroup.Instance instance = OnDemandGroup.instanceOf(slot);
+        return instance != null && instance.kind() == GROUPS.get(kind) ? instance.number() : -1;
     }
 
     public static boolean isIn(Slot slot, Openable kind) {
@@ -78,32 +76,22 @@ public final class Groups {
 
     static void register() {
         for (Openable kind : Openable.values()) {
-            ParityGroup[] lanes = new ParityGroup[kind.lanes];
-            for (int lane = 0; lane < kind.lanes; lane++) {
-                int l = lane;
-                lanes[lane] = ParityGroup.register(kind.panelId(lane), SlotSpec.at(GROUP, CATEGORY.get(kind))
-                        .count(kind.slots)
-                        .storage(player -> player.level().isClientSide() ? EphemeralStorage.of(kind.slots) : serverStorage(player, kind, l))
-                        .shiftClickIn(true)
-                        .activeCount(0));
-            }
-            GROUPS.put(kind, lanes);
+            GROUPS.put(kind, OnDemandGroup.register(OpenAnywhere.MOD_ID + ":" + kind.name().toLowerCase(java.util.Locale.ROOT),
+                    SlotSpec.at(GROUP, CATEGORY.get(kind)).count(kind.slots).shiftClickIn(true)));
         }
 
-        for (int lane = 0; lane < Openable.BUNDLE.lanes; lane++) bundleRules(lane);
+        bundleRules();
         // A box refuses what vanilla's shulker box slot refuses: other boxes, anything that
-        // can't go in a container item.
-        for (int lane = 0; lane < Openable.SHULKER.lanes; lane++) {
-            for (int i = 0; i < Openable.SHULKER.slots; i++) {
-                Window.slot(ModeScope.BOTH, Address.createdSlot(group(Openable.SHULKER, lane).id(), i)).gate(new SlotGate() {
-                    @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
-                        return stack.getItem().canFitInsideContainerItems();
-                    }
-                    @Override public boolean mayPickup(Player player, GatingContext ctx) {
-                        return true;
-                    }
-                });
-            }
+        // can't go in a container item. Declared on the kind, so every open box has it.
+        for (int i = 0; i < Openable.SHULKER.slots; i++) {
+            Window.slot(ModeScope.BOTH, Address.createdSlot(GROUPS.get(Openable.SHULKER).id(), i)).gate(new SlotGate() {
+                @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
+                    return stack.getItem().canFitInsideContainerItems();
+                }
+                @Override public boolean mayPickup(Player player, GatingContext ctx) {
+                    return true;
+                }
+            });
         }
 
         // The opened item's own slot refuses every operation while it's open, from
@@ -116,34 +104,36 @@ public final class Groups {
         QuickMoveRoutes.register(Groups::route);
     }
 
-    private static Storage serverStorage(Player player, Openable kind, int lane) {
-        return switch (kind) {
-            case SHULKER -> StackedShulkerStorage.of(player, lane);
-            case BUNDLE -> BundleStorage.of(player, lane);
+    /**
+     * Adds {@code stack}'s slots to the player's open menu, a bundle's sized to the bundle.
+     * The lane it took, or -1 when the player's client can't show it.
+     */
+    static int add(ServerPlayer player, Openable kind, ItemStack stack) {
+        BundleStorage bundle = kind == Openable.BUNDLE ? new BundleStorage(player, stack) : null;
+        Storage storage = switch (kind) {
+            case SHULKER -> new ShulkerStorage(stack);
+            case BUNDLE -> bundle;
             case ENDER_CHEST -> new EnderChestStorage(player);
         };
+        OnDemandGroup.Instance instance = GROUPS.get(kind).add(player, storage);
+        if (instance == null) return -1;
+        if (bundle != null) bundle.shownIn(instance);
+        return instance.number();
     }
 
-    /** How many of a lane's slots are live with its item open. */
-    static int liveCount(Player player, Openable kind, int lane) {
-        if (kind != Openable.BUNDLE) return kind.slots;
-        BundleContents contents = BundleView.contents(player, lane);
-        if (contents == null) return 0;
-        // Its stacks, plus the add slot unless it's full.
-        return BundleView.addSlot(contents) >= 0 ? contents.size() + 1 : contents.size();
+    /** Removes lane {@code lane}'s slots of {@code kind} from {@code menu}, if they're still there. */
+    static void remove(AbstractContainerMenu menu, Openable kind, int lane) {
+        for (OnDemandGroup.Instance i : GROUPS.get(kind).instances(menu)) if (i.number() == lane) i.remove();
     }
 
-    /** Opens a lane's slots for this player, a bundle's sized to the bundle. */
-    static void open(ServerPlayer player, Openable kind, int lane) {
-        group(kind, lane).setActiveCount(player, liveCount(player, kind, lane));
-    }
-
-    static void close(ServerPlayer player, Openable kind, int lane) {
-        group(kind, lane).setActiveCount(player, 0);
+    /** The lane of the open bundle {@code slot} belongs to, or -1. */
+    private static int bundleLane(@Nullable Slot slot) {
+        return slot == null ? -1 : laneOf(slot, Openable.BUNDLE);
     }
 
     /**
-     * Each slot's rule in one bundle lane, set by its address, following a bundle in hand:
+     * Each slot's rule in an open bundle, set on the kind so every open bundle has it,
+     * following a bundle in hand:
      * <ul>
      *   <li>The add slot takes as much as vanilla's 64-weight rule allows.</li>
      *   <li>A filled slot never grows: more of the same goes in through the add slot.</li>
@@ -151,12 +141,12 @@ public final class Groups {
      *       the bundle once the slot's stack is out (Trev, 2026-10-16).</li>
      * </ul>
      */
-    private static void bundleRules(int lane) {
+    private static void bundleRules() {
         for (int i = 0; i < Openable.BUNDLE.slots; i++) {
             int index = i;
-            Window.slot(ModeScope.BOTH, Address.createdSlot(group(Openable.BUNDLE, lane).id(), index)).gate(new SlotGate() {
+            Window.slot(ModeScope.BOTH, Address.createdSlot(GROUPS.get(Openable.BUNDLE).id(), index)).gate(new SlotGate() {
                 @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) {
-                    BundleContents contents = BundleView.contents(ctx.actingPlayer(), lane);
+                    BundleContents contents = BundleView.contents(ctx.actingPlayer(), bundleLane(ctx.slot()));
                     if (contents == null) return false;
                     if (index == BundleView.addSlot(contents)) return BundleView.fit(contents, stack) > 0;
                     if (index >= contents.size() || BundleView.sameItem(contents, index, stack)) return false;
@@ -166,7 +156,8 @@ public final class Groups {
                     return true;
                 }
                 @Override public int maxStackSize(ItemStack stack, int vanillaMax) {
-                    BundleContents contents = BundleView.contents(GatingContext.current().actingPlayer(), lane);
+                    GatingContext ctx = GatingContext.current();
+                    BundleContents contents = BundleView.contents(ctx.actingPlayer(), bundleLane(ctx.slot()));
                     if (contents == null) return vanillaMax;
                     if (index >= contents.size()) return Math.min(vanillaMax, BundleView.fit(contents, stack));
                     // Asked about the slot's own stack (a merge): it stays as it is.
@@ -200,12 +191,12 @@ public final class Groups {
         for (Session s : open) if (laneOf(source, s.kind()) == s.lane()) return back(s);
 
         List<Dest> to = new ArrayList<>();
-        for (int i = open.size() - 1; i >= 0; i--) to.add(Dest.group(group(open.get(i).kind(), open.get(i).lane()).id()));
+        for (int i = open.size() - 1; i >= 0; i--) to.add(Dest.group(id(open.get(i).kind(), open.get(i).lane())));
         if (ender != null && isIn(source, Openable.ENDER_CHEST)) {
             to.addAll(back(ender));
             return to;
         }
-        if (ender != null) to.add(Dest.group(group(Openable.ENDER_CHEST, 0).id()));
+        if (ender != null) to.add(Dest.group(id(Openable.ENDER_CHEST, 0)));
         to.add(Dest.VANILLA);
         return to;
     }

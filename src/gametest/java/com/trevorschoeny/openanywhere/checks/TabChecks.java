@@ -56,14 +56,14 @@ public class TabChecks implements FabricClientGameTest {
 
             // The region comes up with the first item opened; the chest's tab, measured.
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the ender chest");
-            if (!shown("openanywhere:ender_chest_0")) fail("the ender chest wasn't shown as it opened");
+            if (!shown("openanywhere:opened#ender_chest_0")) fail("the ender chest wasn't shown as it opened");
             ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
             int chestHeight = height();
-            ctx.runOnClient(mc -> Tabs.pick("openanywhere:ender_chest_0"));
+            ctx.runOnClient(mc -> Tabs.pick("openanywhere:opened#ender_chest_0"));
             ctx.waitTicks(3);
             open(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
-            if (!shown("openanywhere:shulker_0_ender_chest")) fail("the green box wasn't shown as it opened");
+            if (!shown("openanywhere:opened#shulker_0")) fail("the green box wasn't shown as it opened");
             int boxHeight = height();
             if (boxHeight >= chestHeight) fail("a box's panel (" + boxHeight + ") isn't shorter than the double chest's (" + chestHeight + ")");
             ctx.takeScreenshot("tabs-box");
@@ -100,7 +100,7 @@ public class TabChecks implements FabricClientGameTest {
             List<String> present = ctx.computeOnClient(mc -> Tabs.row());
             int visibleSections = ctx.computeOnClient(mc -> {
                 int count = 0;
-                for (String id : present) if (ContainerRegion.anchor(id).box(mc.gui.screen()) != null) count++;
+                for (String id : present) if (Tabs.drawnForChecks(id)) count++;
                 return count;
             });
             if (visibleSections != 1)
@@ -112,10 +112,8 @@ public class TabChecks implements FabricClientGameTest {
             List<String> row = ctx.computeOnClient(mc -> Tabs.row());
             List<String> drawn = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerTabRows.rowForChecks(
                     com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP));
-            // MenuKit draws one place per present section, in order: tab_0, tab_1, ...
-            List<String> places = new java.util.ArrayList<>();
-            for (int i = 0; i < row.size(); i++) places.add("openanywhere:tab_" + i);
-            if (!drawn.equals(places)) fail("MenuKit draws the places " + drawn + ", not " + places);
+            // MenuKit draws one tab per section, in the row's order: the chest, then in opening order.
+            if (!drawn.equals(row)) fail("MenuKit draws the tabs " + drawn + ", not " + row);
             String wasShown = ctx.computeOnClient(mc -> Tabs.shown());
             ctx.getInput().setCursorPos(5, 5);
             ctx.waitTick();
@@ -179,7 +177,7 @@ public class TabChecks implements FabricClientGameTest {
     }
 
     private boolean shown(String sectionId) {
-        return ctx.computeOnClient(mc -> ContainerRegion.anchor(sectionId).box(mc.gui.screen()) != null);
+        return ctx.computeOnClient(mc -> Tabs.drawnForChecks(sectionId));
     }
 
     /** The container panel's height this frame. */
