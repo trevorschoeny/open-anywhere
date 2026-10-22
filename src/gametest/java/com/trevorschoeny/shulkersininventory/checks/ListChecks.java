@@ -51,6 +51,7 @@ public class ListChecks implements FabricClientGameTest {
             run("shulkersininventory:list_box_from_hotbar", this::boxFromHotbar);
             run("shulkersininventory:list_ender_box", this::enderBox);
             run("shulkersininventory:list_bundle", this::bundle);
+            run("shulkersininventory:list_nested", this::nestedRefused);
         }
         if (!failures.isEmpty()) throw new AssertionError("container list checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -136,6 +137,24 @@ public class ListChecks implements FabricClientGameTest {
         shiftRightClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the bundle");
         expectStacked(Openable.BUNDLE);
         expectChestSection();
+    }
+
+    /**
+     * Station "list_nested": shift+right-click on a bundle inside an opened box does nothing.
+     * The box stays open, no bundle opens, and dirt shift-clicked in afterwards goes into the
+     * box, as it would with no bundle there.
+     */
+    private void nestedRefused() {
+        command("item replace entity @p inventory.0 with minecraft:dirt 16");
+        openBlock();
+        shiftRightClick(chestSlot(4), "the cyan box in the chest");
+        expectStacked(Openable.SHULKER);
+        shiftRightClick(s -> groupIndex(s) == 0 && s.getItem().is(Items.BUNDLE), "the bundle inside the box");
+        expectServerSession(Openable.BUNDLE, false);
+        expectStacked(Openable.SHULKER);
+        shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
+        int inBox = boxCount(Items.DIRT);
+        if (inBox != 16) throw new AssertionError("after the refused bundle, shift-click put " + inBox + " dirt in the box, not 16");
     }
 
     // ── Expectations ───────────────────────────────────────────────────────

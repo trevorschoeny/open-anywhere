@@ -45,6 +45,10 @@ final class ServerSessions {
         if (menuSlot < 0 || menuSlot >= menu.slots.size() || !menu.getCarried().isEmpty()) return;
 
         Slot slot = menu.getSlot(menuSlot);
+        // Nothing opens from inside an opened box or bundle. It would be a second opened
+        // item (design, Rule 2: one at a time, the ender chest aside), and the inner item
+        // lives in the outer one's contents, so it can't stay open once that one closes.
+        if (Groups.isOpenedContents(slot)) return;
         ItemStack stack = slot.getItem();
         Openable kind = Openable.of(stack);
         if (kind == null) return;

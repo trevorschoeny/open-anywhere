@@ -184,7 +184,12 @@ public final class Groups {
                 ? List.of(Dest.PLAYER) : List.of(Dest.groupOf(session.menuSlot()), Dest.PLAYER);
     }
 
-    private static boolean isIn(Slot slot, Openable kind) {
+    /** True for a slot of an opened box or bundle: this mod's own slots, showing an item's contents. */
+    static boolean isOpenedContents(Slot slot) {
+        return isIn(slot, Openable.SHULKER) || isIn(slot, Openable.BUNDLE);
+    }
+
+    static boolean isIn(Slot slot, Openable kind) {
         CreatedSlot created = CreatedSlot.of(slot);
         return created != null && created.panelId().equals(kind.slotPanelId());
     }
