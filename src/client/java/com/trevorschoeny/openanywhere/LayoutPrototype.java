@@ -176,9 +176,12 @@ public final class LayoutPrototype {
         new ScreenPanelAdapter(picker, 4).onMatching(ScreenMatcher.all());
     }
 
-    /** A section's title: none in Tabs, where the tab says what it is and the title row holds the tabs. */
+    /**
+     * A section's title: blank in Tabs, where the tab says what it is. A space, not empty:
+     * an empty label has no lines, so its row would collapse and the grid move up.
+     */
     static Component titled(java.util.function.Supplier<Component> title) {
-        return layout == Layout.TABS ? Component.empty() : title.get();
+        return layout == Layout.TABS ? Component.literal(" ") : title.get();
     }
 
     /** Whether section {@code sectionId} shows in the container list in the current layout. The sections ask every frame. */
@@ -397,19 +400,20 @@ public final class LayoutPrototype {
     }
 
     /**
-     * The tabs, in the list's title row: each a slim tab with its container's icon,
-     * rising {@link #UP} px above the list's frame, MenuKit's margin above the list, so
-     * they never leave the screen however tall the container. The picked one is the panel's own
-     * color and open at the bottom, into the container below it; the others are darker
-     * and closed. Past {@link #fits} tabs, arrows at the ends page the row one tab at a
-     * time, and the picked tab is always kept in view. Drawn in vanilla's panel colors.
-     * ponytail: MenuKit would draw these, under resource packs too.
+     * The tabs: vanilla's creative inventory top tabs, each with its container's icon,
+     * standing on the list's top edge. Unpicked tabs are cut at the frame, so they sit
+     * behind it; the picked one runs {@link #INTO} px into the frame, open into the list.
+     * Past {@link #fits} tabs, arrows at the ends page the row one tab at a time, and a
+     * newly picked tab comes into view.
      */
     static final class TabStrip extends AbstractPanelElement {
 
-        static final int W = 22, H = 22, UP = com.trevlar.menukit.inject.RegionLayout.TOP_MARGIN, STEP = W + 1, ARROW = 10, INSET = 4;
-        private static final int BLACK = 0xFF000000, LIGHT = 0xFFFFFFFF, SHADE = 0xFF555555,
-                FILL = 0xFFC6C6C6, FILL_OFF = 0xFF9C9C9C, LIGHT_OFF = 0xFFC0C0C0;
+        static final int W = 26, H = 32, INTO = 4, UP = H - INTO, STEP = W + 1, ARROW = 10, INSET = 0;
+        static final int BLACK = 0xFF000000, LIGHT = 0xFFFFFFFF, SHADE = 0xFF555555, FILL = 0xFFC6C6C6;
+        private static final Identifier FIRST_ON = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_selected_1");
+        private static final Identifier FIRST_OFF = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_unselected_1");
+        private static final Identifier ON = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
+        private static final Identifier OFF = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
 
         /** The first tab in view, when they don't all fit. */
         private int first;
@@ -454,13 +458,17 @@ public final class LayoutPrototype {
             for (int i = first; i < first + n; i++) {
                 Tab t = tabs.get(i);
                 int x = x0 + (i - first) * STEP;
-                drawTab(g, x, oy, t.sectionId().equals(picked));
-                g.item(t.icon(), x + 3, oy + 3);
-                hits.add(new Hit(t, x, oy, W, H));
+                boolean on = t.sectionId().equals(picked);
+                Identifier sprite = i == first && !paged ? (on ? FIRST_ON : FIRST_OFF) : (on ? ON : OFF);
+                // Unpicked: the sprite's top UP px only, so the list's frame shows below it.
+                if (on) g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, oy, W, H);
+                else g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, W, H, 0, 0, x, oy, W, UP);
+                g.item(t.icon(), x + 5, oy + 9);
+                hits.add(new Hit(t, x, oy, W, on ? H : UP));
             }
             if (paged) {
                 var font = Minecraft.getInstance().font;
-                int ay = oy + (H - 8) / 2;
+                int ay = oy + (UP - 8) / 2 + 2;
                 if (first > 0) {
                     back = new Hit(null, ox + INSET, oy, ARROW, H);
                     g.text(font, "<", ox + INSET + 2, ay, 0xFF404040, false);
@@ -490,23 +498,6 @@ public final class LayoutPrototype {
         private void page(int by) {
             List<Tab> tabs = all();
             first = Math.max(0, Math.min(first + by, tabs.size() - fits(tabs.size())));
-        }
-
-        /**
-         * One tab: a black outline, a light top-left edge and a dark right edge, as
-         * vanilla's panels have. Picked: the panel's fill, open at the bottom so it runs
-         * into the panel. Otherwise: darker, closed at the bottom.
-         */
-        private static void drawTab(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, boolean on) {
-            int r = x + W, b = y + H;
-            g.fill(x + 1, y, r - 1, y + 1, BLACK);                 // top
-            g.fill(x, y + 1, x + 1, b, BLACK);                     // left
-            g.fill(r - 1, y + 1, r, b, BLACK);                     // right
-            g.fill(x + 1, y + 1, r - 1, b, on ? FILL : FILL_OFF);
-            g.fill(x + 1, y + 1, r - 2, y + 3, on ? LIGHT : LIGHT_OFF);   // top light
-            g.fill(x + 1, y + 1, x + 3, b, on ? LIGHT : LIGHT_OFF);       // left light
-            g.fill(r - 3, y + 2, r - 1, b, SHADE);                         // right shade
-            if (!on) g.fill(x, b - 1, r, b, BLACK);                         // closed bottom
         }
 
         @Override public void renderOverlay(RenderContext ctx) {}
