@@ -35,15 +35,30 @@ final class ServerSessions {
 
     /**
      * The player asked to open the item in {@code menuSlot} of their open menu. Opens it,
-     * closes it if it's open (Option-click again), or does nothing when any rule says no.
+     * closes it if it's open (double-clicked again), or does nothing when any rule says no.
      * A refused request changes nothing, so a modified client gains nothing by sending one.
+     *
+     * <p>{@code fromCursor}: a double-click's first click was vanilla's, and lifted the item
+     * onto the cursor (Trev, 2026-10-22: the brief lift is accepted). It goes back into its
+     * now-empty slot first, through the slot's own rules, then opens as if never lifted. If
+     * it can't go back, nothing happens: the item stays on the cursor, as after one click.
      */
-    static void open(ServerPlayer player, int menuSlot) {
+    static void open(ServerPlayer player, int menuSlot, boolean fromCursor) {
         // Survival only for now (design, Rule 4). The server checks too: a client's word
         // on its own mode isn't trusted.
         if (!ModeScope.SURVIVAL.includes(player)) return;
         AbstractContainerMenu menu = player.containerMenu;
-        if (menuSlot < 0 || menuSlot >= menu.slots.size() || !menu.getCarried().isEmpty()) return;
+        if (menuSlot < 0 || menuSlot >= menu.slots.size()) return;
+        if (fromCursor) {
+            ItemStack carried = menu.getCarried();
+            Slot back = menu.getSlot(menuSlot);
+            if (Openable.of(carried) == null || back.hasItem() || !back.mayPlace(carried)
+                    || back.getMaxStackSize(carried) < carried.getCount()) return;
+            back.setByPlayer(carried);
+            menu.setCarried(ItemStack.EMPTY);
+            menu.broadcastChanges();
+        }
+        if (!menu.getCarried().isEmpty()) return;
 
         Slot slot = menu.getSlot(menuSlot);
         // Nothing opens from inside an opened box or bundle (design, Rule 3): the inner item
@@ -56,7 +71,7 @@ final class ServerSessions {
         // into every box (QuickShulker #68).
         if (kind == Openable.SHULKER && stack.getCount() != 1) return;
 
-        // Option-click on an open item closes it.
+        // Double-clicking an open item closes it.
         Session current = Sessions.byStack(player, stack);
         if (current != null) {
             closeAndStepBack(player, current);

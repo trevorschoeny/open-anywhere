@@ -32,8 +32,6 @@ import testgallery.SceneWorld;
  */
 public class LayoutChecks implements FabricClientGameTest {
 
-    private static final int SDL_ALT = 0x100;
-
     private ClientGameTestContext ctx;
     private final List<String> failures = new ArrayList<>();
 
@@ -129,7 +127,7 @@ public class LayoutChecks implements FabricClientGameTest {
 
     private void fail(String what) { failures.add(what); }
 
-    /** An Option-click on the first shown slot matching {@code p}. */
+    /** A double-click on the first shown slot matching {@code p}: two left presses inside vanilla's window. */
     private void open(Predicate<Slot> p, String what) {
         double[] at = ctx.computeOnClient(mc -> {
             var screen = (AbstractContainerScreen<?>) mc.gui.screen();
@@ -143,11 +141,11 @@ public class LayoutChecks implements FabricClientGameTest {
         });
         ctx.getInput().setCursorPos(at[0], at[1]);
         ctx.waitTick();
-        for (int action : new int[] {1, 0}) {
-            ctx.runOnClient(mc -> ((net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler)
-                    .invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_RIGHT, SDL_ALT), action));
-            ctx.waitTick();
-        }
-        ctx.waitTicks(5);
+        ctx.runOnClient(mc -> {
+            var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+            for (int i = 0; i < 2; i++) for (int action : new int[] {1, 0})
+                mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
+        });
+        ctx.waitTicks(6);
     }
 }

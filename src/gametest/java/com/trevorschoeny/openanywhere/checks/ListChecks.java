@@ -81,7 +81,7 @@ public class ListChecks implements FabricClientGameTest {
 
     private void boxInChest() {
         openBlock();
-        optionClick(chestSlot(4), "the purple box in the chest");
+        doubleClick(chestSlot(4), "the purple box in the chest");
         expectStacked(Openable.SHULKER);
         expectChestSection();
         // The box's own slot is greyed and locked: a click doesn't pick it up.
@@ -96,7 +96,7 @@ public class ListChecks implements FabricClientGameTest {
     private void shiftClick() {
         command("item replace entity @p inventory.0 with minecraft:dirt 64");
         openBlock();
-        optionClick(chestSlot(4), "the purple box in the chest");
+        doubleClick(chestSlot(4), "the purple box in the chest");
         expectStacked(Openable.SHULKER);
         // In: from the inventory into the box first, not the chest.
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
@@ -117,11 +117,11 @@ public class ListChecks implements FabricClientGameTest {
     private void boxFromHotbar() {
         command("item replace entity @p hotbar.0 with minecraft:lime_shulker_box[container=[{slot:0,item:{id:\"minecraft:emerald\",count:3}}]]");
         openBlock();
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box in the hotbar");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box in the hotbar");
         expectStacked(Openable.SHULKER);
         expectChestSection();
         // Again on the same box: it closes, the barrel's screen stays.
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box again");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box again");
         expectServerSession(Openable.SHULKER, false);
         if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.SHULKER, 0).id())))
             throw new AssertionError("the box's slots still show after closing it");
@@ -131,7 +131,7 @@ public class ListChecks implements FabricClientGameTest {
 
     private void enderBox() {
         openBlock();
-        optionClick(s -> !(s.container instanceof Inventory) && groupIndex(s) < 0 && s.getContainerSlot() == 4,
+        doubleClick(s -> !(s.container instanceof Inventory) && groupIndex(s) < 0 && s.getContainerSlot() == 4,
                 "the green box in the ender chest");
         expectStacked(Openable.SHULKER);
         expectChestSection();
@@ -140,7 +140,7 @@ public class ListChecks implements FabricClientGameTest {
     private void bundle() {
         command("item replace entity @p hotbar.1 with minecraft:bundle[bundle_contents=[{id:\"minecraft:stone\",count:4},{id:\"minecraft:granite\",count:2}]]");
         openBlock();
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the bundle");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the bundle");
         expectStacked(Openable.BUNDLE);
         expectChestSection();
     }
@@ -153,9 +153,9 @@ public class ListChecks implements FabricClientGameTest {
     private void nestedRefused() {
         command("item replace entity @p inventory.0 with minecraft:dirt 16");
         openBlock();
-        optionClick(chestSlot(4), "the cyan box in the chest");
+        doubleClick(chestSlot(4), "the cyan box in the chest");
         expectStacked(Openable.SHULKER);
-        optionClick(s -> groupIndex(s) == 0 && s.getItem().is(Items.BUNDLE), "the bundle inside the box");
+        doubleClick(s -> groupIndex(s) == 0 && s.getItem().is(Items.BUNDLE), "the bundle inside the box");
         expectServerSession(Openable.BUNDLE, false);
         expectStacked(Openable.SHULKER);
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
@@ -173,12 +173,12 @@ public class ListChecks implements FabricClientGameTest {
         command("item replace entity @p inventory.0 with minecraft:dirt 16");
         int before = enderDirt();
         openBlock();
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
         expectStacked(Openable.ENDER_CHEST);
         expectChestSection();
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
         if (enderDirt() != before + 16) throw new AssertionError("shift-click put " + (enderDirt() - before) + " dirt in the ender chest, not 16");
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the open ender chest");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the open ender chest");
         expectServerSession(Openable.ENDER_CHEST, false);
         if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen))
             throw new AssertionError("closing the ender chest closed the chest's screen too");
@@ -194,9 +194,9 @@ public class ListChecks implements FabricClientGameTest {
         command("item replace entity @p enderchest.4 with minecraft:green_shulker_box[container=[{slot:0,item:{id:\"minecraft:dirt\",count:5}}]]");
         int before = enderDirt();
         openBlock();
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
         expectStacked(Openable.ENDER_CHEST);
-        optionClick(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
+        doubleClick(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
         expectStacked(Openable.SHULKER);
         expectServerSession(Openable.ENDER_CHEST, true);
         ctx.takeScreenshot("list-ender-and-box-open");
@@ -213,7 +213,7 @@ public class ListChecks implements FabricClientGameTest {
     private void enderAtEnderChest() {
         command("item replace entity @p hotbar.2 with minecraft:ender_chest");
         openBlock();
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
         expectServerSession(Openable.ENDER_CHEST, false);
     }
 
@@ -226,9 +226,9 @@ public class ListChecks implements FabricClientGameTest {
         command("item replace entity @p hotbar.0 with minecraft:lime_shulker_box");
         command("item replace entity @p inventory.0 with minecraft:dirt 16");
         openBlock();
-        optionClick(chestSlot(0), "the red box");
-        optionClick(chestSlot(1), "the orange box");
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box in the hotbar");
+        doubleClick(chestSlot(0), "the red box");
+        doubleClick(chestSlot(1), "the orange box");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box in the hotbar");
         int[] lanes = scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()
                 .filter(x -> x.kind() == Openable.SHULKER).mapToInt(com.trevorschoeny.openanywhere.Session::lane).toArray());
         if (lanes.length != 3) throw new AssertionError(lanes.length + " boxes open, not 3");
@@ -269,10 +269,10 @@ public class ListChecks implements FabricClientGameTest {
             int slot = 10 + i;   // inventory.N is container slot 9 + N
             if (scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()
                     .filter(x -> x.kind() == Openable.SHULKER).count()) >= Openable.SHULKER.lanes) break;
-            optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == slot, colors[i] + " box");
+            doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == slot, colors[i] + " box");
         }
         // The purple box is never reached above: it is the one too many.
-        optionClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 15, "the purple box, one too many");
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 15, "the purple box, one too many");
         int open = scene.world().getServer().computeOnServer(server -> (int) Sessions.of(player(server)).stream()
                 .filter(x -> x.kind() == Openable.SHULKER).count());
         boolean purpleOpen = scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()
@@ -416,10 +416,21 @@ public class ListChecks implements FabricClientGameTest {
     }
 
     /** SDL's modifier bits, which 26.3 reads: Left Shift for a quick move, Left Alt for an Option-click (the default open key). */
-    private static final int SHIFT = 1, ALT = 0x100;
+    private static final int SHIFT = 1;
 
-    private void optionClick(Predicate<Slot> p, String what) {
-        press(p, what, InputConstants.MOUSE_BUTTON_RIGHT, ALT);
+    /**
+     * A double-click, as the real mouse sends it: two left presses on the slot, inside
+     * vanilla's double-click window (one client task, so no frame or tick falls between).
+     * TestInput clicks carry no modifiers, so this goes through the MouseHandler hook.
+     */
+    private void doubleClick(Predicate<Slot> p, String what) {
+        hover(p, what);
+        ctx.runOnClient(mc -> {
+            var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+            for (int i = 0; i < 2; i++) for (int action : new int[] {1, 0})
+                mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
+        });
+        ctx.waitTicks(6);
     }
 
     private void shiftLeftClick(Predicate<Slot> p, String what) {

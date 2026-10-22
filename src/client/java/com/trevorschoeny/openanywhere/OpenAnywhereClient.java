@@ -33,12 +33,18 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "keys"));
 
     /**
-     * Held while clicking an item to open it, Left Option (Alt) by default (Trev,
-     * 2026-10-21): one key for every container operation, rebindable in Controls (bound
-     * to Shift, it is the old shift-click).
+     * An optional key: held while clicking an item, it opens it in one click. Unbound by
+     * default; double-click is the way in (Trev, 2026-10-22), and this is for players who
+     * want a key instead, set to anything in Controls.
      */
     public static final KeyMapping OPEN = new KeyMapping(
-            "key.openanywhere.open", InputConstants.Type.KEYBOARD, InputConstants.KEY_LALT, CATEGORY);
+            "key.openanywhere.open", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+
+    /** Vanilla's double-click window ({@code AbstractContainerScreen}), in milliseconds. */
+    private static final long DOUBLE_CLICK_MS = 250;
+    // The last plain left click on a slot: which slot, and when. -1: none to pair with.
+    private static int lastSlot = -1;
+    private static long lastClick;
 
     @Override
     public void onInitializeClient() {
@@ -56,18 +62,71 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             // simulated click (a sort mod, Mouse Tweaks) never opens anything. On an item
             // that's already open it closes it (the server decides which).
             ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-                if (!isOpenClick(event)) return true;
                 // Survival only for now (design, Rule 4); read per click, so /gamemode with
                 // a screen open takes effect at once.
                 if (!ModeScope.SURVIVAL.includes(client.player)) return true;
                 if (!ClientPlayNetworking.canSend(OpenC2S.TYPE)) return true; // server without the mod
                 Slot hovered = ((ScreenAccessor) containerScreen).openanywhere$hoveredSlot();
-                if (hovered == null || Openable.of(hovered.getItem()) == null) return true;
-                if (!containerScreen.getMenu().getCarried().isEmpty()) return true;
-                ClientPlayNetworking.send(new OpenC2S(hovered.index));
-                return false; // instead of the click
+                if (hovered == null) return true;
+                ItemStack carried = containerScreen.getMenu().getCarried();
+                if (isOpenClick(event)) {
+                    if (Openable.of(hovered.getItem()) == null || !carried.isEmpty()) return true;
+                    ClientPlayNetworking.send(new OpenC2S(hovered.index, false));
+                    return false; // instead of the click
+                }
+                return !doubleClick(event, hovered, carried, client.player);
             });
         });
+    }
+
+    /**
+     * A plain left double-click on an openable item opens it (Trev, 2026-10-22); on an
+     * item that's open, it closes it. Shift+double-click stays vanilla's "move all".
+     *
+     * <p>The first click is vanilla's: it lifts the item onto the cursor (an open item's
+     * slot is locked, so it stays put). The second, on the same slot within vanilla's
+     * double-click window, would be vanilla's "gather all of this item"; it is taken
+     * instead and sent as an open, the server putting the lifted item back first. A stack
+     * of boxes (Carpet) never opens, so its double-click stays vanilla's gather; a stack of
+     * ender chests opens the ender chest (Trev: gather is given up for ender chests).
+     *
+     * @return true when the click was taken
+     */
+    private static boolean doubleClick(MouseButtonEvent event, Slot hovered, ItemStack carried, Player player) {
+        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || event.hasShiftDown()) {
+            lastSlot = -1;
+            return false;
+        }
+        long now = net.minecraft.util.Util.getMillis();
+        boolean second = hovered.index == lastSlot && now - lastClick < DOUBLE_CLICK_MS;
+        if (!second) {
+            // A first click worth pairing: on an openable item, or an open one.
+            lastSlot = Openable.of(hovered.getItem()) != null && carried.isEmpty() ? hovered.index : -1;
+            lastClick = now;
+            return false;
+        }
+        lastSlot = -1; // a third click starts over
+        if (!hovered.hasItem() && openable(carried)) {
+            ClientPlayNetworking.send(new OpenC2S(hovered.index, true));
+            return true;
+        }
+        if (carried.isEmpty() && isOpen(player, hovered)) {
+            ClientPlayNetworking.send(new OpenC2S(hovered.index, false));
+            return true;
+        }
+        return false;
+    }
+
+    /** True when the item in {@code slot} is open: a session holds that slot of the open menu. */
+    private static boolean isOpen(Player player, Slot slot) {
+        for (Session s : Sessions.of(player)) if (s.menu() == player.containerMenu && s.menuSlot() == slot.index) return true;
+        return false;
+    }
+
+    /** An item a double-click opens: one box or bundle, or any stack of ender chests. */
+    private static boolean openable(ItemStack stack) {
+        Openable kind = Openable.of(stack);
+        return kind == Openable.ENDER_CHEST || kind != null && stack.getCount() == 1;
     }
 
     /**

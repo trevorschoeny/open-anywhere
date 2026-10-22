@@ -27,7 +27,7 @@ public final class OpenAnywhere implements ModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(SessionS2C.TYPE, SessionS2C.CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(OpenC2S.TYPE,
-                (payload, context) -> ServerSessions.open(context.player(), payload.menuSlot()));
+                (payload, context) -> ServerSessions.open(context.player(), payload.menuSlot(), payload.fromCursor()));
         ServerPlayNetworking.registerGlobalReceiver(CloseC2S.TYPE,
                 (payload, context) -> ServerSessions.close(context.player(), payload.kind(), payload.lane()));
         ServerTickEvents.END_SERVER_TICK.register(ServerSessions::tick);

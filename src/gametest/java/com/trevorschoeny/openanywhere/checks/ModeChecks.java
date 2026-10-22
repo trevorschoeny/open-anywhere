@@ -34,7 +34,7 @@ import java.util.function.Predicate;
 /**
  * Checks for the modes scene (test-gallery/scenes/shulkers-in-inventory/modes.json): opening
  * is survival only for now (design, Rule 4), read from the player's mode, not from which
- * screen is open. Every check opens the way a hand does, shift+right-click through the mouse.
+ * screen is open. Every check opens the way a hand does, double-click through the mouse.
  */
 public class ModeChecks implements FabricClientGameTest {
 
@@ -87,15 +87,15 @@ public class ModeChecks implements FabricClientGameTest {
 
     private void survivalShulker() {
         openInventory();
-        optionClick(hotbar(0), "shulker box");
-        expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
+        doubleClick(hotbar(0), "shulker box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the box");
         expectServerSession(Openable.SHULKER, true);
     }
 
     private void survivalEnder() {
         openInventory();
-        optionClick(hotbar(1), "ender chest");
-        expectScreen(ContainerScreen.class, "shift+right-click on the ender chest");
+        doubleClick(hotbar(1), "ender chest");
+        expectScreen(ContainerScreen.class, "double-click on the ender chest");
         expectServerSession(Openable.ENDER_CHEST, true);
     }
 
@@ -106,8 +106,8 @@ public class ModeChecks implements FabricClientGameTest {
      */
     private void survivalBundle() {
         openInventory();
-        optionClick(hotbar(2), "bundle");
-        expectScreen(ContainerScreen.class, "shift+right-click on the bundle");
+        doubleClick(hotbar(2), "bundle");
+        expectScreen(ContainerScreen.class, "double-click on the bundle");
         if (!ctx.computeOnClient(mc -> BundleHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
             throw new AssertionError("the bundle's screen isn't on its host menu");
         if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
@@ -134,8 +134,8 @@ public class ModeChecks implements FabricClientGameTest {
         click(hotbar(2), "the open bundle");
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
         if (carried != 0) throw new AssertionError("the open bundle was picked up");
-        optionClick(hotbar(2), "the open bundle");
-        expectScreen(InventoryScreen.class, "shift+right-click on the open bundle");
+        doubleClick(hotbar(2), "the open bundle");
+        expectScreen(InventoryScreen.class, "double-click on the open bundle");
         expectServerSession(Openable.BUNDLE, false);
     }
 
@@ -143,11 +143,11 @@ public class ModeChecks implements FabricClientGameTest {
     private void creativeInventoryTab() {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.INVENTORY);
-        optionClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
+        doubleClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
         // Vanilla's right-click picks the box up: still one box, on the cursor.
         nothingOpened(1);
         // The server checks the mode itself: a client asking anyway gets nothing.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(36)));
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(36, false)));
         ctx.waitTicks(3);
         expectServerSession(Openable.SHULKER, false);
     }
@@ -156,7 +156,7 @@ public class ModeChecks implements FabricClientGameTest {
     private void creativeItemTab() {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.CATEGORY);
-        optionClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
+        doubleClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
         // Vanilla's right-click picks the box up: still one box, on the cursor.
         nothingOpened(1);
         if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
@@ -169,8 +169,8 @@ public class ModeChecks implements FabricClientGameTest {
      */
     private void modeSwitch() {
         openInventory();
-        optionClick(hotbar(0), "shulker box");
-        expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
+        doubleClick(hotbar(0), "shulker box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the box");
         command("gamemode creative @p");
         ctx.waitTicks(3);
         // Click the opened box's own slot: locked, it stays where it is.
@@ -262,22 +262,18 @@ public class ModeChecks implements FabricClientGameTest {
     }
 
     /**
-     * Fabric's TestInput clicks carry no modifiers, and 26.3 reads shift from the click itself,
-     * so this presses through the MouseHandler hook with GLFW's shift bit (1) set (as Simple
-     * Elytra Slot's checks do).
+     * A double-click, as the real mouse sends it: two left presses on the slot, inside
+     * vanilla's double-click window (one client task, so no frame or tick falls between).
+     * TestInput clicks carry no modifiers, so this goes through the MouseHandler hook.
      */
-    /** SDL's Left Alt bit, which 26.3 reads: the click as an Option-click, the default open key. */
-    private static final int ALT = 0x100;
-
-    /** An Option-click: TestInput clicks carry no modifiers, so this goes through the MouseHandler hook with Alt set. */
-    private void optionClick(Predicate<Slot> p, String what) {
+    private void doubleClick(Predicate<Slot> p, String what) {
         hover(p, what);
-        for (int action : new int[] {1, 0}) {
-            ctx.runOnClient(mc -> ((net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler)
-                    .invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_RIGHT, ALT), action));
-            ctx.waitTick();
-        }
-        ctx.waitTicks(5);
+        ctx.runOnClient(mc -> {
+            var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+            for (int i = 0; i < 2; i++) for (int action : new int[] {1, 0})
+                mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
+        });
+        ctx.waitTicks(6);
     }
 
     /** The player's first open session of {@code kind} (the oldest), or null. */
