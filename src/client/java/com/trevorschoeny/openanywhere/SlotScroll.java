@@ -66,7 +66,10 @@ final class SlotScroll {
             state[0] = live;
             boolean scrolls = (live + 8) / 9 * ROW > room;
             state[1] = narrows && scrolls ? 1 : 0;
-            this.height = room;
+            int per = state[1] == 1 ? 8 : 9;
+            // As tall as the live rows, never the group's whole size: the scroll area measures
+            // its hidden slots too.
+            this.height = Math.max(ROW, Math.min(room, (live + per - 1) / per * ROW));
             this.width = ContainerRegion.CONTENT_WIDTH + (scrolls && !narrows ? LANE : 0);
             this.authoredWidth = width;
         }
