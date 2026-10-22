@@ -134,7 +134,7 @@ final class ClientPanels {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
                 })
-                .content(SlotScroll.of(Groups.group(Openable.ENDER_CHEST, 0).id(), Openable.ENDER_CHEST.slots))
+                .content(SlotScroll.of(Groups.group(Openable.ENDER_CHEST, 0).id(), Openable.ENDER_CHEST.slots, false))
                 .on(ContainerScreen.class)
                 .order(Source.ENDER_CHEST.order)
                 .visibleWhen(() -> clientSession(Openable.ENDER_CHEST, 0) != null)
@@ -155,7 +155,7 @@ final class ClientPanels {
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
                 .title(() -> title(kind, lane, plain))
-                .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots))
+                .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots, kind == Openable.BUNDLE))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
                 .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source);

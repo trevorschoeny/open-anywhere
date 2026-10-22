@@ -35,35 +35,39 @@ final class SlotScroll {
     private static final int OVERHEAD = 240 - 6 * ROW;
 
     /**
-     * A scroll area as tall as its rows up to a cap, and a scrollbar wider only while it
-     * scrolls, both set each frame from the window ({@link #frame}). The cap is the declared
-     * height {@code fitHeight} reads; the width, nine slots, plus the scrollbar's lane while
-     * the rows overflow. Each row's shown state is read once a frame into {@link #shown}:
-     * MenuKit's layout asks a row many times a frame, and asking SlotKit each time is what
-     * made a shown box cost three quarters of the frame rate.
+     * A scroll area as tall as its slots up to a cap, set each frame from the window
+     * ({@link #frame}). The cap is the declared height {@code fitHeight} reads. A grid that
+     * may narrow (a bundle) drops to eight a row while it scrolls, so eight slots and the
+     * scrollbar fill nine slots' width and the panel never widens for it (Trev, 2026-10-22);
+     * one that must stay nine wide gets the scrollbar's lane beside it while it scrolls.
+     * What shows is read once a frame into {@link #state}: MenuKit's layout asks each slot
+     * many times a frame, and asking SlotKit each time made a shown box cost three
+     * quarters of the frame rate.
      */
     private static final class Grid extends ScrollContainer {
-        final List<SlotElement> firsts;
-        final boolean[] shown;
+        final List<SlotElement> nine;
+        final boolean narrows;
+        /** {@code [0]}: slots live; {@code [1]}: 1 while eight a row; {@code [2]}: 1 while counting. */
+        final int[] state;
 
-        Grid(ScrollContainer.Builder b, List<SlotElement> firsts, boolean[] shown) {
+        Grid(ScrollContainer.Builder b, List<SlotElement> nine, boolean narrows, int[] state) {
             super(b);
-            this.firsts = firsts;
-            this.shown = shown;
+            this.nine = nine;
+            this.narrows = narrows;
+            this.state = state;
         }
 
-        /** This frame: which rows show, and the grid's height cap and width. */
+        /** This frame: how many slots are live, which layout shows them, the height cap and the width. */
         void frame(int room) {
-            int rows = 0;
-            for (int r = 0; r < firsts.size(); r++) {
-                // The row's own visibleWhen reads shown[r]: set it on, then ask SlotKit.
-                shown[r] = true;
-                shown[r] = firsts.get(r).isVisible();
-                if (shown[r]) rows++;
-            }
+            state[2] = 1;
+            int live = 0;
+            while (live < nine.size() && nine.get(live).isVisible()) live++;
+            state[2] = 0;
+            state[0] = live;
+            boolean scrolls = (live + 8) / 9 * ROW > room;
+            state[1] = narrows && scrolls ? 1 : 0;
             this.height = room;
-            boolean scrolls = rows * ROW > room;
-            this.width = ContainerRegion.CONTENT_WIDTH + (scrolls ? LANE : 0);
+            this.width = ContainerRegion.CONTENT_WIDTH + (scrolls && !narrows ? LANE : 0);
             this.authoredWidth = width;
         }
     }
@@ -73,28 +77,35 @@ final class SlotScroll {
     private static final List<Grid> GRIDS = new ArrayList<>();
 
     /**
-     * The slot group {@code id}, up to {@code max} slots, as a section's content: rows of
-     * nine, each shown while it has a live slot, scrolling past what fits. Single slot
-     * elements, as Shulker Palette's grid has them: a {@code SlotGroupElement} inside a
-     * {@code ScrollContainer} draws nothing.
+     * The slot group {@code id}, up to {@code max} slots, as a section's content, scrolling
+     * past what fits; {@code narrows}: eight a row while it scrolls (a bundle). Each slot is
+     * placed at its own cell straight in the scroll area (nested rows made MenuKit measure
+     * every slot many times a frame); a narrowing grid has a second set placed eight a row,
+     * one set shown at a time. Single slot elements, as Shulker Palette's grid has them: a
+     * {@code SlotGroupElement} inside a {@code ScrollContainer} draws nothing.
      */
-    static PanelElement of(SlotGroupId id, int max) {
-        // Each slot placed at its own cell, straight in the scroll area: rows of nested
-        // Flows made MenuKit measure every slot many times a frame.
+    static PanelElement of(SlotGroupId id, int max, boolean narrows) {
+        int[] state = {0, 0, 0};
         List<PanelElement> cells = new ArrayList<>();
-        List<SlotElement> firsts = new ArrayList<>();
-        boolean[] shown = new boolean[(max + 8) / 9];
+        List<SlotElement> nine = new ArrayList<>();
         for (int i = 0; i < max; i++) {
-            int row = i / 9;
-            SlotElement cell = SlotElement.builder().slot(id, i).at((i % 9) * ROW, row * ROW)
-                    .visibleWhen(() -> shown[row]).build();
-            if (i % 9 == 0) firsts.add(cell);
+            int index = i;
+            SlotElement cell = SlotElement.builder().slot(id, i).at((i % 9) * ROW, (i / 9) * ROW)
+                    .visibleWhen(() -> state[2] == 1 || state[1] == 0 && index < state[0]).build();
+            nine.add(cell);
             cells.add(cell);
+        }
+        if (narrows) {
+            for (int i = 0; i < max; i++) {
+                int index = i;
+                cells.add(SlotElement.builder().slot(id, i).at((i % 8) * ROW, (i / 8) * ROW)
+                        .visibleWhen(() -> state[2] == 0 && state[1] == 1 && index < state[0]).build());
+            }
         }
         Grid scroll = new Grid(ScrollContainer.builder()
                 .size(ContainerRegion.CONTENT_WIDTH + LANE, MIN_ROWS * ROW)
                 .fitHeight()
-                .content(cells), firsts, shown);
+                .content(cells), nine, narrows, state);
         GRIDS.add(scroll);
         return scroll;
     }
