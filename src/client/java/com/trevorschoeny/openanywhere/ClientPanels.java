@@ -225,20 +225,15 @@ final class ClientPanels {
     }
 
     /**
-     * The screen's own container's tab icon: the block under the crosshair, the one the
-     * screen was opened on, when it holds a container; a chest otherwise (a minecart, a
-     * screen opened by a key).
+     * The screen's own container's tab icon: the block the screen was opened on
+     * ({@link ContainerRegion#openedOn()}), when it has one; a chest otherwise (a minecart,
+     * a screen opened by a key, a double chest).
      */
-    // ponytail: MenuKit reads the same block for the section's art (ContainerRegions.openedContainer, private); use that if it goes public.
     private static ItemStack screenBlock() {
-        var mc = Minecraft.getInstance();
-        if (mc.level != null && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit
-                && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                && mc.level.getBlockEntity(hit.getBlockPos()) instanceof net.minecraft.world.Container) {
-            ItemStack block = new ItemStack(mc.level.getBlockState(hit.getBlockPos()).getBlock());
-            if (!block.isEmpty()) return block;
-        }
-        return new ItemStack(net.minecraft.world.item.Items.CHEST);
+        ContainerRegion.Source source = ContainerRegion.openedOn();
+        net.minecraft.world.level.block.Block block = source == null || source.block() == null
+                ? null : net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(source.block());
+        return block == null ? new ItemStack(net.minecraft.world.item.Items.CHEST) : new ItemStack(block);
     }
 
     /** True with any section open on the screen's menu. */

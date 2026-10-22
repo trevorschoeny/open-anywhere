@@ -78,6 +78,15 @@ public class TabChecks implements FabricClientGameTest {
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box");
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
             if (open != 5) fail(open + " things open, not 5");
+            // The one-container rule: with 5 things open at once, still only one section's slots show.
+            List<String> present = ctx.computeOnClient(mc -> Tabs.row());
+            int visibleSections = ctx.computeOnClient(mc -> {
+                int count = 0;
+                for (String id : present) if (ContainerRegion.anchor(id).box(mc.gui.screen()) != null) count++;
+                return count;
+            });
+            if (visibleSections != 1)
+                fail("with " + present.size() + " present, " + visibleSections + " sections are shown at once, not 1");
 
             // The wheel away from the list moves a tab: down to the right, up to the left.
             ctx.runOnClient(mc -> Tabs.pick(CHEST));
