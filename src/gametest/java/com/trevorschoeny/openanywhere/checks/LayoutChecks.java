@@ -7,6 +7,7 @@ import java.util.function.Predicate;
 import com.google.gson.JsonArray;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.menukit.api.panel.ContainerRegion;
+import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.LayoutPrototype;
 import com.trevorschoeny.openanywhere.LayoutPrototype.Layout;
@@ -27,22 +28,20 @@ import testgallery.SceneWorld;
 /**
  * The layout prototype (scene open-anywhere/layouts): a chest with two boxes opened from it,
  * the ender chest with a box opened from inside it, and a box from the hotbar, then each
- * layout in turn, checked for what it shows and screenshotted for the eye.
+ * layout, checked for what it shows and screenshotted for the eye.
  */
 public class LayoutChecks implements FabricClientGameTest {
 
     private static final int SDL_ALT = 0x100;
 
     private ClientGameTestContext ctx;
-    private SceneWorld.Opened scene;
     private final List<String> failures = new ArrayList<>();
 
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "layouts")) {
-            this.scene = scene;
-            // Scale 3 (640 x 360 at 1920 x 1080): room for two panels side by side.
+            // Scale 3 (640 x 360 at 1920 x 1080): short enough that the list scrolls.
             int scale = ctx.computeOnClient(mc -> mc.options.guiScale().get());
             ctx.runOnClient(mc -> { mc.options.guiScale().set(3); mc.resizeGui(); });
             var station = scene.station("openanywhere:layouts");
@@ -56,67 +55,53 @@ public class LayoutChecks implements FabricClientGameTest {
             ctx.waitTicks(5);
             if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen)) throw new AssertionError("the chest didn't open");
 
-            LayoutPrototype.layout = Layout.SCROLL_TABS;
-            // The ender chest and its box first, while the list is short enough to show them.
+            // Opened in "Scroll with contents", where every section shows, so each slot can be reached.
+            LayoutPrototype.layout = Layout.CONTENTS;
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the ender chest");
             open(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
-            ctx.runOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.setScroll(0));
+            ctx.runOnClient(mc -> ContainerRegions.setScroll(0));
             ctx.waitTicks(2);
             open(s -> isChest(s) && s.getContainerSlot() == 0, "the red box");
             open(s -> isChest(s) && s.getContainerSlot() == 1, "the orange box");
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box");
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
             if (open != 5) fail(open + " things open, not 5");
+            List<String> ids = ctx.computeOnClient(mc -> LayoutPrototype.idsForChecks());
+            if (ids.size() != 6) fail(ids.size() + " containers listed, not 6: " + ids);
 
-            // Tabs with scroll: chest, its two boxes, ender chest, its box, the lime box.
-            List<String> tabs = ctx.computeOnClient(mc -> LayoutPrototype.tabIdsForChecks(false));
-            if (tabs.size() != 6) fail("tabs with scroll shows " + tabs.size() + " tabs, not 6: " + tabs);
-            ctx.takeScreenshot("layouts-1-tabs-scroll");
-            // Click the last tab: the list scrolls until the lime box shows.
-            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, tabs.size() - 1));
-            ctx.waitTicks(40);
-            if (!shown(tabs.getLast())) fail("clicking the last tab didn't scroll to its section");
-            ctx.takeScreenshot("layouts-1-tabs-scroll-jumped");
-            // Back to the first tab: the list goes to the top and stays there (it used to
-            // bounce, aiming the section at the list's edge instead of the view's).
-            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, 0));
-            ctx.waitTicks(40);
-            double settled = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.scroll());
-            ctx.waitTicks(10);
-            double later = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.scroll());
-            if (settled != 0 || later != 0) fail("jumping back to the first tab left the scroll at " + settled + ", then " + later + ", not 0");
+            // Contents: the last entry glides the list to the end and marks it; the first back to the top.
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(ids.size() - 1));
+            ctx.waitTicks(20);
+            if (!shown(ids.getLast())) fail("the last entry didn't scroll to its section");
+            String marked = ctx.computeOnClient(mc -> LayoutPrototype.currentForChecks());
+            if (!ids.getLast().equals(marked)) fail("after the glide to the last section, the contents mark " + marked);
+            ctx.takeScreenshot("layouts-2-contents-end");
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(0));
+            ctx.waitTicks(20);
+            double top = ctx.computeOnClient(mc -> ContainerRegions.scroll());
+            ctx.waitTicks(5);
+            double still = ctx.computeOnClient(mc -> ContainerRegions.scroll());
+            if (top != 0 || still != 0) fail("the first entry left the scroll at " + top + ", then " + still + ", not 0");
+            marked = ctx.computeOnClient(mc -> LayoutPrototype.currentForChecks());
+            if (!ids.getFirst().equals(marked)) fail("at the top, the contents mark " + marked);
+            ctx.takeScreenshot("layouts-2-contents-top");
 
-            // Tabs, no scroll: one container and one item from it.
+            // Tabs: one container at a time.
             LayoutPrototype.layout = Layout.TABS;
-            ctx.waitTicks(5);
-            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, 2));   // the chest's second box
-            ctx.waitTicks(5);
-            int showing = 0;
-            for (String id : tabs) if (shown(id)) showing++;
-            if (showing != 2) fail("tabs without scroll shows " + showing + " sections, not 2");
-            if (!shown(tabs.get(0)) || !shown(tabs.get(2))) fail("tabs without scroll didn't show the chest and the picked box together");
-            ctx.takeScreenshot("layouts-2-tabs-no-scroll");
-
-            // Top tabs and bottom tabs: the same picking, the tabs elsewhere.
-            for (Layout l : new Layout[] {Layout.TOP_TABS, Layout.BOTTOM_TABS}) {
-                LayoutPrototype.layout = l;
-                ctx.waitTicks(5);
-                ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, 1));   // the chest's first box
-                ctx.waitTicks(5);
+            for (int i : new int[] {0, 2, 4}) {
+                ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(i));
+                ctx.waitTicks(3);
                 int n = 0;
-                for (String id : tabs) if (shown(id)) n++;
-                if (n != 2 || !shown(tabs.get(0)) || !shown(tabs.get(1))) fail(l + " didn't show the chest and its first box alone");
-                ctx.takeScreenshot("layouts-" + (l.ordinal() + 1) + "-" + l.name().toLowerCase());
+                for (String id : ids) if (shown(id)) n++;
+                if (n != 1 || !shown(ids.get(i))) fail("tab " + i + " shows " + n + " sections, not just its own");
+                // The chest's own slots go with its tab: none active while another tab is picked.
+                boolean chestSlots = ctx.computeOnClient(mc -> {
+                    for (Slot s : ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().slots) if (isChest(s) && s.isActive()) return true;
+                    return false;
+                });
+                if (chestSlots != (i == 0)) fail("tab " + i + ": the chest's slots are " + (chestSlots ? "active" : "inactive"));
             }
-
-            // Two panels: the lime box moves to the right panel, still shown.
-            LayoutPrototype.layout = Layout.TWO_PANELS;
-            ctx.waitTicks(5);
-            List<String> right = ctx.computeOnClient(mc -> LayoutPrototype.tabIdsForChecks(true));
-            if (right.size() != 1) fail("the right panel has " + right.size() + " tabs, not 1");
-            if (shown(tabs.getLast())) fail("the lime box is still in the container list in two panels");
-            ctx.takeScreenshot("layouts-3-two-panels");
-            LayoutPrototype.layout = Layout.SCROLL_TABS;
+            ctx.takeScreenshot("layouts-1-tabs");
             ctx.runOnClient(mc -> { mc.options.guiScale().set(scale); mc.resizeGui(); });
         }
         if (!failures.isEmpty()) throw new AssertionError("layout checks failed:\n- " + String.join("\n- ", failures));

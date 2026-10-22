@@ -44,6 +44,8 @@ public class ListChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
+        // The list as a list, every section shown: the layout prototype's scroll layout.
+        com.trevorschoeny.openanywhere.LayoutPrototype.layout = com.trevorschoeny.openanywhere.LayoutPrototype.Layout.CONTENTS;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "container-list")) {
             this.scene = scene;
             run("openanywhere:list_box_in_chest", this::boxInChest);
