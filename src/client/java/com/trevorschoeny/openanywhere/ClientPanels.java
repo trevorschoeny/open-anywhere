@@ -3,6 +3,7 @@ package com.trevorschoeny.openanywhere;
 import java.util.function.Supplier;
 
 import com.trevlar.menukit.api.element.Button;
+import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
@@ -131,6 +132,7 @@ final class ClientPanels {
         String ender = Openable.ENDER_CHEST.panelId(0);
         ContainerRegion.section(ender, ModeScope.BOTH)
                 .title(() -> Component.translatable("container.enderchest"))
+                .tooltip(() -> tooltip(Component.translatable("container.enderchest"), clientSession(Openable.ENDER_CHEST, 0)))
                 .source(() -> {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
@@ -156,6 +158,7 @@ final class ClientPanels {
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
                 .title(() -> title(kind, lane, plain))
+                .tooltip(() -> tooltip(title(kind, lane, plain), clientSession(kind, lane)))
                 .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots, kind == Openable.BUNDLE))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
@@ -184,6 +187,24 @@ final class ClientPanels {
         if (session.kind() == Openable.ENDER_CHEST) return Openable.ENDER_CHEST.panelId(0);
         Source source = sourceOf(session);
         return sectionId(session.kind(), session.lane(), source == null ? Source.INVENTORY : source);
+    }
+
+    /**
+     * An opened item's tab tooltip: its name, then where it sits, in grey (Trev,
+     * 2026-10-22): "In Large Chest" (the screen's own container, by its title), "In
+     * Inventory", or "In Ender Chest".
+     */
+    static Component tooltip(Component name, @Nullable Session session) {
+        Source source = session == null ? null : sourceOf(session);
+        if (source == null) return name;
+        Component where = switch (source) {
+            case CONTAINER -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
+                    ? screen.getTitle() : Component.translatable("container.chest");
+            case ENDER_CHEST -> Component.translatable("container.enderchest");
+            case INVENTORY -> Component.translatable("container.inventory");
+        };
+        return MKTooltip.joinLines(java.util.List.of(name,
+                Component.translatable("openanywhere.tab.in", where).withStyle(net.minecraft.ChatFormatting.GRAY)));
     }
 
     /** Where the item open in {@code session} came from, read off its slot on the open menu. */
