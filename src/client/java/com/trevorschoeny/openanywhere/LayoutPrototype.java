@@ -6,12 +6,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.menukit.api.element.InputContext;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.element.AbstractPanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.TextLabel;
+import com.trevlar.menukit.api.element.Button;
+import com.trevlar.menukit.api.layout.Column;
 import com.trevlar.menukit.api.layout.Row;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
@@ -31,10 +32,7 @@ import com.trevorschoeny.openanywhere.ClientPanels.Source;
 
 import org.jspecify.annotations.Nullable;
 
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -47,72 +45,110 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
- * Prototype, not the feature: three ways to show many opened containers, switched with a
- * key (L) so one Test Gallery scene can compare them (Trev, 2026-10-21).
+ * Prototype, not the feature: five ways to show many opened containers, picked with
+ * buttons at the screen's top right so one Test Gallery scene can compare them (Trev,
+ * 2026-10-21).
  *
  * <ol>
- *   <li><b>Tabs with scroll.</b> The container list as it is, with a column of tabs on its
- *       left: one per open container, in the column's order, items opened from a container
- *       indented under it. A tab is lit while its section is on screen, greyed while it's
- *       scrolled out; a click scrolls to it.</li>
- *   <li><b>Tabs, no scroll.</b> The same tabs choose what shows: one container and one item
- *       opened from it at a time, so a chest and its box sit together and nothing scrolls.</li>
+ *   <li><b>Side tabs with scroll.</b> The container list as it is, with a column of tabs on
+ *       its left: one per open container, in the column's order, items opened from a
+ *       container indented under it. A tab is lit while its section is on screen, greyed
+ *       while it's scrolled out; a click scrolls to it.</li>
+ *   <li><b>Side tabs, no scroll.</b> The same tabs choose what shows: one container and one
+ *       item opened from it at a time, so a chest and its box sit together.</li>
  *   <li><b>Two panels.</b> The list keeps the chest, the ender chest and what opened from
  *       them; items opened from the inventory move to a second panel on its right, with its
- *       own tabs and its own scroll.</li>
+ *       own tabs.</li>
+ *   <li><b>Top tabs, no scroll.</b> As 2, with the tabs in two rows above the list: the
+ *       containers, then the items opened from the picked one.</li>
+ *   <li><b>Bottom tabs, no scroll.</b> As 4, with the rows between the list and the
+ *       inventory (a section of the list, so the list makes room for them).</li>
  * </ol>
+ *
+ * In every layout, carrying an item over a tab acts as a click, so an item can be carried
+ * to a container that isn't showing.
  *
  * Whichever wins belongs in MenuKit's container list, for every mod's sections. Two things
  * here stand in for what MenuKit would own: jumping to a section uses MenuKit's internal
- * scroll setter, stepping until the section shows (MenuKit has no public "scroll to
- * section"), and the second panel is an ordinary panel, not a second list.
+ * scroll setter and geometry (MenuKit has no public "scroll to section"), and the second
+ * panel is an ordinary panel, not a second list.
  */
 public final class LayoutPrototype {
 
     private LayoutPrototype() {}
 
     public enum Layout {
-        SCROLL_TABS("Tabs with scroll"), TABS("Tabs, no scroll"), TWO_PANELS("Two panels");
+        SCROLL_TABS("Side tabs, scroll"), TABS("Side tabs, no scroll"), TWO_PANELS("Two panels"),
+        TOP_TABS("Top tabs, no scroll"), BOTTOM_TABS("Bottom tabs, no scroll");
 
         final String label;
 
         Layout(String label) {
             this.label = label;
         }
+
+        /** True where the tabs pick what shows (no scroll), rather than scroll to it. */
+        boolean picks() {
+            return this == TABS || this == TOP_TABS || this == BOTTOM_TABS;
+        }
+
+        /** True where the tabs sit in a column left of the list. */
+        boolean side() {
+            return this == SCROLL_TABS || this == TABS || this == TWO_PANELS;
+        }
     }
 
     public static Layout layout = Layout.SCROLL_TABS;
-
-    /** Switches layouts while a container screen is open. L by default. */
-    static final KeyMapping SWITCH = new KeyMapping(
-            "key.openanywhere.layout", InputConstants.Type.KEYBOARD, InputConstants.KEY_L, OpenAnywhereClient.CATEGORY);
 
     private static final int TAB = 20, TAB_GAP = 2, INDENT = 6;
     private static final Identifier LIT = Identifier.withDefaultNamespace("widget/button");
     private static final Identifier OUT = Identifier.withDefaultNamespace("widget/button_disabled");
     private static final Identifier PICKED = Identifier.withDefaultNamespace("widget/button_highlighted");
+    /** The tab rows as a section of the list, at {@code order}, shown in {@code in}. No title: the rows are the whole section. */
+    private static void tabRows(String name, int order, Layout in) {
+        ContainerRegion.section(OpenAnywhere.MOD_ID + ":" + name, ModeScope.BOTH)
+                .content(new TabStrip(Strip.ROWS))
+                .on(ContainerScreen.class)
+                .order(order)
+                .visibleWhen(() -> layout == in && ClientPanels.anyOpenHere())
+                .declare();
+    }
+
+    /** Top or bottom tabs: scrolls the list to the end the tabs are at (MenuKit clamps it next frame). */
+    private static void revealTabs() {
+        if (layout == Layout.TOP_TABS) ContainerRegions.setScroll(0);
+        if (layout == Layout.BOTTOM_TABS) ContainerRegions.setScroll(Integer.MAX_VALUE);
+    }
+
+    // ponytail: measured (the list's first section's top sits 4 px below the view's top
+    // unscrolled); MenuKit's reveal(sectionId) would know it.
+    private static final int LEAD = 4;
 
     /** One tab: a section, the icon and name it shows, how deep it sits, and its parent's section. */
     record Tab(String sectionId, ItemStack icon, Component name, int depth, @Nullable String parent, boolean right) {}
 
-    // "Tabs, no scroll": the container shown, and the item shown from it.
+    /** Where a strip draws one tab, relative to the strip's own corner. */
+    private record At(Tab tab, int x, int y) {}
+
+    // The no-scroll layouts: the container shown, and the item shown from it.
     private static @Nullable String pickedRoot, pickedChild;
     // Sections seen last frame, to pick a newly opened one.
     private static Set<String> known = Set.of();
-    // "Tabs with scroll": the section being scrolled to, and the last scroll set.
+    // "Side tabs with scroll": the section being scrolled to, which way, and the last scroll seen.
     private static @Nullable String jumpTo;
+    private static int jumpDir, jumpFrames;
     private static double lastScroll = Double.NaN;
-    private static int jumpFrames;
+    // Carrying an item over a tab: where the mouse was when it last switched. The next
+    // switch waits for the mouse to move, so a layout that moves the tabs under a still
+    // mouse can't switch again and again by itself.
+    private static double hoverMouseX = Double.NaN, hoverMouseY = Double.NaN;
+    // ...and the tab it switched to, in which strip, so staying on that tab doesn't switch again.
+    private static @Nullable String hoverId;
+    private static @Nullable Strip hoverStrip;
 
     static void register() {
-        KeyMappingHelper.registerKeyMapping(SWITCH);
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
-            ScreenKeyboardEvents.afterKeyPress(screen).register((s, key) -> {
-                if (!SWITCH.matches(key)) return;
-                layout = Layout.values()[(layout.ordinal() + 1) % Layout.values().length];
-                jumpTo = null;
-            });
             ScreenEvents.afterExtract(screen).register((s, g, mx, my, a) -> {
                 refreshPicks(s);
                 stepJump(s);
@@ -121,18 +157,36 @@ public final class LayoutPrototype {
 
         // The tab column left of the container list.
         Panel left = Panel.builder(OpenAnywhere.MOD_ID + ":tabs_left")
-                .add(new TabColumn(false))
+                .add(new TabStrip(Strip.LEFT))
                 .style(PanelStyle.NONE)
                 .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
                 .build()
-                .visibleWhen(() -> !tabs(false).isEmpty());
+                .visibleWhen(() -> layout.side() && !tabs(false).isEmpty());
         new AnchorPanelAdapter(left);
+
+        // The tab rows above the list and between the list and the inventory: the list's
+        // first and last sections, so the list makes room for them. ponytail: they scroll
+        // with the list; a pick scrolls them back into view (revealTabs). MenuKit would own
+        // a header or footer that stays put.
+        tabRows("tabs_top", -10_000, Layout.TOP_TABS);
+        tabRows("tabs_bottom", 10_000, Layout.BOTTOM_TABS);
 
         rightPanel();
 
-        // Which layout is on, top right of the screen, clear of the tabs and the inventory.
-        Panel label = Panel.builder(OpenAnywhere.MOD_ID + ":layout_label")
-                .add(TextLabel.builder().text(() -> Component.literal("Layout: " + layout.label + "  (L switches)")).build())
+        // The layout picker, top right of the screen: the layout's name over a button per layout.
+        Column.Builder picker = Column.at(0, 0).spacing(2)
+                .add(TextLabel.builder().text(() -> Component.literal((layout.ordinal() + 1) + ". " + layout.label)).build())
+                .addRow(r -> {
+                    r.spacing(2);
+                    for (Layout l : Layout.values()) {
+                        r.add(Button.builder()
+                                .label(Component.literal(String.valueOf(l.ordinal() + 1)))
+                                .onClick(() -> { layout = l; jumpTo = null; revealTabs(); })
+                                .build());
+                    }
+                });
+        Panel label = Panel.builder(OpenAnywhere.MOD_ID + ":layout_picker")
+                .elements(picker.build())
                 .style(PanelStyle.DARK)
                 .in(ModeScope.BOTH, Placement.screen(PanelPosition.screenAnchor(InsideRegion.TOP_RIGHT)))
                 .build()
@@ -148,7 +202,7 @@ public final class LayoutPrototype {
         return switch (layout) {
             case SCROLL_TABS -> true;
             case TWO_PANELS -> source != Source.INVENTORY;
-            case TABS -> sectionId.equals(pickedRoot) || sectionId.equals(pickedChild);
+            case TABS, TOP_TABS, BOTTOM_TABS -> sectionId.equals(pickedRoot) || sectionId.equals(pickedChild);
         };
     }
 
@@ -182,7 +236,6 @@ public final class LayoutPrototype {
         return out;
     }
 
-    /** The tabs in one column: the left one, or the second panel's. */
     /** For the self-checks: clicks tab {@code index} of a column, as the mouse would. */
     public static void clickForChecks(boolean right, int index) {
         click(tabs(right).get(index));
@@ -193,6 +246,7 @@ public final class LayoutPrototype {
         return tabs(right).stream().map(Tab::sectionId).toList();
     }
 
+    /** The tabs in one column: the left one (every tab but the second panel's), or the second panel's. */
     static List<Tab> tabs(boolean right) {
         List<Tab> out = new ArrayList<>();
         for (Tab t : all()) if (t.right() == right) out.add(t);
@@ -225,29 +279,27 @@ public final class LayoutPrototype {
     /** True while the tab's section shows in the list's view, or (second panel) at all. */
     private static boolean lit(Tab t) {
         if (t.right()) return true;
-        if (layout == Layout.TABS) return t.sectionId().equals(pickedRoot) || t.sectionId().equals(pickedChild);
+        if (layout.picks()) return picked(t);
         Screen screen = Minecraft.getInstance().gui.screen();
         return screen != null && ContainerRegion.anchor(t.sectionId()).box(screen) != null;
     }
 
+    private static boolean picked(Tab t) {
+        return t.sectionId().equals(pickedRoot) || t.sectionId().equals(pickedChild);
+    }
+
     private static void click(Tab t) {
-        switch (layout) {
-            case TABS -> {
-                if (t.depth() == 0) {
-                    pickedRoot = t.sectionId();
-                    pickedChild = firstChild(t.sectionId());
-                } else {
-                    pickedRoot = t.parent();
-                    pickedChild = t.sectionId();
-                }
+        if (layout.picks()) {
+            if (t.depth() == 0) {
+                pickedRoot = t.sectionId();
+                pickedChild = firstChild(t.sectionId());
+            } else {
+                pickedRoot = t.parent();
+                pickedChild = t.sectionId();
             }
-            default -> {
-                if (!t.right()) {
-                    jumpTo = t.sectionId();
-                    jumpFrames = 0;
-                    lastScroll = Double.NaN;
-                }
-            }
+            revealTabs();
+        } else if (!t.right()) {
+            startJump(t.sectionId());
         }
     }
 
@@ -278,24 +330,41 @@ public final class LayoutPrototype {
     }
 
     /**
-     * Scrolls the list a step toward {@code jumpTo} each frame until its section's top
-     * sits at the list's top, or the list can't go further.
+     * Starts scrolling the list to {@code sectionId}: down when its section is below the
+     * view's top, up when it is cut at the top or above the view. The way is fixed here,
+     * so the scroll can never turn back on itself.
+     */
+    private static void startJump(String sectionId) {
+        Screen screen = Minecraft.getInstance().gui.screen();
+        var g = screen == null ? null : ContainerRegions.geometry(screen);
+        if (g == null) return;
+        jumpTo = sectionId;
+        jumpFrames = 0;
+        lastScroll = Double.NaN;
+        Reference box = ContainerRegion.anchor(sectionId).box(screen);
+        jumpDir = box != null ? (box.topPos() > g.viewTop() ? 1 : -1) : (targetAbove(screen) ? -1 : 1);
+    }
+
+    /**
+     * Scrolls the list toward {@code jumpTo}, one frame at a time, until its section's top
+     * sits at the view's top. While the section's top is in view, that is one exact
+     * scroll; until then the list steps 16 px a frame in the jump's way. It stops when the
+     * list can't go further (MenuKit clamps the scroll at either end).
      */
     private static void stepJump(Screen screen) {
         if (jumpTo == null) return;
-        if (++jumpFrames > 240) { jumpTo = null; return; }
-        Reference list = ContainerRegion.CONTAINERS.box(screen);
-        if (list == null) { jumpTo = null; return; }
-        Reference box = ContainerRegion.anchor(jumpTo).box(screen);
+        var g = ContainerRegions.geometry(screen);
         double scroll = ContainerRegions.scroll();
-        if (scroll == lastScroll && box != null) { jumpTo = null; return; }   // clamped: as far as it goes
+        if (g == null || ++jumpFrames > 240 || scroll == lastScroll) { jumpTo = null; return; }
         lastScroll = scroll;
-        if (box != null && box.topPos() > list.topPos() + 1) {
-            ContainerRegions.setScroll(scroll + Math.min(16, box.topPos() - list.topPos()));
-        } else if (box != null && box.topPos() <= list.topPos() + 1 && box.topPos() >= list.topPos() - 1 && !targetAbove(screen)) {
+        Reference box = ContainerRegion.anchor(jumpTo).box(screen);
+        // A section is cut at the view's top, so a box whose top is below it shows its own top.
+        // It lands LEAD below the view's top, where the list's first section sits unscrolled.
+        if (box != null && box.topPos() > g.viewTop()) {
+            ContainerRegions.setScroll(scroll + box.topPos() - g.viewTop() - LEAD);
             jumpTo = null;
         } else {
-            ContainerRegions.setScroll(scroll + (targetAbove(screen) ? -16 : 16));
+            ContainerRegions.setScroll(scroll + 16 * jumpDir);
         }
     }
 
@@ -311,51 +380,103 @@ public final class LayoutPrototype {
         return firstLit >= 0 && target < firstLit;
     }
 
-    /** A column of tabs, each a raised square with the container's icon, children indented. */
-    static final class TabColumn extends AbstractPanelElement {
+    /** Which tabs a strip shows, and how it lays them out. */
+    enum Strip {
+        /** Left of the list: every tab but the second panel's, in a column, children indented. */
+        LEFT,
+        /** The second panel's: what opened from the inventory, in a column. */
+        RIGHT,
+        /** Two rows: the containers, then what opened from the picked one. */
+        ROWS
+    }
 
-        private final boolean right;
+    /** A strip of tabs, each a raised square with the container's icon. */
+    static final class TabStrip extends AbstractPanelElement {
 
-        TabColumn(boolean right) {
-            this.right = right;
-            this.width = TAB + INDENT;
+        private final Strip strip;
+
+        TabStrip(Strip strip) {
+            this.strip = strip;
+            this.width = strip == Strip.ROWS ? ContainerRegion.CONTENT_WIDTH : TAB + INDENT;
             this.authoredWidth = width;
         }
 
+        /** Where each tab goes this frame. */
+        private List<At> placed() {
+            List<At> out = new ArrayList<>();
+            int step = TAB + TAB_GAP;
+            switch (strip) {
+                case LEFT, RIGHT -> {
+                    List<Tab> tabs = tabs(strip == Strip.RIGHT);
+                    for (int i = 0; i < tabs.size(); i++) {
+                        Tab t = tabs.get(i);
+                        out.add(new At(t, strip == Strip.RIGHT ? 0 : t.depth() * INDENT, i * step));
+                    }
+                }
+                case ROWS -> {
+                    int roots = 0, children = 0;
+                    for (Tab t : tabs(false)) {
+                        if (t.depth() == 0) out.add(new At(t, roots++ * step, 0));
+                        else if (t.parent() != null && t.parent().equals(pickedRoot)) out.add(new At(t, children++ * step, step));
+                    }
+                }
+            }
+            return out;
+        }
+
         @Override public int getHeight() {
-            return Math.max(TAB, tabs(right).size() * (TAB + TAB_GAP) - TAB_GAP);
+            int bottom = TAB;
+            for (At at : placed()) bottom = Math.max(bottom, at.y() + TAB);
+            return bottom;
         }
 
         @Override public boolean isInteractive() { return true; }
 
+        private static boolean over(At at, int ox, int oy, double mx, double my) {
+            int x = ox + at.x(), y = oy + at.y();
+            return mx >= x && mx < x + TAB && my >= y && my < y + TAB;
+        }
+
         @Override public void render(RenderContext ctx) {
-            List<Tab> tabs = tabs(right);
             var g = ctx.graphics();
+            int ox = ctx.originX() + getChildX(), oy = ctx.originY() + getChildY();
             Tab hovered = null;
-            for (int i = 0; i < tabs.size(); i++) {
-                Tab t = tabs.get(i);
-                int x = ctx.originX() + getChildX() + (right ? 0 : t.depth() * INDENT);
-                int y = ctx.originY() + getChildY() + i * (TAB + TAB_GAP);
-                boolean picked = layout == Layout.TABS && (t.sectionId().equals(pickedChild) || t.sectionId().equals(pickedRoot));
+            for (At at : placed()) {
+                Tab t = at.tab();
+                int x = ox + at.x(), y = oy + at.y();
+                boolean picked = layout.picks() && picked(t);
                 g.blitSprite(RenderPipelines.GUI_TEXTURED, picked ? PICKED : lit(t) ? LIT : OUT, x, y, TAB, TAB);
                 g.item(t.icon(), x + 2, y + 2);
                 // Scrolled out of view: clearly dimmed, so lit and out read apart at a glance.
                 if (!picked && !lit(t)) g.fill(x, y, x + TAB, y + TAB, 0xA0000000);
-                if (ctx.mouseX() >= x && ctx.mouseX() < x + TAB && ctx.mouseY() >= y && ctx.mouseY() < y + TAB) hovered = t;
+                if (over(at, ox, oy, ctx.mouseX(), ctx.mouseY())) hovered = t;
             }
-            if (hovered != null) MKTooltip.queue(g, hovered.name(), ctx.mouseX(), ctx.mouseY());
+            if (hovered == null) {
+                if (hoverStrip == strip) hoverId = null;
+                return;
+            }
+            MKTooltip.queue(g, hovered.name(), ctx.mouseX(), ctx.mouseY());
+            // Carrying an item onto a tab acts as a click: once each time the mouse comes
+            // onto a tab, and only once the mouse has moved since the last such click.
+            var mc = Minecraft.getInstance();
+            boolean carrying = mc.player != null && !mc.player.containerMenu.getCarried().isEmpty();
+            boolean moved = ctx.mouseX() != hoverMouseX || ctx.mouseY() != hoverMouseY;
+            if (carrying && moved && !hovered.sectionId().equals(hoverId)) {
+                hoverId = hovered.sectionId();
+                hoverStrip = strip;
+                hoverMouseX = ctx.mouseX();
+                hoverMouseY = ctx.mouseY();
+                click(hovered);
+            }
         }
 
         @Override public void renderOverlay(RenderContext ctx) {}
 
         @Override public boolean mouseClicked(InputContext in, int button) {
-            List<Tab> tabs = tabs(right);
-            for (int i = 0; i < tabs.size(); i++) {
-                Tab t = tabs.get(i);
-                int x = in.originX() + getChildX() + (right ? 0 : t.depth() * INDENT);
-                int y = in.originY() + getChildY() + i * (TAB + TAB_GAP);
-                if (in.mouseX() >= x && in.mouseX() < x + TAB && in.mouseY() >= y && in.mouseY() < y + TAB) {
-                    click(t);
+            int ox = in.originX() + getChildX(), oy = in.originY() + getChildY();
+            for (At at : placed()) {
+                if (over(at, ox, oy, in.mouseX(), in.mouseY())) {
+                    click(at.tab());
                     return true;
                 }
             }
@@ -388,7 +509,7 @@ public final class LayoutPrototype {
         Panel right = Panel.builder(OpenAnywhere.MOD_ID + ":inventory_items")
                 .elements(Row.at(0, 0).spacing(4)
                         .addColumn(c -> { c.spacing(0); for (var b : blocks) c.add(b); })
-                        .add(new TabColumn(true))
+                        .add(new TabStrip(Strip.RIGHT))
                         .build())
                 .style(PanelStyle.RAISED)
                 .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS, PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)))

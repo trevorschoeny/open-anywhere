@@ -77,6 +77,14 @@ public class LayoutChecks implements FabricClientGameTest {
             ctx.waitTicks(40);
             if (!shown(tabs.getLast())) fail("clicking the last tab didn't scroll to its section");
             ctx.takeScreenshot("layouts-1-tabs-scroll-jumped");
+            // Back to the first tab: the list goes to the top and stays there (it used to
+            // bounce, aiming the section at the list's edge instead of the view's).
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, 0));
+            ctx.waitTicks(40);
+            double settled = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.scroll());
+            ctx.waitTicks(10);
+            double later = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.scroll());
+            if (settled != 0 || later != 0) fail("jumping back to the first tab left the scroll at " + settled + ", then " + later + ", not 0");
 
             // Tabs, no scroll: one container and one item from it.
             LayoutPrototype.layout = Layout.TABS;
@@ -88,6 +96,18 @@ public class LayoutChecks implements FabricClientGameTest {
             if (showing != 2) fail("tabs without scroll shows " + showing + " sections, not 2");
             if (!shown(tabs.get(0)) || !shown(tabs.get(2))) fail("tabs without scroll didn't show the chest and the picked box together");
             ctx.takeScreenshot("layouts-2-tabs-no-scroll");
+
+            // Top tabs and bottom tabs: the same picking, the tabs elsewhere.
+            for (Layout l : new Layout[] {Layout.TOP_TABS, Layout.BOTTOM_TABS}) {
+                LayoutPrototype.layout = l;
+                ctx.waitTicks(5);
+                ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(false, 1));   // the chest's first box
+                ctx.waitTicks(5);
+                int n = 0;
+                for (String id : tabs) if (shown(id)) n++;
+                if (n != 2 || !shown(tabs.get(0)) || !shown(tabs.get(1))) fail(l + " didn't show the chest and its first box alone");
+                ctx.takeScreenshot("layouts-" + (l.ordinal() + 1) + "-" + l.name().toLowerCase());
+            }
 
             // Two panels: the lime box moves to the right panel, still shown.
             LayoutPrototype.layout = Layout.TWO_PANELS;
