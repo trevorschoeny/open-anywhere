@@ -78,6 +78,23 @@ public class TabChecks implements FabricClientGameTest {
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
             if (open != 5) fail(open + " things open, not 5");
 
+            // The wheel away from the list moves a tab: down to the right, up to the left.
+            ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
+            ctx.waitTicks(3);
+            List<String> rowWas = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
+            ctx.getInput().setCursorPos(5, 5);
+            ctx.waitTick();
+            ctx.getInput().scroll(-1);
+            ctx.waitTicks(2);
+            List<String> down = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
+            int was = rowWas.subList(1, rowWas.size()).indexOf(rowWas.getFirst());
+            int now = down.subList(1, down.size()).indexOf(down.getFirst());
+            if (now != Math.min(was + 1, rowWas.size() - 2)) fail("a turn down moved the tab from " + was + " to " + now);
+            ctx.getInput().scroll(1);
+            ctx.waitTicks(2);
+            List<String> up = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
+            if (!up.getFirst().equals(rowWas.getFirst())) fail("a turn up didn't go back to " + rowWas.getFirst() + ": " + up.getFirst());
+
             // A bundle of 60 stacks (61 slots, seven rows) grows to the room there is, then
             // its grid scrolls: the panel stops short of the double chest's height.
             open(s -> isChest(s) && idOf(s).equals("bundle"), "the full bundle");

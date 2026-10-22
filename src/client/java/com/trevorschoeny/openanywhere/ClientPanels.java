@@ -87,6 +87,7 @@ final class ClientPanels {
             return new Reference(frame.openanywhere$leftPos(), frame.openanywhere$topPos(), frame.openanywhere$imageWidth(), 0);
         });
         SlotScroll.register();
+        TabWheel.register();
         containerList();
     }
 
