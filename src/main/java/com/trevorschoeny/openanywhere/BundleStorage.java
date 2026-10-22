@@ -93,6 +93,21 @@ final class BundleStorage implements Storage {
      * reversing the bundle on every write (found in game, 2026-10-16).
      */
     private void writeBack(ItemStack bundle) {
+        // An item the bundle already holds stacks onto it (Trev, 2026-10-22): each stack
+        // folds into the first earlier stack of the same item, up to a full stack, as
+        // vanilla's own bundle does. The rest, if any, stays where it was put.
+        for (int i = 1; i < live.size(); i++) {
+            ItemStack moving = live.get(i);
+            for (int j = 0; j < i && !moving.isEmpty(); j++) {
+                ItemStack into = live.get(j);
+                if (into.isEmpty() || !ItemStack.isSameItemSameComponents(into, moving)) continue;
+                int room = into.getMaxStackSize() - into.getCount();
+                if (room <= 0) continue;
+                int n = Math.min(room, moving.getCount());
+                into.grow(n);
+                moving.shrink(n);
+            }
+        }
         bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(live.stream()
                 .filter(s -> !s.isEmpty()).map(ItemStackTemplate::fromNonEmptyStack).toList()));
         // Reloaded on the next read, which also packs the emptied slots out.

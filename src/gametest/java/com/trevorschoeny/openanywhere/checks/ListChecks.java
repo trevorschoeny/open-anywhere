@@ -141,6 +141,16 @@ public class ListChecks implements FabricClientGameTest {
         doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the bundle");
         expectStacked(Openable.BUNDLE);
         expectChestSection();
+        // Stone the bundle already holds stacks onto its stone (Trev, 2026-10-22): still two stacks.
+        command("item replace entity @p inventory.0 with minecraft:stone 3");
+        ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:bundle_0_inventory"));
+        ctx.waitTicks(3);
+        shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.STONE), "the stone");
+        String contents = scene.world().getServer().computeOnServer(sv -> String.valueOf(
+                sv.getPlayerList().getPlayers().getFirst().getInventory().getItem(1)
+                        .get(net.minecraft.core.component.DataComponents.BUNDLE_CONTENTS).itemCopies().map(ItemStack -> ItemStack.getCount() + " " + ItemStack.getItem()).toList()));
+        if (!contents.equals("[7 minecraft:stone, 2 minecraft:granite]"))
+            throw new AssertionError("stone shift-clicked into the bundle didn't stack onto its stone: " + contents);
     }
 
     /**
