@@ -68,10 +68,11 @@ final class SlotScroll {
             rows.add(row.visibleWhen(() -> cells.getFirst().isVisible()).build());
         }
         PanelElement grid = Flow.builder().vertical().gap(0, 0).addAll(rows).build();
-        int lane = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
+        // The scrollbar beside the grid, not in it: the list widens for it only while it scrolls.
         Grid scroll = new Grid(ScrollContainer.builder()
-                .size(ContainerRegion.CONTENT_WIDTH + lane, MIN_ROWS * ROW)
+                .size(ContainerRegion.CONTENT_WIDTH, MIN_ROWS * ROW)
                 .fitHeight()
+                .laneOutside()
                 .content(List.of(grid)));
         GRIDS.add(scroll);
         return scroll;
