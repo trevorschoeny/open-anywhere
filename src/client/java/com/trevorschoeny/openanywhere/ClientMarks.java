@@ -7,6 +7,7 @@ import com.trevlar.slotkit.api.slot.CreatedSlot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 /** What {@code SlotMarksMixin} draws over a slot. */
 public final class ClientMarks {
@@ -28,6 +29,20 @@ public final class ClientMarks {
             plus(graphics, frameX + 1, frameY + 1, ADD_SHADOW);
             plus(graphics, frameX, frameY, ADD_MARK);
         }
+    }
+
+    /**
+     * The stack to draw in {@code slot}: an open bundle with vanilla's open-bag art for its
+     * colour ({@code assets/openanywhere/items/<colour>_bundle_open.json}), else the stack.
+     */
+    public static ItemStack drawnAs(Slot slot, ItemStack stack) {
+        if (Openable.of(stack) != Openable.BUNDLE || !Sessions.isOpenOnClient(slot.container, slot.getContainerSlot())
+                || OpenAnywhereClient.awaitingTab(slot)) return stack;
+        String path = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+        ItemStack drawn = stack.copy();
+        drawn.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + "_open"));
+        return drawn;
     }
 
     private static boolean isAddSlot(CreatedSlot created) {

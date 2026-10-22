@@ -136,6 +136,11 @@ public final class OpenAnywhereClient implements ClientModInitializer {
                 player.inventoryMenu.broadcastChanges();
                 ClientPlayNetworking.send(new OpenC2S(target, false));
             } else {
+                // Back in its slot now, on this side, rather than once the server says so:
+                // the lift lasts only as long as the player's own double-click. The server
+                // puts it back too, and its sync corrects this if it refuses.
+                hovered.set(carried);
+                player.containerMenu.setCarried(ItemStack.EMPTY);
                 ClientPlayNetworking.send(new OpenC2S(hovered.index, true));
             }
             return true;
