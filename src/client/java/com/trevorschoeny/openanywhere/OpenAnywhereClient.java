@@ -67,12 +67,12 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     }
 
     /**
-     * The double-click window (Trev, 2026-10-22): half a second, as long as the cursor
+     * The double-click window (Trev, 2026-10-22): one second, as long as the cursor
      * stays put. Through it the lifted item is drawn where it sat ({@link #heldAt}), so a
      * double-click shows no movement; moving the cursor ends it, and the item goes to the
      * cursor as any picked-up item does.
      */
-    private static final long HOLD_MS = 500;
+    private static final long HOLD_MS = 1000;
     // The first click's slot on screen and where the mouse was.
     private static int heldX, heldY;
     private static double firstMouseX, firstMouseY;
