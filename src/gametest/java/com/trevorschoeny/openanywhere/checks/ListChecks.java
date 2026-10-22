@@ -44,8 +44,6 @@ public class ListChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
-        // The list as a list, every section shown: the layout prototype's scroll layout.
-        com.trevorschoeny.openanywhere.LayoutPrototype.layout = com.trevorschoeny.openanywhere.LayoutPrototype.Layout.CONTENTS;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "container-list")) {
             this.scene = scene;
             run("openanywhere:list_box_in_chest", this::boxInChest);
@@ -305,8 +303,15 @@ public class ListChecks implements FabricClientGameTest {
             throw new AssertionError("the chest's screen didn't stay open");
     }
 
-    /** The chest's own slots still drawn: its first slot is on screen, inside the screen's bounds. */
+    /**
+     * Tabs: the opened item shows alone, the chest's own slots off; picking the chest's tab
+     * shows its grid again, its first slot on screen inside the screen's bounds.
+     */
     private void expectChestSection() {
+        if (ctx.computeOnClient(mc -> screen(mc).getMenu().getSlot(0).isActive()))
+            throw new AssertionError("the chest's own grid still shows beside the opened item");
+        ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:chest"));
+        ctx.waitTicks(3);
         boolean inside = ctx.computeOnClient(mc -> {
             AbstractContainerScreen<?> screen = screen(mc);
             ScreenAccessor b = (ScreenAccessor) screen;
@@ -314,7 +319,7 @@ public class ListChecks implements FabricClientGameTest {
             int top = b.openanywhere$topPos();
             return first.isActive() && first.y >= 0 && top + first.y + 16 <= screen.height;
         });
-        if (!inside) throw new AssertionError("the chest's own grid isn't shown above the opened item");
+        if (!inside) throw new AssertionError("the chest's tab didn't show the chest's grid");
     }
 
     private void expectServerSession(Openable kind, boolean open) {
@@ -395,6 +400,16 @@ public class ListChecks implements FabricClientGameTest {
     }
 
     private void hover(Predicate<Slot> p, String what) {
+        // Tabs show one container at a time: a slot not shown is most often the chest's,
+        // behind the tab of something just opened, so the chest's tab is picked first.
+        boolean shown = ctx.computeOnClient(mc -> {
+            for (Slot s : screen(mc).getMenu().slots) if (s.isActive() && p.test(s)) return true;
+            return false;
+        });
+        if (!shown) {
+            ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:chest"));
+            ctx.waitTicks(3);
+        }
         double[] at = ctx.computeOnClient(mc -> {
             AbstractContainerScreen<?> screen = screen(mc);
             Slot found = null;

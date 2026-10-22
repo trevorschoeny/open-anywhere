@@ -106,24 +106,27 @@ final class ClientPanels {
      * and resource packs are MenuKit's.
      */
     private static void containerList() {
+        // One container at a time, picked by tabs on the panel's top edge, the panel fitting
+        // the one shown (Trev, 2026-10-21). MenuKit's tabs mode does all of it.
+        ContainerRegion.tabs(ModeScope.BOTH).on(ContainerScreen.class);
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
         ContainerRegion.section(CHEST_ID, ModeScope.BOTH)
-                .title(() -> LayoutPrototype.titled(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                        ? screen.getTitle() : Component.translatable("container.chest")))
+                .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
+                        ? screen.getTitle() : Component.translatable("container.chest"))
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
-                .visibleWhen(() -> anyOpenHere() && LayoutPrototype.shows(CHEST_ID, Source.CONTAINER))
+                .visibleWhen(ClientPanels::anyOpenHere)
                 .declare();
-        // Asked for now, while MenuKit takes declarations: the layout prototype's tabs read it.
+        // Asked for now, while MenuKit takes declarations: read later to tell whether it shows.
         ContainerRegion.anchor(CHEST_ID);
 
         // The ender chest opened from its item. Its source is the item, so MenuKit names it
         // "Ender Chest" and gives it the chest's art, as a placed one has.
         String ender = Openable.ENDER_CHEST.panelId(0);
         ContainerRegion.section(ender, ModeScope.BOTH)
-                .title(() -> LayoutPrototype.titled(() -> Component.translatable("container.enderchest")))
+                .title(() -> Component.translatable("container.enderchest"))
                 .source(() -> {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
@@ -131,7 +134,7 @@ final class ClientPanels {
                 .content(SlotGroupElement.of(Groups.group(Openable.ENDER_CHEST, 0).id()))
                 .on(ContainerScreen.class)
                 .order(Source.ENDER_CHEST.order)
-                .visibleWhen(() -> LayoutPrototype.shows(ender, Source.ENDER_CHEST))
+                .visibleWhen(() -> clientSession(Openable.ENDER_CHEST, 0) != null)
                 .declare();
         sectionClose(ender, Openable.ENDER_CHEST, 0);
 
@@ -148,11 +151,11 @@ final class ClientPanels {
         Component plain = kind == Openable.SHULKER ? Component.translatable("container.shulkerBox")
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
-                .title(() -> LayoutPrototype.titled(() -> title(kind, lane, plain)))
+                .title(() -> title(kind, lane, plain))
                 .content(SlotGroupElement.of(Groups.group(kind, lane).id()))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
-                .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source && LayoutPrototype.shows(id, source));
+                .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source);
         if (kind == Openable.SHULKER) {
             section.source(() -> {
                 Session s = clientSession(kind, lane);
@@ -165,6 +168,13 @@ final class ClientPanels {
         }
         section.declare();
         sectionClose(id, kind, lane);
+    }
+
+    /** The section {@code session} shows in: the ender chest's own, or its lane's under where it came from. */
+    static String sectionIdOf(Session session) {
+        if (session.kind() == Openable.ENDER_CHEST) return Openable.ENDER_CHEST.panelId(0);
+        Source source = sourceOf(session);
+        return sectionId(session.kind(), session.lane(), source == null ? Source.INVENTORY : source);
     }
 
     /** Where the item open in {@code session} came from, read off its slot on the open menu. */
@@ -200,17 +210,19 @@ final class ClientPanels {
     }
 
     /**
-     * A section's own close button, inside its top-right corner on the title's row, riding
-     * on MenuKit's anchor for the section: hidden with it, scrolled with it.
+     * The shown section's close button, centred on the container panel's top-right corner,
+     * as on vanilla's own screens this mod opens (Trev, 2026-10-16), so it sits over the
+     * frame's edge and never over a slot or a tab. It rides on MenuKit's anchor for the
+     * section: in tabs mode only the shown section's anchor is there, so only its X shows.
      */
     private static void sectionClose(String sectionId, Openable kind, int lane) {
         Anchor anchor = ContainerRegion.anchor(sectionId);
         Panel close = closePanel(sectionId.replace(':', '_'), () -> clientSession(kind, lane),
                 Placement.around(anchor, PanelPosition.pixel(() -> {
                     var screen = Minecraft.getInstance().gui.screen();
-                    Reference box = screen == null ? null : anchor.box(screen);
-                    if (box == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
-                    return new ScreenOrigin(box.leftPos() + ContainerRegion.CONTENT_WIDTH + 7 - CLOSE_SIZE, box.topPos() + 3);
+                    Reference list = screen == null || anchor.box(screen) == null ? null : ContainerRegion.CONTAINERS.box(screen);
+                    if (list == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
+                    return new ScreenOrigin(list.leftPos() + list.imageWidth() - CLOSE_SIZE / 2 - 1, list.topPos() - CLOSE_SIZE / 2);
                 })));
         new AnchorPanelAdapter(close);
     }

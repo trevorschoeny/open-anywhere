@@ -1,6 +1,7 @@
 package com.trevorschoeny.openanywhere;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
@@ -51,8 +52,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         KeyMappingHelper.registerKeyMapping(OPEN);
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPanels.register();
-        LayoutPrototype.register();
-        // The bundle's host is vanilla's chest menu, so it gets vanilla's chest screen.
+                // The bundle's host is vanilla's chest menu, so it gets vanilla's chest screen.
         MenuScreens.register(BundleHost.TYPE, ContainerScreen::new);
 
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
@@ -154,15 +154,18 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         Openable kind = payload.kind();
         if (!payload.open()) {
             Sessions.remove(player, kind, payload.lane());
-            // Closed with its button or Option-click: back to the inventory screen.
+            // Closed with its button or a double-click: back to the inventory screen.
             if (payload.toInventory()) Minecraft.getInstance().gui.setScreen(new InventoryScreen(player));
             return;
         }
         AbstractContainerMenu menu = player.containerMenu;
         boolean onMenu = payload.menuSlot() >= 0 && payload.menuSlot() < menu.slots.size();
         Slot slot = onMenu ? menu.getSlot(payload.menuSlot()) : null;
-        Sessions.put(player, new Session(kind, payload.lane(), menu, slot == null ? null : slot.container,
+        Session session = new Session(kind, payload.lane(), menu, slot == null ? null : slot.container,
                 slot == null ? -1 : slot.getContainerSlot(), payload.menuSlot(),
-                slot == null ? ItemStack.EMPTY : slot.getItem()));
+                slot == null ? ItemStack.EMPTY : slot.getItem());
+        Sessions.put(player, session);
+        // What was just opened is what the player wants to see: its tab is picked.
+        if (session.stacked()) ContainerRegion.select(ClientPanels.sectionIdOf(session));
     }
 }

@@ -4,7 +4,6 @@
   "package": "com.trevorschoeny.openanywhere.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
-    "HiddenChestSlotsMixin",
     "ScreenAccessor",
     "SlotMarksMixin"
   ],

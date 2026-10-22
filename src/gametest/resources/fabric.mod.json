@@ -7,7 +7,7 @@
     "fabric-client-gametest": [
       "com.trevorschoeny.openanywhere.checks.ModeChecks",
       "com.trevorschoeny.openanywhere.checks.ListChecks",
-      "com.trevorschoeny.openanywhere.checks.LayoutChecks"
+      "com.trevorschoeny.openanywhere.checks.TabChecks"
     ]
   }
 }
