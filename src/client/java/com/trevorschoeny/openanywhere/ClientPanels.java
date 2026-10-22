@@ -111,8 +111,8 @@ final class ClientPanels {
      */
     private static void containerList() {
         // One container at a time, picked by tabs on the panel's top edge, the panel fitting
-        // the one shown (Trev, 2026-10-21). MenuKit's tabs mode does all of it.
-        ContainerRegion.tabs(ModeScope.BOTH).on(ContainerScreen.class);
+        // the one shown (Trev, 2026-10-21). The pick is ours (Tabs); MenuKit draws the row.
+        Tabs.fit();
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
@@ -123,7 +123,10 @@ final class ClientPanels {
                 // grid scroll (and its vanilla slots don't present inside one).
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
-                .visibleWhen(ClientPanels::anyOpenHere)
+                .order(Source.CONTAINER.order)
+                .visibleWhen(Tabs.tab(CHEST_ID, Source.CONTAINER.order, ClientPanels::anyOpenHere, ClientPanels::screenBlock,
+                        () -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen ? screen.getTitle() : null))
+                .onHiddenLanding(() -> Tabs.pick(CHEST_ID))
                 .declare();
         // Asked for now, while MenuKit takes declarations: read later to tell whether it shows.
         ContainerRegion.anchor(CHEST_ID);
@@ -133,7 +136,6 @@ final class ClientPanels {
         String ender = Openable.ENDER_CHEST.panelId(0);
         ContainerRegion.section(ender, ModeScope.BOTH)
                 .title(() -> Component.translatable("container.enderchest"))
-                .tooltip(() -> tooltip(Component.translatable("container.enderchest"), clientSession(Openable.ENDER_CHEST, 0)))
                 .source(() -> {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
@@ -141,7 +143,10 @@ final class ClientPanels {
                 .content(SlotScroll.of(Groups.group(Openable.ENDER_CHEST, 0).id(), Openable.ENDER_CHEST.slots, false))
                 .on(ContainerScreen.class)
                 .order(Source.ENDER_CHEST.order)
-                .visibleWhen(() -> clientSession(Openable.ENDER_CHEST, 0) != null)
+                .visibleWhen(Tabs.tab(ender, Source.ENDER_CHEST.order, () -> clientSession(Openable.ENDER_CHEST, 0) != null,
+                        () -> stackOf(Openable.ENDER_CHEST, 0),
+                        () -> tooltip(Component.translatable("container.enderchest"), clientSession(Openable.ENDER_CHEST, 0))))
+                .onHiddenLanding(() -> Tabs.pick(ender))
                 .declare();
         sectionClose(ender, Openable.ENDER_CHEST, 0);
 
@@ -159,11 +164,12 @@ final class ClientPanels {
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
                 .title(() -> title(kind, lane, plain))
-                .tooltip(() -> tooltip(title(kind, lane, plain), clientSession(kind, lane)))
                 .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots, kind == Openable.BUNDLE))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
-                .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source);
+                .visibleWhen(Tabs.tab(id, orderOf(kind, lane, source), () -> sourceOf(clientSession(kind, lane)) == source,
+                        () -> stackOf(kind, lane), () -> tooltip(title(kind, lane, plain), clientSession(kind, lane))))
+                .onHiddenLanding(() -> Tabs.pick(id));
         if (kind == Openable.SHULKER) {
             section.source(() -> {
                 Session s = clientSession(kind, lane);
@@ -171,13 +177,8 @@ final class ClientPanels {
             });
         } else {
             // A bundle isn't a block, so it gets no source; this is its name when two
-            // sections need telling apart, and its own item its tab's icon (without one, a
-            // section with no source takes the screen's block: a chest).
+            // sections need telling apart.
             section.name(() -> title(kind, lane, plain));
-            section.icon(() -> {
-                Session s = clientSession(kind, lane);
-                return s == null ? ItemStack.EMPTY : s.stack();
-            });
         }
         section.declare();
         sectionClose(id, kind, lane);
@@ -217,6 +218,29 @@ final class ClientPanels {
         return Source.CONTAINER;
     }
 
+    /** The item open in lane {@code lane}, its tab's icon. */
+    private static ItemStack stackOf(Openable kind, int lane) {
+        Session s = clientSession(kind, lane);
+        return s == null ? ItemStack.EMPTY : s.stack();
+    }
+
+    /**
+     * The screen's own container's tab icon: the block under the crosshair, the one the
+     * screen was opened on, when it holds a container; a chest otherwise (a minecart, a
+     * screen opened by a key).
+     */
+    // ponytail: MenuKit reads the same block for the section's art (ContainerRegions.openedContainer, private); use that if it goes public.
+    private static ItemStack screenBlock() {
+        var mc = Minecraft.getInstance();
+        if (mc.level != null && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit
+                && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && mc.level.getBlockEntity(hit.getBlockPos()) instanceof net.minecraft.world.Container) {
+            ItemStack block = new ItemStack(mc.level.getBlockState(hit.getBlockPos()).getBlock());
+            if (!block.isEmpty()) return block;
+        }
+        return new ItemStack(net.minecraft.world.item.Items.CHEST);
+    }
+
     /** True with any section open on the screen's menu. */
     static boolean anyOpenHere() {
         var mc = Minecraft.getInstance();
@@ -244,7 +268,7 @@ final class ClientPanels {
      * The shown section's close button, centred on the container panel's top-right corner,
      * as on vanilla's own screens this mod opens (Trev, 2026-10-16), so it sits over the
      * frame's edge and never over a slot or a tab. It rides on MenuKit's anchor for the
-     * section: in tabs mode only the shown section's anchor is there, so only its X shows.
+     * section: only the shown section's anchor is there, so only its X shows.
      */
     private static void sectionClose(String sectionId, Openable kind, int lane) {
         Anchor anchor = ContainerRegion.anchor(sectionId);

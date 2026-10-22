@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.Reference;
-import com.trevlar.menukit.inject.RegionTabs;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -41,10 +40,8 @@ final class TabWheel {
     /** One turn of the wheel at {@code (x, y)}: the next or previous tab, unless over the list. Whether it was used. */
     private static boolean turn(Screen screen, double x, double y, double amount) {
         if (amount == 0) return false;
-        // ponytail: MenuKit's internal row (the shown tab, then every tab in order); a public
-        // read of the tab row would replace it.
-        List<String> row = RegionTabs.rowForChecks();
-        if (row == null || row.size() < 3) return false;
+        List<String> row = Tabs.row();
+        if (row.size() < 2) return false;
         // Over the container, the wheel is the container's only while it has a scrollbar:
         // the list's own, or a shown grid's.
         var g = com.trevlar.menukit.inject.ContainerRegions.geometry(screen);
@@ -52,10 +49,9 @@ final class TabWheel {
         Reference list = ContainerRegion.CONTAINERS.box(screen);
         if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
                 && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;
-        List<String> tabs = row.subList(1, row.size());
-        int at = tabs.indexOf(row.getFirst());
-        int next = Math.max(0, Math.min(tabs.size() - 1, at + (amount < 0 ? 1 : -1)));
-        if (next != at) ContainerRegion.select(tabs.get(next));
+        int at = row.indexOf(Tabs.shown());
+        int next = Math.max(0, Math.min(row.size() - 1, at + (amount < 0 ? 1 : -1)));
+        if (next != at) Tabs.pick(row.get(next));
         return true;
     }
 }

@@ -143,7 +143,7 @@ public class ListChecks implements FabricClientGameTest {
         expectChestSection();
         // Stone the bundle already holds stacks onto its stone (Trev, 2026-10-22): still two stacks.
         command("item replace entity @p inventory.0 with minecraft:stone 3");
-        ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:bundle_0_inventory"));
+        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:bundle_0_inventory"));
         ctx.waitTicks(3);
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.STONE), "the stone");
         String contents = scene.world().getServer().computeOnServer(sv -> String.valueOf(
@@ -320,7 +320,7 @@ public class ListChecks implements FabricClientGameTest {
     private void expectChestSection() {
         if (ctx.computeOnClient(mc -> screen(mc).getMenu().getSlot(0).isActive()))
             throw new AssertionError("the chest's own grid still shows beside the opened item");
-        ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:chest"));
+        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:chest"));
         ctx.waitTicks(3);
         boolean inside = ctx.computeOnClient(mc -> {
             AbstractContainerScreen<?> screen = screen(mc);
@@ -417,7 +417,7 @@ public class ListChecks implements FabricClientGameTest {
             return false;
         });
         if (!shown) {
-            ctx.runOnClient(mc -> com.trevlar.menukit.api.panel.ContainerRegion.select("openanywhere:chest"));
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:chest"));
             ctx.waitTicks(3);
         }
         double[] at = ctx.computeOnClient(mc -> {

@@ -10,6 +10,7 @@ import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.Openable;
 import com.trevorschoeny.openanywhere.Sessions;
+import com.trevorschoeny.openanywhere.Tabs;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -56,10 +57,10 @@ public class TabChecks implements FabricClientGameTest {
             // The region comes up with the first item opened; the chest's tab, measured.
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the ender chest");
             if (!shown("openanywhere:ender_chest_0")) fail("the ender chest wasn't shown as it opened");
-            ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
+            ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
             int chestHeight = height();
-            ctx.runOnClient(mc -> ContainerRegion.select("openanywhere:ender_chest_0"));
+            ctx.runOnClient(mc -> Tabs.pick("openanywhere:ender_chest_0"));
             ctx.waitTicks(3);
             open(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
             if (!shown("openanywhere:shulker_0_ender_chest")) fail("the green box wasn't shown as it opened");
@@ -79,17 +80,20 @@ public class TabChecks implements FabricClientGameTest {
             if (open != 5) fail(open + " things open, not 5");
 
             // The wheel away from the list moves a tab: down to the right, up to the left.
-            ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
+            ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
-            List<String> rowWas = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
+            List<String> row = ctx.computeOnClient(mc -> Tabs.row());
+            List<String> drawn = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerTabRows.rowForChecks(
+                    com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP));
+            if (!drawn.equals(row)) fail("MenuKit draws the row " + drawn + ", not " + row);
+            String wasShown = ctx.computeOnClient(mc -> Tabs.shown());
             ctx.getInput().setCursorPos(5, 5);
             ctx.waitTick();
             ctx.getInput().scroll(-1);
             ctx.waitTicks(2);
-            List<String> down = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
-            int was = rowWas.subList(1, rowWas.size()).indexOf(rowWas.getFirst());
-            int now = down.subList(1, down.size()).indexOf(down.getFirst());
-            if (now != Math.min(was + 1, rowWas.size() - 2)) fail("a turn down moved the tab from " + was + " to " + now);
+            int was = row.indexOf(wasShown);
+            int now = row.indexOf(ctx.computeOnClient(mc -> Tabs.shown()));
+            if (now != Math.min(was + 1, row.size() - 1)) fail("a turn down moved the tab from " + was + " to " + now);
             // Over a box's grid, which doesn't scroll, the wheel moves tabs too.
             double[] mid = ctx.computeOnClient(mc -> {
                 var box = ContainerRegion.CONTAINERS.box(mc.gui.screen());
@@ -100,8 +104,8 @@ public class TabChecks implements FabricClientGameTest {
             ctx.waitTick();
             ctx.getInput().scroll(1);
             ctx.waitTicks(2);
-            List<String> up = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
-            if (!up.getFirst().equals(rowWas.getFirst())) fail("a turn up didn't go back to " + rowWas.getFirst() + ": " + up.getFirst());
+            String up = ctx.computeOnClient(mc -> Tabs.shown());
+            if (!wasShown.equals(up)) fail("a turn up didn't go back to " + wasShown + ": " + up);
 
             // A bundle of 60 stacks (61 slots, seven rows) grows to the room there is, then
             // its grid scrolls: the panel stops short of the double chest's height.
@@ -116,14 +120,15 @@ public class TabChecks implements FabricClientGameTest {
                 var g = com.trevlar.menukit.inject.ContainerRegions.geometry(mc.gui.screen());
                 var w = mc.getWindow();
                 double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
-                return new double[] {(g.x() + 13) * f, (g.tabTop() + 10) * f};
+                var line = com.trevlar.menukit.inject.ContainerTabRows.line(g, com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP);
+                return new double[] {(line.x() + 13) * f, (line.rowTop() + 10) * f};
             });
             ctx.getInput().setCursorPos(tab[0], tab[1]);
             ctx.waitTick();
             ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
             ctx.waitTicks(3);
             if (!shown(CHEST)) fail("clicking the chest's tab didn't show the chest");
-            ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
+            ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
             if (height() != chestHeight) fail("back on the chest, the panel is " + height() + " tall, not " + chestHeight);
             ctx.takeScreenshot("tabs-double-chest");
@@ -164,7 +169,7 @@ public class TabChecks implements FabricClientGameTest {
             return false;
         };
         if (!ctx.computeOnClient(mc -> has.test((AbstractContainerScreen<?>) mc.gui.screen()))) {
-            ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
+            ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
         }
         double[] at = ctx.computeOnClient(mc -> {

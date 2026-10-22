@@ -242,7 +242,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         // it did before the click instead of flashing the box greyed in the chest.
         if (session.stacked()) {
             String id = ClientPanels.sectionIdOf(session);
-            ContainerRegion.select(id);
+            Tabs.pick(id);
             AWAITING.put(id, session);
         }
     }
