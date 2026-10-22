@@ -8,7 +8,6 @@ import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.SlotElement;
-import com.trevlar.menukit.api.element.Flow;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -36,19 +35,40 @@ final class SlotScroll {
     private static final int OVERHEAD = 240 - 6 * ROW;
 
     /**
-     * A scroll area as tall as its rows up to a cap ({@code fitHeight}), the cap set each
-     * frame from the window. The cap is the declared height MenuKit's fit reads; set from
-     * outside it would be overwritten by the column's own layout ({@code fillHeight}).
+     * A scroll area as tall as its rows up to a cap, and a scrollbar wider only while it
+     * scrolls, both set each frame from the window ({@link #frame}). The cap is the declared
+     * height {@code fitHeight} reads; the width, nine slots, plus the scrollbar's lane while
+     * the rows overflow. Each row's shown state is read once a frame into {@link #shown}:
+     * MenuKit's layout asks a row many times a frame, and asking SlotKit each time is what
+     * made a shown box cost three quarters of the frame rate.
      */
     private static final class Grid extends ScrollContainer {
-        Grid(ScrollContainer.Builder b) {
+        final List<SlotElement> firsts;
+        final boolean[] shown;
+
+        Grid(ScrollContainer.Builder b, List<SlotElement> firsts, boolean[] shown) {
             super(b);
+            this.firsts = firsts;
+            this.shown = shown;
         }
 
-        void cap(int pixels) {
-            this.height = pixels;
+        /** This frame: which rows show, and the grid's height cap and width. */
+        void frame(int room) {
+            int rows = 0;
+            for (int r = 0; r < firsts.size(); r++) {
+                // The row's own visibleWhen reads shown[r]: set it on, then ask SlotKit.
+                shown[r] = true;
+                shown[r] = firsts.get(r).isVisible();
+                if (shown[r]) rows++;
+            }
+            this.height = room;
+            boolean scrolls = rows * ROW > room;
+            this.width = ContainerRegion.CONTENT_WIDTH + (scrolls ? LANE : 0);
+            this.authoredWidth = width;
         }
     }
+
+    private static final int LANE = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
 
     private static final List<Grid> GRIDS = new ArrayList<>();
 
@@ -56,35 +76,36 @@ final class SlotScroll {
      * The slot group {@code id}, up to {@code max} slots, as a section's content: rows of
      * nine, each shown while it has a live slot, scrolling past what fits. Single slot
      * elements, as Shulker Palette's grid has them: a {@code SlotGroupElement} inside a
-     * {@code ScrollContainer} draws nothing (filed with MenuKit, 2026-10-21).
+     * {@code ScrollContainer} draws nothing.
      */
     static PanelElement of(SlotGroupId id, int max) {
-        List<PanelElement> rows = new ArrayList<>();
-        for (int r = 0; r * 9 < max; r++) {
-            List<SlotElement> cells = new ArrayList<>();
-            for (int c = 0; c < 9 && r * 9 + c < max; c++) cells.add(SlotElement.builder().slot(id, r * 9 + c).build());
-            Flow.Builder row = Flow.builder().gap(0, 0);
-            for (SlotElement cell : cells) row.add(cell);
-            rows.add(row.visibleWhen(() -> cells.getFirst().isVisible()).build());
+        // Each slot placed at its own cell, straight in the scroll area: rows of nested
+        // Flows made MenuKit measure every slot many times a frame.
+        List<PanelElement> cells = new ArrayList<>();
+        List<SlotElement> firsts = new ArrayList<>();
+        boolean[] shown = new boolean[(max + 8) / 9];
+        for (int i = 0; i < max; i++) {
+            int row = i / 9;
+            SlotElement cell = SlotElement.builder().slot(id, i).at((i % 9) * ROW, row * ROW)
+                    .visibleWhen(() -> shown[row]).build();
+            if (i % 9 == 0) firsts.add(cell);
+            cells.add(cell);
         }
-        PanelElement grid = Flow.builder().vertical().gap(0, 0).addAll(rows).build();
-        // The scrollbar beside the grid, not in it: the list widens for it only while it scrolls.
         Grid scroll = new Grid(ScrollContainer.builder()
-                .size(ContainerRegion.CONTENT_WIDTH, MIN_ROWS * ROW)
+                .size(ContainerRegion.CONTENT_WIDTH + LANE, MIN_ROWS * ROW)
                 .fitHeight()
-                .laneOutside()
-                .content(List.of(grid)));
+                .content(cells), firsts, shown);
         GRIDS.add(scroll);
         return scroll;
     }
 
-    /** Each frame, before the screen lays out: every grid as tall as its rows, up to the room there is. */
+    /** Each frame, before the screen lays out: every grid's rows, height cap and width. */
     static void register() {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> {
                 int room = Math.max(MIN_ROWS, (s.height - OVERHEAD) / ROW) * ROW;
-                for (Grid grid : GRIDS) grid.cap(room);
+                for (Grid grid : GRIDS) grid.frame(room);
             });
         });
     }
