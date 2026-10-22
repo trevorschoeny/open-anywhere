@@ -86,6 +86,14 @@ public final class Sessions {
         return isOpenAt(SERVER, container, containerSlot) || isOpenAt(CLIENT, container, containerSlot);
     }
 
+    /**
+     * The client's own mirror only: what the client has heard opened. In singleplayer the
+     * integrated server's table holds it a frame earlier, before the client's tab shows.
+     */
+    public static boolean isOpenOnClient(Container container, int containerSlot) {
+        return isOpenAt(CLIENT, container, containerSlot);
+    }
+
     private static boolean isOpenAt(Map<Player, List<Session>> table, Container container, int containerSlot) {
         synchronized (table) {
             for (List<Session> open : table.values()) {

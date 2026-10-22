@@ -10,6 +10,7 @@ import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.SlotElement;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 /**
@@ -30,9 +31,10 @@ final class SlotScroll {
     /**
      * The height a container panel in tabs mode needs besides its grid: the tabs, the
      * frame, the inventory part and MenuKit's margins. ponytail: measured (a double chest
-     * fits a 240 px window exactly, 240 - 6 rows); MenuKit's layout could hand this out.
+     * fits a 240 px window exactly with 20 px tabs, so the tab row's height counts above that);
+     * MenuKit's layout could hand this out.
      */
-    private static final int OVERHEAD = 240 - 6 * ROW;
+    private static final int OVERHEAD = 240 - 6 * ROW - 20 + com.trevlar.menukit.inject.RegionLayout.TAB_ROW;
 
     /**
      * A scroll area as tall as its slots up to a cap, set each frame from the window
@@ -115,7 +117,12 @@ final class SlotScroll {
 
     /** Each frame, before the screen lays out: every grid's rows, height cap and width. */
     static void register() {
-        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+        // Ahead of MenuKit's own init phase, so this frame listener runs before MenuKit lays
+        // the list out from the grids' heights: after it, the list worked from last frame's
+        // heights and the panel jumped a few frames after a box opened.
+        Identifier early = Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "slot_scroll");
+        ScreenEvents.AFTER_INIT.addPhaseOrdering(early, Identifier.fromNamespaceAndPath("menukit", "container_region_bounds"));
+        ScreenEvents.AFTER_INIT.register(early, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> {
                 int room = Math.max(MIN_ROWS, (s.height - OVERHEAD) / ROW) * ROW;

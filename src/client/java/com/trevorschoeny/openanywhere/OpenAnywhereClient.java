@@ -42,6 +42,18 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     public static final KeyMapping OPEN = new KeyMapping(
             "key.openanywhere.open", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
+    /** Sessions just opened whose tab isn't showing yet, by section id. */
+    private static final java.util.Map<String, Session> AWAITING = new java.util.HashMap<>();
+
+    /** True while {@code slot} holds an item just opened whose tab hasn't shown yet: no grey for it. */
+    static boolean awaitingTab(Slot slot) {
+        if (AWAITING.isEmpty()) return false;
+        var screen = Minecraft.getInstance().gui.screen();
+        AWAITING.keySet().removeIf(id -> screen == null || ContainerRegion.anchor(id).box(screen) != null);
+        for (Session s : AWAITING.values()) if (s.container() == slot.container && s.containerSlot() == slot.getContainerSlot()) return true;
+        return false;
+    }
+
     /** Vanilla's double-click window ({@code AbstractContainerScreen}), in milliseconds. */
     private static final long DOUBLE_CLICK_MS = 250;
     // The last plain left click on a slot: which slot, and when. -1: none to pair with.
@@ -191,7 +203,13 @@ public final class OpenAnywhereClient implements ClientModInitializer {
                 slot == null ? -1 : slot.getContainerSlot(), payload.menuSlot(),
                 slot == null ? ItemStack.EMPTY : slot.getItem());
         Sessions.put(player, session);
-        // What was just opened is what the player wants to see: its tab is picked.
-        if (session.stacked()) ContainerRegion.select(ClientPanels.sectionIdOf(session));
+        // What was just opened is what the player wants to see: its tab is picked. MenuKit
+        // shows it a frame later; until then its slot isn't greyed, so that frame looks as
+        // it did before the click instead of flashing the box greyed in the chest.
+        if (session.stacked()) {
+            String id = ClientPanels.sectionIdOf(session);
+            ContainerRegion.select(id);
+            AWAITING.put(id, session);
+        }
     }
 }

@@ -19,7 +19,7 @@ public final class ClientMarks {
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
 
     public static void draw(GuiGraphicsExtractor graphics, Slot slot, @Nullable CreatedSlot created) {
-        if (Sessions.isOpenAt(slot.container, slot.getContainerSlot())) {
+        if (Sessions.isOpenOnClient(slot.container, slot.getContainerSlot()) && !OpenAnywhereClient.awaitingTab(slot)) {
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
         }
         if (created != null && !slot.hasItem() && isAddSlot(created)) {

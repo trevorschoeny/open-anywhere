@@ -166,9 +166,12 @@ final class ServerSessions {
         Session old = Sessions.at(player, kind, lane);
         if (old != null) end(player, old);
         Sessions.put(player, new Session(kind, lane, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));
-        // The client hears the session first, then the live count, then the contents.
-        ServerPlayNetworking.send(player, SessionS2C.opened(kind, lane, menuSlot));
+        // The live count and the contents go first, the session last, so the client has the
+        // box's slots filled the moment it hears it opened: its tab shows full on the first
+        // frame, with no frame of the box greyed in the chest or of an empty grid.
         Groups.open(player, kind, lane);
+        menu.broadcastChanges();
+        ServerPlayNetworking.send(player, SessionS2C.opened(kind, lane, menuSlot));
     }
 
     /** The lowest lane of {@code kind} with nothing open in it, or -1. */

@@ -29,6 +29,7 @@ import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * What this mod adds to screens: the sections of MenuKit's container list (on a chest's
@@ -166,8 +167,13 @@ final class ClientPanels {
             });
         } else {
             // A bundle isn't a block, so it gets no source; this is its name when two
-            // sections need telling apart.
+            // sections need telling apart, and its own item its tab's icon (without one, a
+            // section with no source takes the screen's block: a chest).
             section.name(() -> title(kind, lane, plain));
+            section.icon(() -> {
+                Session s = clientSession(kind, lane);
+                return s == null ? ItemStack.EMPTY : s.stack();
+            });
         }
         section.declare();
         sectionClose(id, kind, lane);
