@@ -2,7 +2,6 @@ package com.trevorschoeny.openanywhere;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.menukit.api.panel.ContainerRegion;
-import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -14,7 +13,9 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.resources.Identifier;
@@ -62,19 +63,18 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             // simulated click (a sort mod, Mouse Tweaks) never opens anything. On an item
             // that's already open it closes it (the server decides which).
             ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-                // Survival only for now (design, Rule 4); read per click, so /gamemode with
-                // a screen open takes effect at once.
-                if (!ModeScope.SURVIVAL.includes(client.player)) return true;
                 if (!ClientPlayNetworking.canSend(OpenC2S.TYPE)) return true; // server without the mod
                 Slot hovered = ((ScreenAccessor) containerScreen).openanywhere$hoveredSlot();
                 if (hovered == null) return true;
                 ItemStack carried = containerScreen.getMenu().getCarried();
                 if (isOpenClick(event)) {
                     if (Openable.of(hovered.getItem()) == null || !carried.isEmpty()) return true;
-                    ClientPlayNetworking.send(new OpenC2S(hovered.index, false));
+                    // On creative's screen, only its inventory tab, by the real menu's index.
+                    if (s instanceof CreativeModeInventoryScreen c && !c.isInventoryOpen()) return true;
+                    ClientPlayNetworking.send(new OpenC2S(s instanceof CreativeModeInventoryScreen ? realIndex(client.player, hovered) : hovered.index, false));
                     return false; // instead of the click
                 }
-                return !doubleClick(event, hovered, carried, client.player);
+                return !doubleClick(s, event, hovered, carried, client.player);
             });
         });
     }
@@ -92,22 +92,40 @@ public final class OpenAnywhereClient implements ClientModInitializer {
      *
      * @return true when the click was taken
      */
-    private static boolean doubleClick(MouseButtonEvent event, Slot hovered, ItemStack carried, Player player) {
+    private static boolean doubleClick(Screen screen, MouseButtonEvent event, Slot hovered, ItemStack carried, Player player) {
+        // Creative's inventory tab shows the player's slots on a menu of its own; the server
+        // has the player's real inventory menu open, so the slot is named by its index there.
+        // Creative's other tabs aren't the inventory: nothing opens there.
+        boolean creative = screen instanceof CreativeModeInventoryScreen;
+        if (creative && !((CreativeModeInventoryScreen) screen).isInventoryOpen()) return false;
+        int target = creative ? realIndex(player, hovered) : hovered.index;
+        if (target < 0) return false;
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || event.hasShiftDown()) {
             lastSlot = -1;
             return false;
         }
         long now = net.minecraft.util.Util.getMillis();
-        boolean second = hovered.index == lastSlot && now - lastClick < DOUBLE_CLICK_MS;
+        boolean second = target == lastSlot && now - lastClick < DOUBLE_CLICK_MS;
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
-            lastSlot = Openable.of(hovered.getItem()) != null && carried.isEmpty() ? hovered.index : -1;
+            lastSlot = Openable.of(hovered.getItem()) != null && carried.isEmpty() ? target : -1;
             lastClick = now;
             return false;
         }
         lastSlot = -1; // a third click starts over
         if (!hovered.hasItem() && openable(carried)) {
-            ClientPlayNetworking.send(new OpenC2S(hovered.index, true));
+            if (creative) {
+                // Creative keeps the cursor on the client and tells the server each slot's
+                // contents itself, so the item goes back here, the way creative's own click
+                // puts it (a creative slot update), then opens as if never lifted: as if the
+                // player had opened the container itself, so its screen replaces creative's.
+                player.inventoryMenu.getSlot(target).set(carried);
+                player.inventoryMenu.setCarried(ItemStack.EMPTY);
+                player.inventoryMenu.broadcastChanges();
+                ClientPlayNetworking.send(new OpenC2S(target, false));
+            } else {
+                ClientPlayNetworking.send(new OpenC2S(hovered.index, true));
+            }
             return true;
         }
         if (carried.isEmpty() && isOpen(player, hovered)) {
@@ -115,6 +133,14 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             return true;
         }
         return false;
+    }
+
+    /** Creative's slot {@code shown} on the player's real inventory menu: the slot holding the same place. -1 for none. */
+    private static int realIndex(Player player, Slot shown) {
+        for (Slot real : player.inventoryMenu.slots) {
+            if (real.container == shown.container && real.getContainerSlot() == shown.getContainerSlot()) return real.index;
+        }
+        return -1;
     }
 
     /** True when the item in {@code slot} is open: a session holds that slot of the open menu. */

@@ -139,17 +139,19 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.BUNDLE, false);
     }
 
-    /** Creative's Survival Inventory tab: the click is vanilla's, nothing opens or copies. */
+    /**
+     * Creative's inventory tab: a double-click opens the box as if the player had opened the
+     * container itself (Trev, 2026-10-22), so its own screen replaces creative's and the
+     * creative tabs are gone. The box goes back in its slot, one box, none copied.
+     */
     private void creativeInventoryTab() {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.INVENTORY);
         doubleClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
-        // Vanilla's right-click picks the box up: still one box, on the cursor.
-        nothingOpened(1);
-        // The server checks the mode itself: a client asking anyway gets nothing.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(36, false)));
-        ctx.waitTicks(3);
-        expectServerSession(Openable.SHULKER, false);
+        expectScreen(ShulkerBoxScreen.class, "double-click on the box in creative's inventory tab");
+        expectServerSession(Openable.SHULKER, true);
+        int boxes = scene.world().getServer().computeOnServer(sv -> sv.getPlayerList().getPlayers().getFirst().getInventory().countItem(Items.SHULKER_BOX));
+        if (boxes != 1) throw new AssertionError(boxes + " shulker boxes in the inventory after opening in creative, not 1");
     }
 
     /** An item tab shows only the hotbar; nothing opens from it and no bundle slots appear. */

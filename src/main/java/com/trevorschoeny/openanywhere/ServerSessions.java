@@ -1,6 +1,5 @@
 package com.trevorschoeny.openanywhere;
 
-import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
 
 
@@ -44,9 +43,8 @@ final class ServerSessions {
      * it can't go back, nothing happens: the item stays on the cursor, as after one click.
      */
     static void open(ServerPlayer player, int menuSlot, boolean fromCursor) {
-        // Survival only for now (design, Rule 4). The server checks too: a client's word
-        // on its own mode isn't trusted.
-        if (!ModeScope.SURVIVAL.includes(player)) return;
+        // Any game mode (Trev, 2026-10-22): in creative, opening from the inventory opens the
+        // container's own screen, as in survival, so creative's tabs give way to it.
         AbstractContainerMenu menu = player.containerMenu;
         if (menuSlot < 0 || menuSlot >= menu.slots.size()) return;
         if (fromCursor) {
