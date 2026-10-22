@@ -29,7 +29,7 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class OpenAnywhereClient implements ClientModInitializer {
 
-    private static final KeyMapping.Category CATEGORY =
+    static final KeyMapping.Category CATEGORY =
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "keys"));
 
     /**
@@ -45,6 +45,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         KeyMappingHelper.registerKeyMapping(OPEN);
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPanels.register();
+        LayoutPrototype.register();
         // The bundle's host is vanilla's chest menu, so it gets vanilla's chest screen.
         MenuScreens.register(BundleHost.TYPE, ContainerScreen::new);
 

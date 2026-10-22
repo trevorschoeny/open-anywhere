@@ -63,6 +63,21 @@ final class ClientPanels {
         }
     }
 
+    /** The screen's own container's section. */
+    static final String CHEST_ID = OpenAnywhere.MOD_ID + ":chest";
+
+    /** Lane {@code lane}'s section id under {@code source}: {@code openanywhere:shulker_0_container}. */
+    static String sectionId(Openable kind, int lane, Source source) {
+        return kind.panelId(lane) + "_" + source.name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** Where lane {@code lane}'s section sits in the column under {@code source}. */
+    static int orderOf(Openable kind, int lane, Source source) {
+        if (kind == Openable.ENDER_CHEST) return Source.ENDER_CHEST.order;
+        // Boxes, then bundles, each in lane order, after their source's container.
+        return source.order + 1 + (kind == Openable.SHULKER ? 0 : 50) + lane;
+    }
+
     static void register() {
         closeButton("native", ClientPanels::nativeSession, () -> {
             if (!(Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen)) return null;
@@ -94,13 +109,15 @@ final class ClientPanels {
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
-        ContainerRegion.section(OpenAnywhere.MOD_ID + ":chest", ModeScope.BOTH)
+        ContainerRegion.section(CHEST_ID, ModeScope.BOTH)
                 .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
                         ? screen.getTitle() : Component.translatable("container.chest"))
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
-                .visibleWhen(ClientPanels::anyOpenHere)
+                .visibleWhen(() -> anyOpenHere() && LayoutPrototype.shows(CHEST_ID, Source.CONTAINER))
                 .declare();
+        // Asked for now, while MenuKit takes declarations: the layout prototype's tabs read it.
+        ContainerRegion.anchor(CHEST_ID);
 
         // The ender chest opened from its item. Its source is the item, so MenuKit names it
         // "Ender Chest" and gives it the chest's art, as a placed one has.
@@ -114,6 +131,7 @@ final class ClientPanels {
                 .content(SlotGroupElement.of(Groups.group(Openable.ENDER_CHEST, 0).id()))
                 .on(ContainerScreen.class)
                 .order(Source.ENDER_CHEST.order)
+                .visibleWhen(() -> LayoutPrototype.shows(ender, Source.ENDER_CHEST))
                 .declare();
         sectionClose(ender, Openable.ENDER_CHEST, 0);
 
@@ -126,16 +144,15 @@ final class ClientPanels {
 
     /** Lane {@code lane}'s section under {@code source}, shown while its item came from there. */
     private static void itemSection(Openable kind, int lane, Source source) {
-        String id = kind.panelId(lane) + "_" + source.name().toLowerCase(java.util.Locale.ROOT);
+        String id = sectionId(kind, lane, source);
         Component plain = kind == Openable.SHULKER ? Component.translatable("container.shulkerBox")
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
                 .title(() -> title(kind, lane, plain))
                 .content(SlotGroupElement.of(Groups.group(kind, lane).id()))
                 .on(ContainerScreen.class)
-                // Boxes, then bundles, each in lane order, after their source's container.
-                .order(source.order + 1 + (kind == Openable.SHULKER ? 0 : 50) + lane)
-                .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source);
+                .order(orderOf(kind, lane, source))
+                .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source && LayoutPrototype.shows(id, source));
         if (kind == Openable.SHULKER) {
             section.source(() -> {
                 Session s = clientSession(kind, lane);
@@ -151,7 +168,7 @@ final class ClientPanels {
     }
 
     /** Where the item open in {@code session} came from, read off its slot on the open menu. */
-    private static @Nullable Source sourceOf(@Nullable Session session) {
+    static @Nullable Source sourceOf(@Nullable Session session) {
         if (session == null || session.menuSlot() < 0 || session.menuSlot() >= session.menu().slots.size()) return null;
         var slot = session.menu().getSlot(session.menuSlot());
         if (slot.container instanceof Inventory) return Source.INVENTORY;
@@ -160,14 +177,14 @@ final class ClientPanels {
     }
 
     /** True with any section open on the screen's menu. */
-    private static boolean anyOpenHere() {
+    static boolean anyOpenHere() {
         var mc = Minecraft.getInstance();
         if (mc.player == null || !(mc.gui.screen() instanceof AbstractContainerScreen<?> screen)) return false;
         for (Session s : Sessions.of(mc.player)) if (s.stacked() && s.menu() == screen.getMenu()) return true;
         return false;
     }
 
-    private static @Nullable Session clientSession(Openable kind, int lane) {
+    static @Nullable Session clientSession(Openable kind, int lane) {
         var player = Minecraft.getInstance().player;
         return player == null ? null : Sessions.at(player, kind, lane);
     }
@@ -177,7 +194,7 @@ final class ClientPanels {
      * the name the player gave it), so several open boxes can be told apart; {@code plain}
      * until the item is known.
      */
-    private static Component title(Openable kind, int lane, Component plain) {
+    static Component title(Openable kind, int lane, Component plain) {
         Session s = clientSession(kind, lane);
         return s == null || s.stack().isEmpty() ? plain : s.stack().getHoverName();
     }
