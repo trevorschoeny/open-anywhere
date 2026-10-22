@@ -97,9 +97,7 @@ public class TabChecks implements FabricClientGameTest {
             ctx.waitTick();
             ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
             ctx.waitTicks(3);
-            // Known broken in MenuKit's tab row (2026-10-22): a click on a tab does nothing.
-            // Logged, not failed, until that's fixed; then this becomes a fail(...) again.
-            if (!shown(CHEST)) System.out.println("KNOWN: clicking the chest's tab didn't show the chest");
+            if (!shown(CHEST)) fail("clicking the chest's tab didn't show the chest");
             ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
             ctx.waitTicks(3);
             if (height() != chestHeight) fail("back on the chest, the panel is " + height() + " tall, not " + chestHeight);
