@@ -3,7 +3,7 @@ package com.trevorschoeny.openanywhere.checks;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.slotkit.api.slot.ClientSlots;
-import com.trevorschoeny.openanywhere.BundleHost;
+import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
@@ -18,7 +18,6 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.CreativeModeTab;
@@ -85,11 +84,20 @@ public class ModeChecks implements FabricClientGameTest {
 
     // ── Stations ───────────────────────────────────────────────────────────
 
+    /**
+     * From the inventory a box opens on the host screen, as a tab; a second item opened
+     * from there is a second tab, the first still open (Trev, 2026-10-22).
+     */
     private void survivalShulker() {
         openInventory();
         doubleClick(hotbar(0), "shulker box");
-        expectScreen(ShulkerBoxScreen.class, "double-click on the box");
+        expectScreen(ContainerScreen.class, "double-click on the box");
         expectServerSession(Openable.SHULKER, true);
+        doubleClick(hotbar(2), "the bundle, from the box's screen");
+        int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
+        if (open != 2) throw new AssertionError("a box and a bundle opened from the inventory: " + open + " open, not 2");
+        if (!ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
+            throw new AssertionError("the second item didn't open on the same host screen");
     }
 
     private void survivalEnder() {
@@ -108,7 +116,7 @@ public class ModeChecks implements FabricClientGameTest {
         openInventory();
         doubleClick(hotbar(2), "bundle");
         expectScreen(ContainerScreen.class, "double-click on the bundle");
-        if (!ctx.computeOnClient(mc -> BundleHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
+        if (!ctx.computeOnClient(mc -> ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
             throw new AssertionError("the bundle's screen isn't on its host menu");
         if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
             throw new AssertionError("the bundle's slots didn't show");
@@ -148,7 +156,7 @@ public class ModeChecks implements FabricClientGameTest {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.INVENTORY);
         doubleClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
-        expectScreen(ShulkerBoxScreen.class, "double-click on the box in creative's inventory tab");
+        expectScreen(ContainerScreen.class, "double-click on the box in creative's inventory tab");
         expectServerSession(Openable.SHULKER, true);
         int boxes = scene.world().getServer().computeOnServer(sv -> sv.getPlayerList().getPlayers().getFirst().getInventory().countItem(Items.SHULKER_BOX));
         if (boxes != 1) throw new AssertionError(boxes + " shulker boxes in the inventory after opening in creative, not 1");
@@ -172,7 +180,7 @@ public class ModeChecks implements FabricClientGameTest {
     private void modeSwitch() {
         openInventory();
         doubleClick(hotbar(0), "shulker box");
-        expectScreen(ShulkerBoxScreen.class, "double-click on the box");
+        expectScreen(ContainerScreen.class, "double-click on the box");
         command("gamemode creative @p");
         ctx.waitTicks(3);
         // Click the opened box's own slot: locked, it stays where it is.
@@ -180,7 +188,7 @@ public class ModeChecks implements FabricClientGameTest {
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
         if (carried != 0) throw new AssertionError("the opened box was picked up after switching to creative");
         // The X: a close request for the open box; back to the inventory.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER, -1)));
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER, 0)));
         ctx.waitTicks(5);
         expectServerSession(Openable.SHULKER, false);
     }

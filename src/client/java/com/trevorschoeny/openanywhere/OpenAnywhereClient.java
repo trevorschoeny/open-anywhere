@@ -54,8 +54,31 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         return false;
     }
 
-    /** Vanilla's double-click window ({@code AbstractContainerScreen}), in milliseconds. */
-    private static final long DOUBLE_CLICK_MS = 250;
+    /**
+     * The double-click window (Trev, 2026-10-22): half a second, as long as the cursor
+     * stays put. Through it the lifted item is drawn where it sat ({@link #heldAt}), so a
+     * double-click shows no movement; moving the cursor ends it, and the item goes to the
+     * cursor as any picked-up item does.
+     */
+    private static final long HOLD_MS = 500;
+    // The first click's slot on screen and where the mouse was.
+    private static int heldX, heldY;
+    private static double firstMouseX, firstMouseY;
+
+    /**
+     * Where the item on the cursor is drawn: its slot's place while a double-click may still
+     * come (just picked up, the window open, the cursor still), else {@code null}, the cursor.
+     */
+    public static int @org.jspecify.annotations.Nullable [] heldAt(int mouseX, int mouseY) {
+        if (lastSlot < 0) return null;
+        // The screen draws at whole pixels; the click came in at fractions of one.
+        if (net.minecraft.util.Util.getMillis() - lastClick >= HOLD_MS
+                || mouseX != (int) Math.floor(firstMouseX) || mouseY != (int) Math.floor(firstMouseY)) {
+            lastSlot = -1;
+            return null;
+        }
+        return new int[] {heldX, heldY};
+    }
     // The last plain left click on a slot: which slot, and when. -1: none to pair with.
     private static int lastSlot = -1;
     private static long lastClick;
@@ -66,7 +89,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPanels.register();
                 // The bundle's host is vanilla's chest menu, so it gets vanilla's chest screen.
-        MenuScreens.register(BundleHost.TYPE, ContainerScreen::new);
+        MenuScreens.register(ContainerHost.TYPE, ContainerScreen::new);
 
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
@@ -117,11 +140,17 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             return false;
         }
         long now = net.minecraft.util.Util.getMillis();
-        boolean second = target == lastSlot && now - lastClick < DOUBLE_CLICK_MS;
+        boolean second = target == lastSlot && now - lastClick < HOLD_MS
+                && event.x() == firstMouseX && event.y() == firstMouseY;
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
             lastSlot = Openable.of(hovered.getItem()) != null && carried.isEmpty() ? target : -1;
             lastClick = now;
+            firstMouseX = event.x();
+            firstMouseY = event.y();
+            ScreenAccessor edge = (ScreenAccessor) screen;
+            heldX = edge.openanywhere$leftPos() + hovered.x;
+            heldY = edge.openanywhere$topPos() + hovered.y;
             return false;
         }
         lastSlot = -1; // a third click starts over

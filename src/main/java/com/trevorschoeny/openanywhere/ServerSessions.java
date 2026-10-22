@@ -1,6 +1,5 @@
 package com.trevorschoeny.openanywhere;
 
-import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
 
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -12,21 +11,16 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.InventoryMenu;
-import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * Opening and closing items on the server, where every rule is checked.
  *
- * <p>From the inventory, a shulker box or the ender chest opens natively: the server
- * opens vanilla's own shulker box or ender chest menu, so the client shows vanilla's own
- * screen, exactly as a placed one opens (Trev, 2026-10-16). On a chest's screen
- * (including that ender chest), a box, a bundle or the ender chest opens in one of this
- * mod's lanes below the chest, which the client shows in MenuKit's container list (Trev,
- * 2026-10-21). From the inventory the bundle opens on its own host screen
- * ({@link BundleHost}), the same way. Any number open at once (Trev, 2026-10-21), up to
- * the lanes there are.
+ * <p>Every opened item is a tab in MenuKit's container list (Trev, 2026-10-22): on a
+ * chest's screen beside the chest, and from the inventory on the host screen
+ * ({@link ContainerHost}), vanilla's chest screen with no rows of its own. Any number open
+ * at once, up to the lanes there are.
  */
 final class ServerSessions {
 
@@ -79,79 +73,33 @@ final class ServerSessions {
         // One player per item: two players can't have the same box open.
         if (Sessions.isOpenByAnyone(stack)) return;
 
-        // On a chest's screen (a placed chest, a barrel, or the ender chest this mod
-        // opened), an item opens below the chest, in MenuKit's container list, so all are
-        // on one screen (Trev, 2026-10-21). The bundle's own host screen isn't a chest's:
-        // from it, a box or the ender chest swaps, as from vanilla's.
-        boolean host = BundleHost.is(menu);
-        boolean onChest = menu instanceof ChestMenu && !host;
-        if (kind == Openable.BUNDLE) {
-            if (menu instanceof InventoryMenu) {
-                openHosted(player, slot.container, slot.getContainerSlot(), stack);
-            } else if (onChest || host) {
-                openStacked(player, kind, menu, slot, menuSlot, stack);
-            }
+        // From the inventory, anything opens on the host screen, as a tab (Trev, 2026-10-22);
+        // on the host, or on a chest's screen (a placed chest, a barrel), it opens as another
+        // tab beside what's there.
+        boolean host = ContainerHost.is(menu);
+        if (menu instanceof InventoryMenu) {
+            openHosted(player, kind, slot.container, slot.getContainerSlot(), stack);
             return;
         }
+        if (!(menu instanceof ChestMenu)) return;
         // At a placed ender chest the ender chest is already the screen: nothing to add.
-        if (kind == Openable.ENDER_CHEST && onChest
+        if (kind == Openable.ENDER_CHEST && !host
                 && ((ChestMenu) menu).getContainer() == player.getEnderChestInventory()) return;
-        // A box, or the ender chest, on a chest's screen: a section. On vanilla's ender
-        // chest screen this mod opened, a box opens below it too.
-        if (onChest && (kind == Openable.SHULKER || !isOpenNative(player, menu))) {
-            openStacked(player, kind, menu, slot, menuSlot, stack);
-            return;
-        }
-        // Natively from the inventory, or swapping from a screen this mod opened.
-        if (!(menu instanceof InventoryMenu) && !host && !isOpenNative(player, menu)) return;
-        openNative(player, kind, slot.container, slot.getContainerSlot(), stack);
-    }
-
-    /** True when {@code menu} is one this mod opened natively (opening another from it swaps). */
-    private static boolean isOpenNative(ServerPlayer player, AbstractContainerMenu menu) {
-        for (Session s : Sessions.of(player)) if (s.menu() == menu && !s.stacked()) return true;
-        return false;
+        openStacked(player, kind, menu, slot, menuSlot, stack);
     }
 
     /**
-     * Opens vanilla's menu for a shulker box or the ender chest. Vanilla closes whatever
-     * menu was open first, so the sessions on it end; the new session finds the opened
-     * item's slot on the new menu, for the client's lock and grey.
+     * An item from the inventory: opens the host screen, vanilla's chest with no rows
+     * ({@link ContainerHost}), then the item as a tab on it, as on a chest.
      */
-    private static void openNative(ServerPlayer player, Openable kind, Container container, int containerSlot, ItemStack stack) {
+    private static void openHosted(ServerPlayer player, Openable kind, Container container, int containerSlot, ItemStack stack) {
         for (Session s : Sessions.of(player)) end(player, s);
-
-        if (kind == Openable.ENDER_CHEST) {
-            // A real ender chest elsewhere may still be set as the active one; its
-            // distance check would close this menu at once.
-            player.getEnderChestInventory().setActiveChest(null);
-            player.openMenu(new SimpleMenuProvider((id, inventory, p) ->
-                    ChestMenu.threeRows(id, inventory, player.getEnderChestInventory()),
-                    Component.translatable("container.enderchest")));
-        } else {
-            Container contents = new StorageContainerAdapter(new ShulkerStorage(stack));
-            player.openMenu(new SimpleMenuProvider((id, inventory, p) -> new ShulkerBoxMenu(id, inventory, contents),
-                    stack.getHoverName()));
-        }
-
+        player.openMenu(new SimpleMenuProvider((id, inventory, p) -> ContainerHost.create(id, inventory), stack.getHoverName()));
         AbstractContainerMenu opened = player.containerMenu;
-        int menuSlot = slotOf(opened, container, containerSlot);
-        Sessions.put(player, new Session(kind, -1, opened, container, containerSlot, menuSlot, stack));
-        ServerPlayNetworking.send(player, SessionS2C.opened(kind, -1, menuSlot));
-    }
-
-    /**
-     * The bundle from the inventory: opens its host screen, vanilla's chest with no rows
-     * ({@link BundleHost}), then the bundle in a lane on it, as below a chest.
-     */
-    private static void openHosted(ServerPlayer player, Container container, int containerSlot, ItemStack stack) {
-        for (Session s : Sessions.of(player)) end(player, s);
-        player.openMenu(new SimpleMenuProvider((id, inventory, p) -> BundleHost.create(id, inventory), stack.getHoverName()));
-        AbstractContainerMenu opened = player.containerMenu;
-        if (!BundleHost.is(opened)) return;
+        if (!ContainerHost.is(opened)) return;
         int menuSlot = slotOf(opened, container, containerSlot);
         if (menuSlot < 0) return;
-        openStacked(player, Openable.BUNDLE, opened, opened.getSlot(menuSlot), menuSlot, stack);
+        openStacked(player, kind, opened, opened.getSlot(menuSlot), menuSlot, stack);
     }
 
     /**
@@ -213,7 +161,7 @@ final class ServerSessions {
      * inventory screen.
      */
     static void closeAndStepBack(ServerPlayer player, Session session) {
-        boolean last = !session.stacked() || (BundleHost.is(session.menu()) && othersOn(player, session) == 0);
+        boolean last = !session.stacked() || (ContainerHost.is(session.menu()) && othersOn(player, session) == 0);
         if (!last) {
             end(player, session);
             return;
@@ -247,7 +195,7 @@ final class ServerSessions {
                 boolean valid = player.isAlive() && menuOpen && s.stillInPlace()
                         && (s.kind() != Openable.SHULKER || s.stack().getCount() == 1);
                 if (valid) continue;
-                boolean emptyHost = BundleHost.is(s.menu()) && othersOn(player, s) == 0;
+                boolean emptyHost = ContainerHost.is(s.menu()) && othersOn(player, s) == 0;
                 end(player, s);
                 if ((!s.stacked() || emptyHost) && menuOpen) player.closeContainer();
             }

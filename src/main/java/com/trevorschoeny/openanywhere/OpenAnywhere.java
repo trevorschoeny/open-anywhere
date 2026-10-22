@@ -21,7 +21,7 @@ public final class OpenAnywhere implements ModInitializer {
     public void onInitialize() {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> ServerSettings.load());
         Groups.register();
-        BundleHost.register();
+        ContainerHost.register();
 
         PayloadTypeRegistry.serverboundPlay().register(OpenC2S.TYPE, OpenC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CloseC2S.TYPE, CloseC2S.CODEC);

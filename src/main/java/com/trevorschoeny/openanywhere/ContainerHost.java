@@ -11,19 +11,20 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 
 /**
- * The screen a bundle opens on from the inventory: vanilla's own chest menu with no rows,
- * just the player's inventory, so the client shows vanilla's own chest screen and MenuKit's
- * container list puts the bundle above the inventory as its only section, exactly as it
- * does below a chest (Trev, 2026-10-21: the bundle looks like any opened container).
+ * The screen items open on from the inventory: vanilla's own chest menu with no rows, just
+ * the player's inventory, so the client shows vanilla's own chest screen and MenuKit's
+ * container list shows each opened item above the inventory as a tab, exactly as on a
+ * chest (Trev, 2026-10-22: boxes, bundles and the ender chest opened from the inventory
+ * are tabs on one screen, so several can be open at once there too).
  *
  * <p>Its own menu type only because vanilla's chest types start at one row. The menu and
  * the screen are vanilla's classes, so a mod that asks "is this a chest screen?" says yes.
  */
-public final class BundleHost {
+public final class ContainerHost {
 
-    private BundleHost() {}
+    private ContainerHost() {}
 
-    public static final MenuType<ChestMenu> TYPE = new MenuType<>(BundleHost::create, FeatureFlags.VANILLA_SET);
+    public static final MenuType<ChestMenu> TYPE = new MenuType<>(ContainerHost::create, FeatureFlags.VANILLA_SET);
 
     static void register() {
         Registry.register(BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "bundle"), TYPE);
