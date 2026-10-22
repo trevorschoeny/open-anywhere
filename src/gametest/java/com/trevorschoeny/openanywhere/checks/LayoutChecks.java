@@ -53,21 +53,26 @@ public class LayoutChecks implements FabricClientGameTest {
             ctx.waitTick();
             ctx.getInput().pressKey(opt -> opt.keyUse);
             ctx.waitTicks(5);
-            if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen)) throw new AssertionError("the chest didn't open");
+            if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen c && c.getMenu().getRowCount() == 6)) throw new AssertionError("the double chest didn't open");
 
-            // Opened in "Scroll with contents", where every section shows, so each slot can be reached.
-            LayoutPrototype.layout = Layout.CONTENTS;
+            // Opened in Tabs, where each opened container shows alone, so every slot is in view:
+            // a new one is picked as it opens, and the chest's tab is picked again for the next.
+            LayoutPrototype.layout = Layout.TABS;
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the ender chest");
             open(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
-            ctx.runOnClient(mc -> ContainerRegions.setScroll(0));
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(0));
             ctx.waitTicks(2);
-            open(s -> isChest(s) && s.getContainerSlot() == 0, "the red box");
-            open(s -> isChest(s) && s.getContainerSlot() == 1, "the orange box");
+            open(s -> isChest(s) && idOf(s).equals("red_shulker_box"), "the red box");
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(0));
+            ctx.waitTicks(2);
+            open(s -> isChest(s) && idOf(s).equals("orange_shulker_box"), "the orange box");
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box");
+            LayoutPrototype.layout = Layout.CONTENTS;
+            ctx.waitTicks(2);
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
             if (open != 5) fail(open + " things open, not 5");
             List<String> ids = ctx.computeOnClient(mc -> LayoutPrototype.idsForChecks());
-            if (ids.size() != 6) fail(ids.size() + " containers listed, not 6: " + ids);
+            if (ids.size() != 6) throw new AssertionError(ids.size() + " containers listed, not 6: " + ids + "; " + failures);
 
             // Contents: the last entry glides the list to the end and marks it; the first back to the top.
             ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(ids.size() - 1));
@@ -101,7 +106,10 @@ public class LayoutChecks implements FabricClientGameTest {
                 });
                 if (chestSlots != (i == 0)) fail("tab " + i + ": the chest's slots are " + (chestSlots ? "active" : "inactive"));
             }
-            ctx.takeScreenshot("layouts-1-tabs");
+            ctx.takeScreenshot("layouts-1-tabs-box");
+            ctx.runOnClient(mc -> LayoutPrototype.clickForChecks(0));
+            ctx.waitTicks(3);
+            ctx.takeScreenshot("layouts-1-tabs-double-chest");
             ctx.runOnClient(mc -> { mc.options.guiScale().set(scale); mc.resizeGui(); });
         }
         if (!failures.isEmpty()) throw new AssertionError("layout checks failed:\n- " + String.join("\n- ", failures));
@@ -113,6 +121,10 @@ public class LayoutChecks implements FabricClientGameTest {
 
     private static boolean isChest(Slot s) {
         return !(s.container instanceof Inventory) && com.trevlar.slotkit.api.slot.CreatedSlot.of(s) == null;
+    }
+
+    private static String idOf(Slot s) {
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem().getItem()).getPath();
     }
 
     private void fail(String what) { failures.add(what); }

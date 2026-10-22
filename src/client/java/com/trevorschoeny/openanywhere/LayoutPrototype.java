@@ -132,6 +132,20 @@ public final class LayoutPrototype {
                 .visibleWhen(() -> layout == Layout.TABS && !all().isEmpty());
         new AnchorPanelAdapter(tabs);
 
+        // Tabs: the container and the inventory as one panel.
+        Panel seam = Panel.builder(OpenAnywhere.MOD_ID + ":seam")
+                .add(new Seam())
+                .style(PanelStyle.NONE)
+                .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS, PanelPosition.pixel(() -> {
+                    Screen screen = Minecraft.getInstance().gui.screen();
+                    Reference list = screen == null ? null : ContainerRegion.CONTAINERS.box(screen);
+                    return list == null ? new ScreenOrigin(-100, -100)
+                            : new ScreenOrigin(list.leftPos(), list.topPos() + list.imageHeight() - SEAM_IN);
+                })))
+                .build()
+                .visibleWhen(() -> layout == Layout.TABS && !all().isEmpty());
+        new AnchorPanelAdapter(seam);
+
         // The table of contents, left of the list.
         Panel contents = Panel.builder(OpenAnywhere.MOD_ID + ":contents")
                 .add(new Contents())
@@ -160,6 +174,11 @@ public final class LayoutPrototype {
                 .build()
                 .visibleWhen(ClientPanels::anyOpenHere);
         new ScreenPanelAdapter(picker, 4).onMatching(ScreenMatcher.all());
+    }
+
+    /** A section's title: none in Tabs, where the tab says what it is and the title row holds the tabs. */
+    static Component titled(java.util.function.Supplier<Component> title) {
+        return layout == Layout.TABS ? Component.empty() : title.get();
     }
 
     /** Whether section {@code sectionId} shows in the container list in the current layout. The sections ask every frame. */
@@ -366,7 +385,7 @@ public final class LayoutPrototype {
     // ── The elements ───────────────────────────────────────────────────────
 
     /** A tab or entry as drawn last frame, for clicks. */
-    private record Hit(Tab tab, int x, int y, int w, int h) {
+    private record Hit(@Nullable Tab tab, int x, int y, int w, int h) {
         boolean has(double mx, double my) {
             return mx >= x && mx < x + w && my >= y && my < y + h;
         }
@@ -378,23 +397,27 @@ public final class LayoutPrototype {
     }
 
     /**
-     * The tabs: vanilla's creative inventory top tabs, each with its container's icon.
-     * Unpicked tabs are cut where the list's frame starts, so they sit behind it; the
-     * picked one runs {@link #INTO} px into the frame, open into the list, as the
-     * creative inventory draws them.
+     * The tabs, in the list's title row: each a slim tab with its container's icon,
+     * rising {@link #UP} px above the list's frame, MenuKit's margin above the list, so
+     * they never leave the screen however tall the container. The picked one is the panel's own
+     * color and open at the bottom, into the container below it; the others are darker
+     * and closed. Past {@link #fits} tabs, arrows at the ends page the row one tab at a
+     * time, and the picked tab is always kept in view. Drawn in vanilla's panel colors.
+     * ponytail: MenuKit would draw these, under resource packs too.
      */
     static final class TabStrip extends AbstractPanelElement {
 
-        static final int W = 26, H = 32, INTO = 4, UP = H - INTO, STEP = W + 1;
-        private static final Identifier FIRST_ON = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_selected_1");
-        private static final Identifier FIRST_OFF = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_unselected_1");
-        private static final Identifier ON = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
-        private static final Identifier OFF = Identifier.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
+        static final int W = 22, H = 22, UP = com.trevlar.menukit.inject.RegionLayout.TOP_MARGIN, STEP = W + 1, ARROW = 10, INSET = 4;
+        private static final int BLACK = 0xFF000000, LIGHT = 0xFFFFFFFF, SHADE = 0xFF555555,
+                FILL = 0xFFC6C6C6, FILL_OFF = 0xFF9C9C9C, LIGHT_OFF = 0xFFC0C0C0;
 
+        /** The first tab in view, when they don't all fit. */
+        private int first;
         private final List<Hit> hits = new ArrayList<>();
+        private @Nullable Hit back, forward;
 
         TabStrip() {
-            this.width = 9 * STEP;
+            this.width = ContainerRegion.CONTENT_WIDTH + 14;
             this.authoredWidth = width;
         }
 
@@ -402,36 +425,138 @@ public final class LayoutPrototype {
 
         @Override public boolean isInteractive() { return true; }
 
+        /** How many tabs fit in the row, with arrows when they don't all. */
+        private int fits(int count) {
+            int room = width - 2 * INSET;
+            if (count * STEP <= room) return count;
+            return (room - 2 * ARROW) / STEP;
+        }
+
         @Override public void render(RenderContext ctx) {
             var g = ctx.graphics();
             List<Tab> tabs = all();
+            int n = fits(tabs.size());
+            boolean paged = n < tabs.size();
+            // A newly picked tab comes into view; paging with the arrows leaves the pick alone.
+            if (!java.util.Objects.equals(picked, inView)) {
+                inView = picked;
+                int pick = -1;
+                for (int i = 0; i < tabs.size(); i++) if (tabs.get(i).sectionId().equals(picked)) pick = i;
+                if (pick >= 0 && pick < first) first = pick;
+                if (pick >= first + n) first = pick - n + 1;
+            }
+            first = Math.max(0, Math.min(first, tabs.size() - n));
+
             int ox = ctx.originX() + getChildX(), oy = ctx.originY() + getChildY();
+            int x0 = ox + INSET + (paged ? ARROW : 0);
             hits.clear();
-            for (int i = 0; i < tabs.size(); i++) {
+            back = forward = null;
+            for (int i = first; i < first + n; i++) {
                 Tab t = tabs.get(i);
-                int x = ox + i * STEP;
-                boolean on = t.sectionId().equals(picked);
-                Identifier sprite = i == 0 ? (on ? FIRST_ON : FIRST_OFF) : (on ? ON : OFF);
-                // Unpicked: the sprite's top 28 px only, so the list's frame shows below it.
-                if (on) g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, oy, W, H);
-                else g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, W, H, 0, 0, x, oy, W, UP);
-                g.item(t.icon(), x + 5, oy + 9);
-                hits.add(new Hit(t, x, oy, W, on ? H : UP));
+                int x = x0 + (i - first) * STEP;
+                drawTab(g, x, oy, t.sectionId().equals(picked));
+                g.item(t.icon(), x + 3, oy + 3);
+                hits.add(new Hit(t, x, oy, W, H));
+            }
+            if (paged) {
+                var font = Minecraft.getInstance().font;
+                int ay = oy + (H - 8) / 2;
+                if (first > 0) {
+                    back = new Hit(null, ox + INSET, oy, ARROW, H);
+                    g.text(font, "<", ox + INSET + 2, ay, 0xFF404040, false);
+                }
+                if (first + n < tabs.size()) {
+                    forward = new Hit(null, x0 + n * STEP, oy, ARROW, H);
+                    g.text(font, ">", x0 + n * STEP + 3, ay, 0xFF404040, false);
+                }
             }
             Tab over = hitAt(hits, ctx.mouseX(), ctx.mouseY());
             if (over != null) MKTooltip.queue(g, over.name(), ctx.mouseX(), ctx.mouseY());
             hover(over, ctx.mouseX(), ctx.mouseY());
+            // Carrying an item onto an arrow pages too, once per visit.
+            Hit arrow = back != null && back.has(ctx.mouseX(), ctx.mouseY()) ? back
+                    : forward != null && forward.has(ctx.mouseX(), ctx.mouseY()) ? forward : null;
+            var player = Minecraft.getInstance().player;
+            boolean carrying = player != null && !player.containerMenu.getCarried().isEmpty();
+            if (arrow == null) onArrow = false;
+            else if (carrying && !onArrow) { onArrow = true; page(arrow == back ? -1 : 1); }
+        }
+
+        private boolean onArrow;
+        /** The pick last brought into view. */
+        private @Nullable String inView;
+
+        /** Pages the row one tab along. */
+        private void page(int by) {
+            List<Tab> tabs = all();
+            first = Math.max(0, Math.min(first + by, tabs.size() - fits(tabs.size())));
+        }
+
+        /**
+         * One tab: a black outline, a light top-left edge and a dark right edge, as
+         * vanilla's panels have. Picked: the panel's fill, open at the bottom so it runs
+         * into the panel. Otherwise: darker, closed at the bottom.
+         */
+        private static void drawTab(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, boolean on) {
+            int r = x + W, b = y + H;
+            g.fill(x + 1, y, r - 1, y + 1, BLACK);                 // top
+            g.fill(x, y + 1, x + 1, b, BLACK);                     // left
+            g.fill(r - 1, y + 1, r, b, BLACK);                     // right
+            g.fill(x + 1, y + 1, r - 1, b, on ? FILL : FILL_OFF);
+            g.fill(x + 1, y + 1, r - 2, y + 3, on ? LIGHT : LIGHT_OFF);   // top light
+            g.fill(x + 1, y + 1, x + 3, b, on ? LIGHT : LIGHT_OFF);       // left light
+            g.fill(r - 3, y + 2, r - 1, b, SHADE);                         // right shade
+            if (!on) g.fill(x, b - 1, r, b, BLACK);                         // closed bottom
         }
 
         @Override public void renderOverlay(RenderContext ctx) {}
 
         @Override public boolean mouseClicked(InputContext in, int button) {
+            if (back != null && back.has(in.mouseX(), in.mouseY())) { page(-1); return true; }
+            if (forward != null && forward.has(in.mouseX(), in.mouseY())) { page(1); return true; }
             Tab t = hitAt(hits, in.mouseX(), in.mouseY());
             if (t == null) return false;
             click(t);
             return true;
         }
     }
+
+    /**
+     * Tabs: the seam between the container list and the inventory panel, painted over so
+     * the two read as one panel, as vanilla's own chest screen is. Fills the gap and both
+     * frames' edges across it with the panel's colors, and carries the side edges down.
+     * ponytail: a stand-in for MenuKit drawing the two as one frame ("joined"); under a
+     * resource pack that recolors panels it shows.
+     */
+    static final class Seam extends AbstractPanelElement {
+
+        Seam() {
+            this.width = ContainerRegion.CONTENT_WIDTH + 14;
+            this.authoredWidth = width;
+        }
+
+        @Override public int getHeight() { return com.trevlar.menukit.inject.RegionLayout.PANEL_GAP + 2 * SEAM_IN; }
+
+        @Override public void render(RenderContext ctx) {
+            Screen screen = Minecraft.getInstance().gui.screen();
+            Reference list = screen == null ? null : ContainerRegion.CONTAINERS.box(screen);
+            Reference inv = screen == null ? null : ContainerRegion.INVENTORY.box(screen);
+            if (list == null || inv == null) return;
+            var g = ctx.graphics();
+            int l = Math.max(list.leftPos(), inv.leftPos()), r = Math.min(list.leftPos() + list.imageWidth(), inv.leftPos() + inv.imageWidth());
+            int top = list.topPos() + list.imageHeight() - SEAM_IN, bottom = inv.topPos() + SEAM_IN;
+            g.fill(l, top, r, bottom, TabStrip.FILL);
+            g.fill(l, top, l + 1, bottom, TabStrip.BLACK);
+            g.fill(l + 1, top, l + 3, bottom, TabStrip.LIGHT);
+            g.fill(r - 1, top, r, bottom, TabStrip.BLACK);
+            g.fill(r - 3, top, r - 1, bottom, TabStrip.SHADE);
+        }
+
+        @Override public void renderOverlay(RenderContext ctx) {}
+    }
+
+    /** How far into each frame the seam's paint reaches: past the frame's edge, short of the slots. */
+    static int SEAM_IN = 4;
 
     /**
      * The table of contents: an entry per open container, its icon and name, children

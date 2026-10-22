@@ -110,8 +110,8 @@ final class ClientPanels {
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
         ContainerRegion.section(CHEST_ID, ModeScope.BOTH)
-                .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                        ? screen.getTitle() : Component.translatable("container.chest"))
+                .title(() -> LayoutPrototype.titled(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
+                        ? screen.getTitle() : Component.translatable("container.chest")))
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
                 .visibleWhen(() -> anyOpenHere() && LayoutPrototype.shows(CHEST_ID, Source.CONTAINER))
@@ -123,7 +123,7 @@ final class ClientPanels {
         // "Ender Chest" and gives it the chest's art, as a placed one has.
         String ender = Openable.ENDER_CHEST.panelId(0);
         ContainerRegion.section(ender, ModeScope.BOTH)
-                .title(() -> Component.translatable("container.enderchest"))
+                .title(() -> LayoutPrototype.titled(() -> Component.translatable("container.enderchest")))
                 .source(() -> {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
@@ -148,7 +148,7 @@ final class ClientPanels {
         Component plain = kind == Openable.SHULKER ? Component.translatable("container.shulkerBox")
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
-                .title(() -> title(kind, lane, plain))
+                .title(() -> LayoutPrototype.titled(() -> title(kind, lane, plain)))
                 .content(SlotGroupElement.of(Groups.group(kind, lane).id()))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
