@@ -66,7 +66,8 @@ final class ServerSessions {
         if (Groups.isOpenedContents(slot)) return;
         ItemStack stack = slot.getItem();
         Openable kind = Openable.of(stack);
-        if (kind == null) return;
+        // Off on this server: nothing opens (a double-clicked item is already back in its slot).
+        if (kind == null || !ServerSettings.allows(kind)) return;
         // A stack of boxes (Carpet) shares one contents list: editing it would copy items
         // into every box (QuickShulker #68).
         if (kind == Openable.SHULKER && stack.getCount() != 1) return;

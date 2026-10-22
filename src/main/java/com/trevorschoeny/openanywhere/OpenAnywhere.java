@@ -19,6 +19,7 @@ public final class OpenAnywhere implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(server -> ServerSettings.load());
         Groups.register();
         BundleHost.register();
 
