@@ -6,7 +6,6 @@ import java.util.function.BooleanSupplier;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.panel.ContainerRegion;
-import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.Placement;
@@ -19,7 +18,6 @@ import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.slotkit.api.slot.ClientSlots;
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
 import com.trevlar.slotkit.api.group.SlotGroupId;
-import com.trevlar.slotkit.api.slot.ParityGroup;
 import com.trevlar.slotkit.api.slot.SlotGroupElement;
 import com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor;
 
@@ -35,17 +33,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 /**
- * What this mod adds to screens: the close button on the screen's corner, the sections
- * of MenuKit's container list on a chest's screen, and the bundle's panel with its own
- * close button on the inventory screen.
+ * What this mod adds to screens: the close button on the screen's corner, and the
+ * sections of MenuKit's container list on a chest's screen (the bundle's own host screen
+ * included, where the bundle is the only section).
  */
 final class ClientPanels {
 
     private ClientPanels() {}
 
-    private static final int PADDING = 7;
-    /** A row of 9 vanilla slots (18 pixels each): the width the bundle panel wraps at. */
-    private static final int ROW_WIDTH = 9 * 18;
     /**
      * An 11 px raised button around a 7 px black "x" (MenuKit insets an icon 2 px). A
      * text label can't be this small: MenuKit pads a label to about 17 px each way.
@@ -61,14 +56,12 @@ final class ClientPanels {
             return new Reference(frame.shulkersininventory$leftPos(), frame.shulkersininventory$topPos(),
                     frame.shulkersininventory$imageWidth(), 0);
         });
-        bundlePanel();
         containerList();
     }
 
     /**
      * What the close button on the screen's corner closes: an item open below the chest
-     * first (the innermost), else the shulker box or ender chest the screen is. The
-     * bundle on the inventory screen has its own panel and button.
+     * first (the innermost), else the shulker box or ender chest the screen is.
      */
     private static @Nullable Session nativeSession() {
         var mc = Minecraft.getInstance();
@@ -136,29 +129,6 @@ final class ClientPanels {
     private static Component title(Openable kind, Component plain) {
         Session s = clientSession(kind);
         return s != null && s.stack().has(DataComponents.CUSTOM_NAME) ? s.stack().getHoverName() : plain;
-    }
-
-    /**
-     * The bundle on the inventory screen, where MenuKit's container list never is: its
-     * slots in a panel above the frame, 9 to a row, shown while its slots are live. On a
-     * chest's screen it is a section of the container list instead.
-     */
-    private static void bundlePanel() {
-        ParityGroup group = Groups.bundle();
-        Panel panel = Panel.builder(Openable.BUNDLE.panelId())
-                .add(SlotGroupElement.of(group.id()))
-                .style(PanelStyle.RAISED)
-                // Both modes: it shows only with a bundle open, and an open bundle outlives a
-                // /gamemode switch, so its place must too.
-                .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.TOP_CENTER).priority(10)))
-                .build()
-                .pinnedWidth(ROW_WIDTH)
-                .visibleWhen(() -> ClientSlots.isShown(group.id()));
-        new ScreenPanelAdapter(panel, PADDING).onPlayerInventory();
-        var mc = Minecraft.getInstance();
-        closeButton("bundle",
-                () -> mc.player == null || !panel.isVisible() ? null : Sessions.get(mc.player, Openable.BUNDLE),
-                panel::placedBounds);
     }
 
     /**

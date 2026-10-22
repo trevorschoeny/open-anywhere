@@ -20,6 +20,7 @@ public final class ShulkersInInventory implements ModInitializer {
     @Override
     public void onInitialize() {
         Groups.register();
+        BundleHost.register();
 
         PayloadTypeRegistry.serverboundPlay().register(OpenC2S.TYPE, OpenC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CloseC2S.TYPE, CloseC2S.CODEC);

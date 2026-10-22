@@ -24,8 +24,8 @@ import net.minecraft.world.item.ItemStack;
  * opens vanilla's own shulker box or ender chest menu, so the client shows vanilla's own
  * screen, exactly as a placed one opens (Trev, 2026-10-16). On a chest's screen
  * (including that ender chest), a box or a bundle opens in this mod's own slots below the
- * chest, which the client shows in MenuKit's container list (Trev, 2026-10-21). The
- * bundle on the inventory screen is its own panel.
+ * chest, which the client shows in MenuKit's container list (Trev, 2026-10-21). From
+ * the inventory the bundle opens on its own host screen ({@link BundleHost}), the same way.
  */
 final class ServerSessions {
 
@@ -67,12 +67,16 @@ final class ServerSessions {
 
         // On a chest's screen (a placed chest, a barrel, or the ender chest this mod
         // opened), a box or a bundle opens below the chest, in MenuKit's container list,
-        // so both are on one screen (Trev, 2026-10-21). The bundle opens on the inventory
-        // screen too, as its own panel.
-        boolean onChest = menu instanceof ChestMenu;
+        // so both are on one screen (Trev, 2026-10-21). The bundle's own host screen
+        // isn't a chest's: from it, a box or the ender chest swaps, as from vanilla's.
+        boolean host = BundleHost.is(menu);
+        boolean onChest = menu instanceof ChestMenu && !host;
         if (kind == Openable.BUNDLE) {
-            if (!(menu instanceof InventoryMenu) && !onChest) return;
-            openStacked(player, kind, menu, slot, menuSlot, stack);
+            if (menu instanceof InventoryMenu) {
+                openHosted(player, slot.container, slot.getContainerSlot(), stack);
+            } else if (onChest || host) {
+                openStacked(player, kind, menu, slot, menuSlot, stack);
+            }
             return;
         }
         if (kind == Openable.SHULKER && onChest) {
@@ -81,7 +85,7 @@ final class ServerSessions {
         }
         // Natively from the inventory, or swapping from a screen this mod opened. The
         // ender chest from a placed chest's screen waits for its own section.
-        if (!(menu instanceof InventoryMenu) && !isOpenNative(player, menu)) return;
+        if (!(menu instanceof InventoryMenu) && !host && !isOpenNative(player, menu)) return;
         openNative(player, kind, slot.container, slot.getContainerSlot(), stack);
     }
 
@@ -119,6 +123,20 @@ final class ServerSessions {
     }
 
     /**
+     * The bundle from the inventory: opens its host screen, vanilla's chest with no rows
+     * ({@link BundleHost}), then the bundle's slots on it, as below a chest.
+     */
+    private static void openHosted(ServerPlayer player, Container container, int containerSlot, ItemStack stack) {
+        for (Session s : Sessions.of(player)) end(player, s);
+        player.openMenu(new SimpleMenuProvider((id, inventory, p) -> BundleHost.create(id, inventory), stack.getHoverName()));
+        AbstractContainerMenu opened = player.containerMenu;
+        if (!BundleHost.is(opened)) return;
+        int menuSlot = slotOf(opened, container, containerSlot);
+        if (menuSlot < 0) return;
+        openStacked(player, Openable.BUNDLE, opened, opened.getSlot(menuSlot), menuSlot, stack);
+    }
+
+    /**
      * Opens a box or a bundle in this mod's own slots on the open menu: below the chest on
      * a chest's screen, or (the bundle) as a panel on the inventory screen. Only one such
      * item is open at a time; the ender chest the screen may be stays open (design, Rule 2).
@@ -153,11 +171,14 @@ final class ServerSessions {
     static void closeAndStepBack(ServerPlayer player, Openable kind) {
         Session session = Sessions.get(player, kind);
         if (session == null) return;
-        if (session.stacked()) {
+        // Below a chest it closes alone. On its own host there's nothing left to show,
+        // so the host closes too and the inventory screen comes back, as from vanilla's.
+        if (session.stacked() && !BundleHost.is(session.menu())) {
             end(player, session);
             return;
         }
         Sessions.remove(player, kind);
+        if (session.stacked()) Groups.close(player, kind);
         player.closeContainer();
         ServerPlayNetworking.send(player, SessionS2C.closed(kind, true));
     }
@@ -177,7 +198,7 @@ final class ServerSessions {
                         && (s.kind() != Openable.SHULKER || s.stack().getCount() == 1);
                 if (valid) continue;
                 end(player, s);
-                if (!s.stacked() && menuOpen) player.closeContainer();
+                if ((!s.stacked() || BundleHost.is(s.menu())) && menuOpen) player.closeContainer();
             }
         }
     }

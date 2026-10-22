@@ -3,6 +3,7 @@ package com.trevorschoeny.shulkersininventory.checks;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.slotkit.api.slot.ClientSlots;
+import com.trevorschoeny.shulkersininventory.BundleHost;
 import com.trevorschoeny.shulkersininventory.Groups;
 import com.trevorschoeny.shulkersininventory.OpenC2S;
 import com.trevorschoeny.shulkersininventory.Openable;
@@ -95,11 +96,44 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.ENDER_CHEST, true);
     }
 
+    /**
+     * From the inventory the bundle opens like a container: vanilla's chest screen on the
+     * bundle's host menu, its slots the container list's only section, drawn inside the
+     * screen and showing the bundle's stone. Again on the bundle: back to the inventory.
+     */
     private void survivalBundle() {
         openInventory();
         shiftRightClick(hotbar(2), "bundle");
+        expectScreen(ContainerScreen.class, "shift+right-click on the bundle");
+        if (!ctx.computeOnClient(mc -> BundleHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
+            throw new AssertionError("the bundle's screen isn't on its host menu");
         if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.bundle().id())))
             throw new AssertionError("the bundle's slots didn't show");
+        String first = ctx.computeOnClient(mc -> {
+            var screen = (AbstractContainerScreen<?>) mc.gui.screen();
+            var edge = (com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor) screen;
+            for (Slot sl : screen.getMenu().slots) {
+                var c = com.trevlar.slotkit.api.slot.CreatedSlot.of(sl);
+                if (c == null || !c.panelId().equals(Openable.BUNDLE.slotPanelId()) || c.getLocalIndex() != 0) continue;
+                int top = edge.shulkersininventory$topPos();
+                boolean drawn = sl.isActive() && top + sl.y >= 0 && top + sl.y + 16 <= screen.height;
+                return (drawn ? "drawn" : "not drawn") + " " + sl.getItem();
+            }
+            return "missing";
+        });
+        if (!first.equals("drawn 4 minecraft:stone"))
+            throw new AssertionError("the bundle's first slot should be drawn with its 4 stone: " + first);
+        expectServerSession(Openable.BUNDLE, true);
+        ctx.takeScreenshot("modes-survival_bundle-open");
+        // The opened bundle's own slot is greyed and locked, as a box's is.
+        if (!ctx.computeOnClient(mc -> com.trevorschoeny.shulkersininventory.Sessions.isOpenAt(mc.player.getInventory(), 2)))
+            throw new AssertionError("the open bundle's hotbar slot isn't marked open on the client (no grey)");
+        click(hotbar(2), "the open bundle");
+        int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
+        if (carried != 0) throw new AssertionError("the open bundle was picked up");
+        shiftRightClick(hotbar(2), "the open bundle");
+        expectScreen(InventoryScreen.class, "shift+right-click on the open bundle");
+        expectServerSession(Openable.BUNDLE, false);
     }
 
     /** Creative's Survival Inventory tab: the click is vanilla's, nothing opens or copies. */
