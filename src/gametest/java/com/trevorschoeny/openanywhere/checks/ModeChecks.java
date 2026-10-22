@@ -76,6 +76,9 @@ public class ModeChecks implements FabricClientGameTest {
         } finally {
             ctx.takeScreenshot("modes-" + id.substring(id.indexOf(':') + 1));
             ctx.runOnClient(mc -> { if (mc.player != null) mc.player.closeContainer(); });
+            // A stack left on the cursor (vanilla's creative pick-up) would block the next open.
+            ctx.runOnClient(mc -> { if (mc.player != null) mc.player.containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY); });
+            scene.world().getServer().runOnServer(srv -> srv.getPlayerList().getPlayers().getFirst().containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));
             ctx.waitTicks(3);
         }
     }
@@ -84,14 +87,14 @@ public class ModeChecks implements FabricClientGameTest {
 
     private void survivalShulker() {
         openInventory();
-        shiftRightClick(hotbar(0), "shulker box");
+        optionClick(hotbar(0), "shulker box");
         expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
         expectServerSession(Openable.SHULKER, true);
     }
 
     private void survivalEnder() {
         openInventory();
-        shiftRightClick(hotbar(1), "ender chest");
+        optionClick(hotbar(1), "ender chest");
         expectScreen(ContainerScreen.class, "shift+right-click on the ender chest");
         expectServerSession(Openable.ENDER_CHEST, true);
     }
@@ -103,18 +106,18 @@ public class ModeChecks implements FabricClientGameTest {
      */
     private void survivalBundle() {
         openInventory();
-        shiftRightClick(hotbar(2), "bundle");
+        optionClick(hotbar(2), "bundle");
         expectScreen(ContainerScreen.class, "shift+right-click on the bundle");
         if (!ctx.computeOnClient(mc -> BundleHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
             throw new AssertionError("the bundle's screen isn't on its host menu");
-        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.bundle().id())))
+        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
             throw new AssertionError("the bundle's slots didn't show");
         String first = ctx.computeOnClient(mc -> {
             var screen = (AbstractContainerScreen<?>) mc.gui.screen();
             var edge = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
             for (Slot sl : screen.getMenu().slots) {
                 var c = com.trevlar.slotkit.api.slot.CreatedSlot.of(sl);
-                if (c == null || !c.panelId().equals(Openable.BUNDLE.slotPanelId()) || c.getLocalIndex() != 0) continue;
+                if (c == null || !c.panelId().equals(Openable.BUNDLE.slotPanelId(0)) || c.getLocalIndex() != 0) continue;
                 int top = edge.openanywhere$topPos();
                 boolean drawn = sl.isActive() && top + sl.y >= 0 && top + sl.y + 16 <= screen.height;
                 return (drawn ? "drawn" : "not drawn") + " " + sl.getItem();
@@ -131,7 +134,7 @@ public class ModeChecks implements FabricClientGameTest {
         click(hotbar(2), "the open bundle");
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
         if (carried != 0) throw new AssertionError("the open bundle was picked up");
-        shiftRightClick(hotbar(2), "the open bundle");
+        optionClick(hotbar(2), "the open bundle");
         expectScreen(InventoryScreen.class, "shift+right-click on the open bundle");
         expectServerSession(Openable.BUNDLE, false);
     }
@@ -140,8 +143,8 @@ public class ModeChecks implements FabricClientGameTest {
     private void creativeInventoryTab() {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.INVENTORY);
-        shiftRightClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
-        // Vanilla's shift-click on the inventory tab moves the box: still one box.
+        optionClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
+        // Vanilla's right-click picks the box up: still one box, on the cursor.
         nothingOpened(1);
         // The server checks the mode itself: a client asking anyway gets nothing.
         ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(36)));
@@ -153,11 +156,10 @@ public class ModeChecks implements FabricClientGameTest {
     private void creativeItemTab() {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.CATEGORY);
-        shiftRightClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
-        // Vanilla's shift-click on an item tab's hotbar deletes the stack (ItemPickerMenu's
-        // quick move): no box left is the proof vanilla had the click, not this mod.
-        nothingOpened(0);
-        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.bundle().id())))
+        optionClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
+        // Vanilla's right-click picks the box up: still one box, on the cursor.
+        nothingOpened(1);
+        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.group(Openable.BUNDLE, 0).id())))
             throw new AssertionError("bundle slots shown on an item tab");
     }
 
@@ -167,7 +169,7 @@ public class ModeChecks implements FabricClientGameTest {
      */
     private void modeSwitch() {
         openInventory();
-        shiftRightClick(hotbar(0), "shulker box");
+        optionClick(hotbar(0), "shulker box");
         expectScreen(ShulkerBoxScreen.class, "shift+right-click on the box");
         command("gamemode creative @p");
         ctx.waitTicks(3);
@@ -176,7 +178,7 @@ public class ModeChecks implements FabricClientGameTest {
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
         if (carried != 0) throw new AssertionError("the opened box was picked up after switching to creative");
         // The X: a close request for the open box; back to the inventory.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER)));
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER, -1)));
         ctx.waitTicks(5);
         expectServerSession(Openable.SHULKER, false);
     }
@@ -221,7 +223,8 @@ public class ModeChecks implements FabricClientGameTest {
         String screen = ctx.computeOnClient(mc -> String.valueOf(mc.gui.screen()));
         if (!screen.contains("CreativeModeInventoryScreen")) throw new AssertionError("the screen changed to " + screen);
         expectServerSession(Openable.SHULKER, false);
-        int found = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.SHULKER_BOX));
+        int found = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.SHULKER_BOX)
+                + (mc.player.containerMenu.getCarried().is(Items.SHULKER_BOX) ? mc.player.containerMenu.getCarried().getCount() : 0));
         if (found != boxes) throw new AssertionError("expected " + boxes + " shulker box(es) after vanilla's click, found " + found);
     }
 
@@ -233,7 +236,7 @@ public class ModeChecks implements FabricClientGameTest {
 
     private void expectServerSession(Openable kind, boolean open) {
         boolean isOpen = scene.world().getServer().computeOnServer(s ->
-                Sessions.get(s.getPlayerList().getPlayers().getFirst(), kind) != null);
+                firstOf(s.getPlayerList().getPlayers().getFirst(), kind) != null);
         if (isOpen != open) throw new AssertionError("server " + (open ? "has no " : "still has a ") + kind + " session");
     }
 
@@ -263,13 +266,23 @@ public class ModeChecks implements FabricClientGameTest {
      * so this presses through the MouseHandler hook with GLFW's shift bit (1) set (as Simple
      * Elytra Slot's checks do).
      */
-    private void shiftRightClick(Predicate<Slot> p, String what) {
+    /** SDL's Left Alt bit, which 26.3 reads: the click as an Option-click, the default open key. */
+    private static final int ALT = 0x100;
+
+    /** An Option-click: TestInput clicks carry no modifiers, so this goes through the MouseHandler hook with Alt set. */
+    private void optionClick(Predicate<Slot> p, String what) {
         hover(p, what);
         for (int action : new int[] {1, 0}) {
             ctx.runOnClient(mc -> ((net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler)
-                    .invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_RIGHT, 1), action));
+                    .invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_RIGHT, ALT), action));
             ctx.waitTick();
         }
         ctx.waitTicks(5);
+    }
+
+    /** The player's first open session of {@code kind} (the oldest), or null. */
+    private static com.trevorschoeny.openanywhere.@org.jspecify.annotations.Nullable Session firstOf(net.minecraft.world.entity.player.Player player, Openable kind) {
+        for (var s : Sessions.of(player)) if (s.kind() == kind) return s;
+        return null;
     }
 }

@@ -7,7 +7,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * One opened item: what it is, the menu it opened, and where it sits.
+ * One opened item: what it is, the menu it opened on, where it sits, and its lane.
  *
  * <p>The session is tied to the item, not to its slot: {@code stack} is the exact stack
  * object that was opened. Every open-from-inventory mod in the research shipped dupes
@@ -16,22 +16,29 @@ import net.minecraft.world.item.ItemStack;
  * at {@code container}/{@code containerSlot} with {@code menu} open, and ends the
  * session the moment it isn't ({@link ServerSessions#tick}).
  *
- * @param menu          the menu the item opened: vanilla's shulker box or ender chest
- *                      menu, or, for an item stacked below a chest ({@link #stacked()}),
- *                      the chest's menu; for the bundle, the menu it sits on
- * @param container     the container holding the opened item (the player's inventory,
- *                      or the chest or ender chest it is kept in); null on the client
- *                      when that container isn't on the open screen
+ * @param lane          the slot group the item shows in, a section of MenuKit's container
+ *                      list ({@link #stacked()}); -1 for one opened as vanilla's own screen
+ * @param menu          the menu it opened on: vanilla's shulker box or ender chest menu,
+ *                      or, for a section, the screen's own menu (a chest's, or the
+ *                      bundle's host)
+ * @param container     the container holding the opened item (the player's inventory, a
+ *                      chest, or the ender chest's group); null on the client when that
+ *                      container isn't on the open screen
  * @param containerSlot its index in that container
  * @param menuSlot      its index in {@code menu}, or -1 when it isn't on that menu
- * @param stacked       true when the item opened in this mod's own slots, a section of
- *                      MenuKit's container list (below a chest, or on the bundle's host),
- *                      rather than as vanilla's own screen. Said outright, not read from
- *                      the menu: the ender chest's own screen and a chest's are both
- *                      vanilla's chest menu.
  */
-public record Session(Openable kind, AbstractContainerMenu menu, @Nullable Container container, int containerSlot,
-                      int menuSlot, ItemStack stack, boolean stacked) {
+public record Session(Openable kind, int lane, AbstractContainerMenu menu, @Nullable Container container,
+                      int containerSlot, int menuSlot, ItemStack stack) {
+
+    /** True when the item opened as a section in its lane, rather than as vanilla's own screen. */
+    public boolean stacked() {
+        return lane >= 0;
+    }
+
+    /** True for the same opened thing: the same kind in the same lane (or both native). */
+    public boolean sameSlotAs(Openable kind, int lane) {
+        return this.kind == kind && this.lane == lane;
+    }
 
     /** True while the opened stack is still exactly where it was opened. */
     public boolean stillInPlace() {

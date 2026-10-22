@@ -8,40 +8,45 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 
-/** The three items this mod opens, and how big each one's panel is. */
+/**
+ * The three items this mod opens: how big each one's slot group is, and how many can be
+ * open at once (its lanes, one slot group each).
+ */
 public enum Openable {
 
-    SHULKER(27),
-    ENDER_CHEST(27),
+    // ponytail: fixed lanes, because SlotKit groups are registered at start and sit on
+    // every menu. Six boxes and three bundles at once is the ceiling; a group SlotKit adds
+    // to an open menu on demand would lift it.
+    SHULKER(27, 6),
+    /** One: there is one ender chest per player. */
+    ENDER_CHEST(27, 1),
     /**
      * A bundle holds at most 64 stacks (64 single items of 64 kinds), shown one per
      * slot, plus one empty slot to put things in.
      */
-    BUNDLE(65);
+    BUNDLE(65, 3);
 
-    /** How many slots the panel declares. SlotKit compares this at join, so it never changes. */
+    /** How many slots each group declares. SlotKit compares this at join, so it never changes. */
     public final int slots;
+    /** How many of this kind can be open as sections at once. */
+    public final int lanes;
 
-    Openable(int slots) {
+    Openable(int slots, int lanes) {
         this.slots = slots;
+        this.lanes = lanes;
     }
 
-    /** The panel this item opens in: {@code openanywhere:shulker}, and so on. */
-    public String panelId() {
-        return OpenAnywhere.MOD_ID + ":" + name().toLowerCase(java.util.Locale.ROOT);
+    /** Lane {@code lane}'s group owner and section id: {@code openanywhere:shulker_0}, and so on. */
+    public String panelId(int lane) {
+        return OpenAnywhere.MOD_ID + ":" + name().toLowerCase(java.util.Locale.ROOT) + "_" + lane;
     }
 
     /**
-     * The id SlotKit gives this kind's built slots ({@code CreatedSlot.panelId()}): the
-     * owner and the group, {@code openanywhere:shulker:slots}.
+     * The id SlotKit gives lane {@code lane}'s built slots ({@code CreatedSlot.panelId()}):
+     * the owner and the group, {@code openanywhere:shulker_0:slots}.
      */
-    public String slotPanelId() {
-        return panelId() + ":" + Groups.GROUP;
-    }
-
-    /** Whether this is the one that may stay open beside another (design, Rule 2). */
-    public boolean isEnderChest() {
-        return this == ENDER_CHEST;
+    public String slotPanelId(int lane) {
+        return panelId(lane) + ":" + Groups.GROUP;
     }
 
     /** What a stack opens as, or null for anything this mod doesn't open. */

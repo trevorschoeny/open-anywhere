@@ -1,8 +1,7 @@
 package com.trevorschoeny.openanywhere;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -11,14 +10,15 @@ import org.jspecify.annotations.Nullable;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 
 /**
- * Who has what open, on this side. The server's entries are the truth; the client
- * mirrors its own from {@link SessionS2C} so its slot lock, grey mark and shift-click
- * routes predict the server's answers.
+ * Who has what open, on this side, in the order it opened. The server's entries are the
+ * truth; the client mirrors its own from {@link SessionS2C} so its slot lock, grey mark
+ * and shift-click routes predict the server's answers.
  *
- * <p>At most two per player: the ender chest, and one shulker box or bundle
- * (design, Rule 2). Keyed weakly by player, so a player object that's gone (respawn,
+ * <p>Any number per player, one per lane (design, Rule 2), plus at most one opened as
+ * vanilla's own screen. Keyed weakly by player, so a player object that's gone (respawn,
  * disconnect) takes its sessions with it.
  *
  * <p>One table per side. In singleplayer both sides run in one game, and a player is
@@ -31,63 +31,65 @@ public final class Sessions {
 
     private Sessions() {}
 
-    private static final Map<Player, EnumMap<Openable, Session>> SERVER = Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<Player, EnumMap<Openable, Session>> CLIENT = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Player, List<Session>> SERVER = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Player, List<Session>> CLIENT = Collections.synchronizedMap(new WeakHashMap<>());
 
-    private static Map<Player, EnumMap<Openable, Session>> side(Player player) {
+    private static Map<Player, List<Session>> side(Player player) {
         return player.level().isClientSide() ? CLIENT : SERVER;
     }
 
+    /** The session in {@code kind}'s lane {@code lane} (-1: the one opened natively), or null. */
+    public static @Nullable Session at(Player player, Openable kind, int lane) {
+        for (Session s : of(player)) if (s.sameSlotAs(kind, lane)) return s;
+        return null;
+    }
 
-    public static @Nullable Session get(Player player, Openable kind) {
-        Map<Player, EnumMap<Openable, Session>> table = side(player);
+    /** The session that has exactly this stack open, or null. */
+    public static @Nullable Session byStack(Player player, ItemStack stack) {
+        for (Session s : of(player)) if (s.stack() == stack) return s;
+        return null;
+    }
+
+    /** The player's open sessions, oldest first, a copy. */
+    public static List<Session> of(Player player) {
+        Map<Player, List<Session>> table = side(player);
         synchronized (table) {
-            EnumMap<Openable, Session> open = table.get(player);
-            return open == null ? null : open.get(kind);
+            List<Session> open = table.get(player);
+            return open == null ? List.of() : List.copyOf(open);
         }
     }
 
-    /** The player's open sessions, a copy. */
-    public static Collection<Session> of(Player player) {
-        Map<Player, EnumMap<Openable, Session>> table = side(player);
-        synchronized (table) {
-            EnumMap<Openable, Session> open = table.get(player);
-            return open == null ? List.of() : List.copyOf(open.values());
-        }
-    }
-
-    /** Records {@code session}, replacing one of the same kind. */
+    /** Records {@code session}, replacing one in the same lane. */
     static void put(Player player, Session session) {
-        Map<Player, EnumMap<Openable, Session>> table = side(player);
+        Map<Player, List<Session>> table = side(player);
         synchronized (table) {
-            EnumMap<Openable, Session> open = table.computeIfAbsent(player, p -> new EnumMap<>(Openable.class));
-            open.put(session.kind(), session);
+            List<Session> open = table.computeIfAbsent(player, p -> new ArrayList<>());
+            open.removeIf(s -> s.sameSlotAs(session.kind(), session.lane()));
+            open.add(session);
         }
     }
 
-    static void remove(Player player, Openable kind) {
-        Map<Player, EnumMap<Openable, Session>> table = side(player);
+    static void remove(Player player, Openable kind, int lane) {
+        Map<Player, List<Session>> table = side(player);
         synchronized (table) {
-            EnumMap<Openable, Session> open = table.get(player);
-            if (open != null) open.remove(kind);
+            List<Session> open = table.get(player);
+            if (open != null) open.removeIf(s -> s.sameSlotAs(kind, lane));
         }
     }
 
     /**
-     * True when some player has the item at this container slot open. The slot lock
-     * ({@link Panels}) asks this for every operation, so it is a short scan of a
-     * handful of entries. Containers are per side, so both tables can be searched.
+     * True when some player has the item at this container slot open. The slot lock asks
+     * this for every operation, so it is a short scan of a handful of entries. Containers
+     * are per side, so both tables can be searched.
      */
     public static boolean isOpenAt(Container container, int containerSlot) {
         return isOpenAt(SERVER, container, containerSlot) || isOpenAt(CLIENT, container, containerSlot);
     }
 
-    private static boolean isOpenAt(Map<Player, EnumMap<Openable, Session>> table, Container container, int containerSlot) {
+    private static boolean isOpenAt(Map<Player, List<Session>> table, Container container, int containerSlot) {
         synchronized (table) {
-            for (EnumMap<Openable, Session> open : table.values()) {
-                for (Session s : open.values()) {
-                    if (s.container() == container && s.containerSlot() == containerSlot) return true;
-                }
+            for (List<Session> open : table.values()) {
+                for (Session s : open) if (s.container() == container && s.containerSlot() == containerSlot) return true;
             }
         }
         return false;
@@ -96,9 +98,7 @@ public final class Sessions {
     /** True when some player on the server has exactly this stack open. */
     static boolean isOpenByAnyone(Object stack) {
         synchronized (SERVER) {
-            for (EnumMap<Openable, Session> open : SERVER.values()) {
-                for (Session s : open.values()) if (s.stack() == stack) return true;
-            }
+            for (List<Session> open : SERVER.values()) for (Session s : open) if (s.stack() == stack) return true;
         }
         return false;
     }

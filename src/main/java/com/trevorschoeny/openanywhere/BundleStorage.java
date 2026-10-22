@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * The bundle's slots on the server: one slot per stack the opened bundle holds, in the
+ * One bundle lane's slots on the server: one slot per stack the opened bundle holds, in the
  * bundle's own order, then the slot that adds one. Live like {@link ShulkerStorage}:
  * every change is written straight back into the bundle's {@code minecraft:bundle_contents},
  * and the group's live count follows, so the add slot appears and moves as things go
@@ -28,23 +28,27 @@ import net.minecraft.world.item.component.BundleContents;
 final class BundleStorage implements Storage {
 
     // Server players only, so one entity id is one player.
-    private static final Map<Player, BundleStorage> BY_PLAYER = new WeakHashMap<>();
+    private static final Map<Player, BundleStorage[]> BY_PLAYER = new WeakHashMap<>();
 
-    static synchronized BundleStorage of(Player player) {
-        return BY_PLAYER.computeIfAbsent(player, BundleStorage::new);
+    static synchronized BundleStorage of(Player player, int lane) {
+        BundleStorage[] lanes = BY_PLAYER.computeIfAbsent(player, p -> new BundleStorage[Openable.BUNDLE.lanes]);
+        if (lanes[lane] == null) lanes[lane] = new BundleStorage(player, lane);
+        return lanes[lane];
     }
 
     private final Player player;
+    private final int lane;
     private ItemStack loadedBundle = ItemStack.EMPTY;
     private BundleContents loadedFrom = null;
     private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
 
-    private BundleStorage(Player player) {
+    private BundleStorage(Player player, int lane) {
         this.player = player;
+        this.lane = lane;
     }
 
     private ItemStack bundle() {
-        Session session = Sessions.get(player, Openable.BUNDLE);
+        Session session = Sessions.at(player, Openable.BUNDLE, lane);
         if (session == null) return null;
         ItemStack bundle = session.stack();
         BundleContents contents = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
@@ -93,6 +97,6 @@ final class BundleStorage implements Storage {
                 .filter(s -> !s.isEmpty()).map(ItemStackTemplate::fromNonEmptyStack).toList()));
         // Reloaded on the next read, which also packs the emptied slots out.
         loadedFrom = null;
-        if (player instanceof ServerPlayer server) Groups.open(server, Openable.BUNDLE);
+        if (player instanceof ServerPlayer server) Groups.open(server, Openable.BUNDLE, lane);
     }
 }
