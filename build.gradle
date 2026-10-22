@@ -27,6 +27,10 @@ java {
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
+    // Not for this mod. Keybindery (compiled against for the settings tab) depends on YACL,
+    // whose builds are only on this Maven repository, so Gradle needs it to resolve
+    // Keybindery. This mod neither compiles against YACL nor bundles it.
+    maven { url 'https://api.modrinth.com/maven' }
 }
 
 // MenuKit and SlotKit have separate main and client source sets. A
@@ -34,6 +38,8 @@ repositories {
 // needs them evaluated first. A published jar holds both halves.
 evaluationDependsOn(':menukit')
 evaluationDependsOn(':slotkit')
+evaluationDependsOn(':inventory-plus')
+evaluationDependsOn(':keybindery')
 
 dependencies {
     // 26.x is unobfuscated: no mappings line, and plain Java configurations.
@@ -74,6 +80,13 @@ dependencies {
     clientImplementation rootProject.project(':menukit').sourceSets.client.output
     clientImplementation rootProject.project(':slotkit').sourceSets.client.output
 
+    // Inventory Plus is optional ("suggests"): the settings are a tab in its menu. Its API,
+    // and Keybindery's chord button that IP always brings, are compiled against and never
+    // bundled; only the `ip` package touches them, and only when IP is loaded.
+    clientCompileOnly project(':inventory-plus')
+    clientCompileOnly rootProject.project(':inventory-plus').sourceSets.client.output
+    clientCompileOnly project(':keybindery')
+    clientCompileOnly rootProject.project(':keybindery').sourceSets.client.output
 }
 
 // Self-checks: Fabric client gametests in src/gametest, run with
@@ -93,6 +106,13 @@ dependencies {
     gametestImplementation sourceSets.client.output
     gametestImplementation rootProject.project(':menukit').sourceSets.client.output
     gametestImplementation rootProject.project(':slotkit').sourceSets.client.output
+    // Inventory Plus and Keybindery as built jars, for the settings tab, in the scene client
+    // only: ORG_GRADLE_PROJECT_withIp=1 test-gallery/run-scene.sh ... The self-checks run
+    // without them, as a player without IP has it.
+    if (project.hasProperty('withIp')) {
+        clientRuntimeOnly files(rootProject.project(':inventory-plus').tasks.named('jar'),
+                rootProject.project(':keybindery').tasks.named('jar'))
+    }
 }
 
 jar {

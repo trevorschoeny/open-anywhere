@@ -55,6 +55,7 @@ public class ModeChecks implements FabricClientGameTest {
             run("openanywhere:creative_inventory_tab", this::creativeInventoryTab);
             run("openanywhere:creative_item_tab", this::creativeItemTab);
             run("openanywhere:mode_switch", this::modeSwitch);
+            run("openanywhere:settings", this::settings);
         }
         if (!failures.isEmpty()) throw new AssertionError("mode checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -193,7 +194,42 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.SHULKER, false);
     }
 
+    /**
+     * The player's settings (Trev, 2026-10-22): a kind turned off doesn't open, double-click
+     * turned off doesn't open, and an item opened before its kind went off still closes.
+     * Every setting goes back on at the end, pass or fail.
+     */
+    private void settings() {
+        try {
+            openInventory();
+            doubleClick(hotbar(2), "bundle");
+            expectServerSession(Openable.BUNDLE, true);
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setOpens(Openable.BUNDLE, false));
+            doubleClick(hotbar(2), "the open bundle, bundles now off");
+            expectServerSession(Openable.BUNDLE, false);
+
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setOpens(Openable.SHULKER, false));
+            doubleClick(hotbar(0), "shulker box, shulker boxes off");
+            expectServerSession(Openable.SHULKER, false);
+            // Vanilla's double-click left the box on the cursor; it goes, so the next one starts clean.
+            clearCursor();
+
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.reset());
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setDoubleClick(false));
+            doubleClick(hotbar(1), "ender chest, double-click off");
+            expectServerSession(Openable.ENDER_CHEST, false);
+        } finally {
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.reset());
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private void clearCursor() {
+        ctx.runOnClient(mc -> mc.player.containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));
+        scene.world().getServer().runOnServer(srv -> srv.getPlayerList().getPlayers().getFirst().containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));
+        ctx.waitTicks(3);
+    }
 
     private void command(String c) {
         scene.world().getServer().runCommand(c);

@@ -98,6 +98,11 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         KeyMappingHelper.registerKeyMapping(OPEN);
+        Settings.load();
+        // The settings live in Inventory Plus's menu, so they show only when IP is installed.
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryplus")) {
+            com.trevorschoeny.openanywhere.ip.SettingsTab.register();
+        }
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPanels.register();
                 // The bundle's host is vanilla's chest menu, so it gets vanilla's chest screen.
@@ -115,7 +120,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
                 if (hovered == null) return true;
                 ItemStack carried = containerScreen.getMenu().getCarried();
                 if (isOpenClick(event)) {
-                    if (Openable.of(hovered.getItem()) == null || !carried.isEmpty()) return true;
+                    if (!opensOrIsOpen(client.player, hovered) || !carried.isEmpty()) return true;
                     // On creative's screen, only its inventory tab, by the real menu's index.
                     if (s instanceof CreativeModeInventoryScreen c && !c.isInventoryOpen()) return true;
                     ClientPlayNetworking.send(new OpenC2S(s instanceof CreativeModeInventoryScreen ? realIndex(client.player, hovered) : hovered.index, false));
@@ -145,6 +150,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         // Creative's other tabs aren't the inventory: nothing opens there.
         boolean creative = screen instanceof CreativeModeInventoryScreen;
         if (creative && !((CreativeModeInventoryScreen) screen).isInventoryOpen()) return false;
+        if (!Settings.doubleClick()) return false;
         int target = creative ? realIndex(player, hovered) : hovered.index;
         if (target < 0) return false;
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || event.hasShiftDown()) {
@@ -156,7 +162,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
                 && event.x() == firstMouseX && event.y() == firstMouseY;
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
-            lastSlot = Openable.of(hovered.getItem()) != null && carried.isEmpty() ? target : -1;
+            lastSlot = opensOrIsOpen(player, hovered) && carried.isEmpty() ? target : -1;
             lastClick = now;
             firstMouseX = event.x();
             firstMouseY = event.y();
@@ -199,6 +205,15 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             if (real.container == shown.container && real.getContainerSlot() == shown.getContainerSlot()) return real.index;
         }
         return -1;
+    }
+
+    /**
+     * An item a click may act on: one whose kind is on in {@link Settings}, or one already
+     * open, so a kind turned off while open can still be closed.
+     */
+    private static boolean opensOrIsOpen(Player player, Slot slot) {
+        Openable kind = Openable.of(slot.getItem());
+        return kind != null && (Settings.opens(kind) || isOpen(player, slot));
     }
 
     /** True when the item in {@code slot} is open: a session holds that slot of the open menu. */

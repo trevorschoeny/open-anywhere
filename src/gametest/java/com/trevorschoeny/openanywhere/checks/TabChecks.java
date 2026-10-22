@@ -136,6 +136,13 @@ public class TabChecks implements FabricClientGameTest {
             ctx.waitTicks(2);
             String up = ctx.computeOnClient(mc -> Tabs.shown());
             if (!wasShown.equals(up)) fail("a turn up didn't go back to " + wasShown + ": " + up);
+            // With the wheel turned off in the settings, a turn leaves the tab alone.
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setWheel(false));
+            ctx.getInput().scroll(-1);
+            ctx.waitTicks(2);
+            String still = ctx.computeOnClient(mc -> Tabs.shown());
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setWheel(true));
+            if (!wasShown.equals(still)) fail("with the wheel off, a turn moved the tab to " + still);
 
             // A bundle of 60 stacks (61 slots, seven rows) grows to the room there is, then
             // its grid scrolls: the panel stops short of the double chest's height.

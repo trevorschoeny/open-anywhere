@@ -37,6 +37,9 @@
   "suggests": {
     "inventoryplus": "*"
   },
+  "breaks": {
+    "inventoryplus": "<2.0.0"
+  },
   "custom": {
     "slotkit": {
       "bothSides": "required"

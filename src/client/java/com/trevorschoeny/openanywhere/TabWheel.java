@@ -39,7 +39,7 @@ final class TabWheel {
 
     /** One turn of the wheel at {@code (x, y)}: the next or previous tab, unless over the list. Whether it was used. */
     private static boolean turn(Screen screen, double x, double y, double amount) {
-        if (amount == 0) return false;
+        if (amount == 0 || !Settings.wheel()) return false;
         List<String> row = Tabs.row();
         if (row.size() < 2) return false;
         // Over the container, the wheel is the container's only while it has a scrollbar:
