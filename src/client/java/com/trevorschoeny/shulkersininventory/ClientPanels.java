@@ -2,13 +2,9 @@ package com.trevorschoeny.shulkersininventory;
 
 import java.util.function.Supplier;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BooleanSupplier;
 
 import com.trevlar.menukit.api.element.Button;
-import com.trevlar.menukit.api.element.Flow;
-import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.ModeScope;
@@ -21,10 +17,10 @@ import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.slotkit.api.slot.ClientSlots;
+import com.trevlar.slotkit.api.group.SlotGroupCategory;
+import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.ParityGroup;
-import com.trevlar.slotkit.api.slot.SlotElement;
-import com.trevlar.slotkit.api.slot.SlotFlowElement;
-import com.trevlar.slotkit.api.window.Address;
+import com.trevlar.slotkit.api.slot.SlotGroupElement;
 import com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
@@ -36,7 +32,6 @@ import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.inventory.MenuType;
 import net.minecraft.resources.Identifier;
 
 /**
@@ -93,47 +88,40 @@ final class ClientPanels {
     /**
      * On a chest's screen, an opened box or bundle stacks below the chest as one column in
      * MenuKit's container list, with the inventory in its own panel below (Trev,
-     * 2026-10-21). The list shows while one is open: the chest's own grid first (its
-     * slots, presented by menu slot, one declaration per vanilla chest size), then the
-     * opened item's slots, from its SlotKit group. The list grows, then centres, then
-     * scrolls; that and the wheel, shift-click and resource packs are MenuKit's.
+     * 2026-10-21). Each section's content is one SlotKit group, found by its id on the open
+     * menu: the chest's own (a single chest, a double chest or a barrel, any size), then
+     * the opened item's. Each group is its own container, so sorting and shift-click act on
+     * one at a time. The list grows, then centres, then scrolls; that and the wheel and
+     * resource packs are MenuKit's.
      */
     private static void containerList() {
         BooleanSupplier itemOpen = () -> ClientSlots.isShown(Groups.shulker().id()) || ClientSlots.isShown(Groups.bundle().id());
-        MenuType<?>[] chests = {MenuType.GENERIC_9x1, MenuType.GENERIC_9x2, MenuType.GENERIC_9x3,
-                MenuType.GENERIC_9x4, MenuType.GENERIC_9x5, MenuType.GENERIC_9x6};
-        for (int i = 0; i < chests.length; i++) {
-            MenuType<?> type = chests[i];
-            int rows = i + 1;
-            List<SlotElement> slots = new ArrayList<>();
-            for (int slot = 0; slot < rows * 9; slot++) slots.add(SlotElement.builder().slot(Address.menuSlot(type, slot)).build());
-            // No source: the screen's own container, so MenuKit names and dresses it from
-            // the block the screen was opened on.
-            ContainerRegion.section(ShulkersInInventory.MOD_ID + ":chest_" + rows, ModeScope.BOTH)
-                    .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                            ? screen.getTitle() : Component.translatable("container.chest"))
-                    .content(grid(slots))
-                    .on(ContainerScreen.class)
-                    .visibleWhen(() -> itemOpen.getAsBoolean()
-                            && Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                            && screen.getMenu().getRowCount() == rows)
-                    .declare();
-        }
-        // The opened item, below the chest. Each shows exactly while its group's slots do.
+        // No source: the screen's own container, so MenuKit names and dresses it from the
+        // block the screen was opened on. Shown only with an item open below it; otherwise
+        // the screen is vanilla's own.
+        ContainerRegion.section(ShulkersInInventory.MOD_ID + ":chest", ModeScope.BOTH)
+                .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
+                        ? screen.getTitle() : Component.translatable("container.chest"))
+                .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
+                .on(ContainerScreen.class)
+                .visibleWhen(itemOpen)
+                .declare();
+        // The opened item, below the chest. Each shows exactly while its group's slots do;
+        // the bundle's grows a row at a time with its active count.
         ContainerRegion.section(Openable.SHULKER.panelId(), ModeScope.BOTH)
                 .title(() -> title(Openable.SHULKER, Component.translatable("container.shulkerBox")))
                 .source(() -> {
                     Session s = clientSession(Openable.SHULKER);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
                 })
-                .content(groupGrid(Groups.shulker(), Openable.SHULKER.slots))
+                .content(SlotGroupElement.of(Groups.shulker().id()))
                 .on(ContainerScreen.class)
                 .order(10)
                 .declare();
         ContainerRegion.section(Openable.BUNDLE.panelId(), ModeScope.BOTH)
                 .title(() -> title(Openable.BUNDLE, Component.translatable("item.minecraft.bundle")))
                 .name(() -> title(Openable.BUNDLE, Component.translatable("item.minecraft.bundle")))
-                .content(groupGrid(Groups.bundle(), Openable.BUNDLE.slots))
+                .content(SlotGroupElement.of(Groups.bundle().id()))
                 .on(ContainerScreen.class)
                 .order(10)
                 .declare();
@@ -151,37 +139,6 @@ final class ClientPanels {
     }
 
     /**
-     * A group's slots as nine-wide rows, each row shown while any of its slots is, so the
-     * bundle's grid grows a row at a time and the section hides with the group.
-     * ponytail: not SlotKit's SlotFlowElement, which in a section lays every slot in one
-     * row past the column's edge (reported to Lead, 2026-10-21); back to it once it wraps.
-     */
-    private static PanelElement groupGrid(ParityGroup group, int count) {
-        Flow.Builder grid = Flow.builder().vertical().gap(0, 0);
-        List<SlotElement> all = new ArrayList<>();
-        for (int row = 0; row * 9 < count; row++) {
-            List<SlotElement> slots = new ArrayList<>();
-            for (int i = row * 9; i < Math.min(count, row * 9 + 9); i++) slots.add(SlotElement.builder().slot(group.id(), i).build());
-            all.addAll(slots);
-            Flow.Builder line = Flow.builder().gap(0, 0);
-            slots.forEach(line::add);
-            grid.add(line.visibleWhen(() -> slots.stream().anyMatch(SlotElement::isVisible)).build());
-        }
-        return grid.visibleWhen(() -> all.stream().anyMatch(SlotElement::isVisible)).build();
-    }
-
-    /** A chest's grid as vanilla draws it: nine-wide rows. */
-    private static PanelElement grid(List<SlotElement> slots) {
-        Flow.Builder grid = Flow.builder().vertical().gap(0, 0);
-        for (int row = 0; row * 9 < slots.size(); row++) {
-            Flow.Builder line = Flow.builder().gap(0, 0);
-            for (SlotElement slot : slots.subList(row * 9, Math.min(slots.size(), row * 9 + 9))) line.add(slot);
-            grid.add(line.build());
-        }
-        return grid.build();
-    }
-
-    /**
      * The bundle on the inventory screen, where MenuKit's container list never is: its
      * slots in a panel above the frame, 9 to a row, shown while its slots are live. On a
      * chest's screen it is a section of the container list instead.
@@ -189,7 +146,7 @@ final class ClientPanels {
     private static void bundlePanel() {
         ParityGroup group = Groups.bundle();
         Panel panel = Panel.builder(Openable.BUNDLE.panelId())
-                .add(SlotFlowElement.of(group))
+                .add(SlotGroupElement.of(group.id()))
                 .style(PanelStyle.RAISED)
                 // Both modes: it shows only with a bundle open, and an open bundle outlives a
                 // /gamemode switch, so its place must too.
