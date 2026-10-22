@@ -152,6 +152,7 @@ modrinth {
         required.project "fabric-api"
         required.project "menukit"
         required.project "slotkit"
+        optional.project "inventory-plus"
     }
 }
 
