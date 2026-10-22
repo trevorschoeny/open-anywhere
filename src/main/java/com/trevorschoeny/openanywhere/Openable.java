@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import org.jspecify.annotations.Nullable;
 
@@ -26,14 +26,14 @@ public enum Openable {
         this.slots = slots;
     }
 
-    /** The panel this item opens in: {@code shulkersininventory:shulker}, and so on. */
+    /** The panel this item opens in: {@code openanywhere:shulker}, and so on. */
     public String panelId() {
-        return ShulkersInInventory.MOD_ID + ":" + name().toLowerCase(java.util.Locale.ROOT);
+        return OpenAnywhere.MOD_ID + ":" + name().toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
      * The id SlotKit gives this kind's built slots ({@code CreatedSlot.panelId()}): the
-     * owner and the group, {@code shulkersininventory:shulker:slots}.
+     * owner and the group, {@code openanywhere:shulker:slots}.
      */
     public String slotPanelId() {
         return panelId() + ":" + Groups.GROUP;

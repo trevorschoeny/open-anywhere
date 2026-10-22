@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import java.util.Map;
 import java.util.WeakHashMap;

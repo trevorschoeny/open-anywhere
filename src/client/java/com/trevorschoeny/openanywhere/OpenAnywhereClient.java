@@ -1,8 +1,8 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.menukit.api.panel.ModeScope;
-import com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor;
+import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -23,7 +23,7 @@ import net.minecraft.world.item.ItemStack;
  * panels ({@link ClientPanels}), and the mirror of what the server opened ({@link SessionS2C}).
  * Escape is vanilla's: it closes the screen, which closes every panel with it.
  */
-public final class ShulkersInInventoryClient implements ClientModInitializer {
+public final class OpenAnywhereClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
@@ -44,7 +44,7 @@ public final class ShulkersInInventoryClient implements ClientModInitializer {
                 // a screen open takes effect at once.
                 if (!ModeScope.SURVIVAL.includes(client.player)) return true;
                 if (!ClientPlayNetworking.canSend(OpenC2S.TYPE)) return true; // server without the mod
-                Slot hovered = ((ScreenAccessor) containerScreen).shulkersininventory$hoveredSlot();
+                Slot hovered = ((ScreenAccessor) containerScreen).openanywhere$hoveredSlot();
                 if (hovered == null || Openable.of(hovered.getItem()) == null) return true;
                 if (!containerScreen.getMenu().getCarried().isEmpty()) return true;
                 ClientPlayNetworking.send(new OpenC2S(hovered.index));

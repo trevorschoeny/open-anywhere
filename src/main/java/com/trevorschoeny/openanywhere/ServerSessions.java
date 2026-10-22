@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.slotkit.api.storage.StorageContainerAdapter;

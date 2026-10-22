@@ -1,4 +1,4 @@
-// Shulkers in Inventory. Open a shulker box, bundle or your ender chest from the
+// Open Anywhere. Open a shulker box, bundle or your ender chest from the
 // inventory or an open chest, without placing anything. Universal jar, needed on both
 // sides: the server owns every change (sessions, the dupe guard, the ender chest sync),
 // the client the tooltip view and, later, the panels. Built on SlotKit and MenuKit.
@@ -50,7 +50,7 @@ loom {
     // holds the tooltip view. The compiler refuses a main class that reaches a client one.
     splitEnvironmentSourceSets()
     mods {
-        shulkersininventory {
+        openanywhere {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
@@ -82,7 +82,7 @@ dependencies {
 fabricApi {
     configureTests {
         createSourceSet = true
-        modId = 'shulkersininventory_checks'
+        modId = 'openanywhere_checks'
         enableGameTests = false
         enableClientGameTests = true
         eula = true

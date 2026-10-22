@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -13,7 +13,7 @@ import net.minecraft.resources.Identifier;
 public record OpenC2S(int menuSlot) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<OpenC2S> TYPE =
-            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "open"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "open"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, OpenC2S> CODEC =
             ByteBufCodecs.VAR_INT.map(OpenC2S::new, OpenC2S::menuSlot).cast();

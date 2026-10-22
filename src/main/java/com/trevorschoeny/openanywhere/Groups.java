@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import java.util.List;
 
@@ -39,14 +39,14 @@ public final class Groups {
 
     private Groups() {}
 
-    /** Every group's id within its owner: {@code shulkersininventory:shulker:slots}, and so on. */
+    /** Every group's id within its owner: {@code openanywhere:shulker:slots}, and so on. */
     public static final String GROUP = "slots";
 
-    static final SlotGroupCategory BUNDLE_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "bundle");
+    static final SlotGroupCategory BUNDLE_STORAGE = new SlotGroupCategory(OpenAnywhere.MOD_ID, "bundle");
 
-    static final SlotGroupCategory SHULKER_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "shulker");
+    static final SlotGroupCategory SHULKER_STORAGE = new SlotGroupCategory(OpenAnywhere.MOD_ID, "shulker");
 
-    static final SlotGroupCategory ENDER_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "ender_chest");
+    static final SlotGroupCategory ENDER_STORAGE = new SlotGroupCategory(OpenAnywhere.MOD_ID, "ender_chest");
 
     private static ParityGroup bundle;
     private static ParityGroup shulker;

@@ -1,7 +1,7 @@
-package com.trevorschoeny.shulkersininventory.mixin;
+package com.trevorschoeny.openanywhere.mixin;
 
 import com.trevlar.slotkit.api.slot.CreatedSlot;
-import com.trevorschoeny.shulkersininventory.ClientMarks;
+import com.trevorschoeny.openanywhere.ClientMarks;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,7 +21,7 @@ import net.minecraft.world.inventory.Slot;
 abstract class SlotMarksMixin {
 
     @Inject(method = "extractSlot", at = @At("TAIL"))
-    private void shulkersininventory$marks(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
+    private void openanywhere$marks(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
         ClientMarks.draw(graphics, slot, CreatedSlot.of(slot));
     }
 }

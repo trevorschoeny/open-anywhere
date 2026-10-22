@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -16,7 +16,7 @@ import net.minecraft.resources.Identifier;
 public record SessionS2C(Openable kind, boolean open, int menuSlot, boolean stacked, boolean toInventory) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<SessionS2C> TYPE =
-            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "session"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "session"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, SessionS2C> CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_INT.map(i -> Openable.values()[i], Openable::ordinal), SessionS2C::kind,

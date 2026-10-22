@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory.mixin;
+package com.trevorschoeny.openanywhere.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -14,14 +14,14 @@ import net.minecraft.world.inventory.Slot;
 public interface ScreenAccessor {
 
     @Accessor("hoveredSlot")
-    Slot shulkersininventory$hoveredSlot();
+    Slot openanywhere$hoveredSlot();
 
     @Accessor("leftPos")
-    int shulkersininventory$leftPos();
+    int openanywhere$leftPos();
 
     @Accessor("topPos")
-    int shulkersininventory$topPos();
+    int openanywhere$topPos();
 
     @Accessor("imageWidth")
-    int shulkersininventory$imageWidth();
+    int openanywhere$imageWidth();
 }

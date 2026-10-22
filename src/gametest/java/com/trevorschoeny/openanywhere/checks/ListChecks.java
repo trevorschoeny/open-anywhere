@@ -1,14 +1,14 @@
-package com.trevorschoeny.shulkersininventory.checks;
+package com.trevorschoeny.openanywhere.checks;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.slotkit.api.slot.ClientSlots;
-import com.trevorschoeny.shulkersininventory.Groups;
-import com.trevorschoeny.shulkersininventory.Openable;
-import com.trevorschoeny.shulkersininventory.Session;
-import com.trevorschoeny.shulkersininventory.Sessions;
-import com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor;
+import com.trevorschoeny.openanywhere.Groups;
+import com.trevorschoeny.openanywhere.Openable;
+import com.trevorschoeny.openanywhere.Session;
+import com.trevorschoeny.openanywhere.Sessions;
+import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -46,15 +46,15 @@ public class ListChecks implements FabricClientGameTest {
         this.ctx = ctx;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "container-list")) {
             this.scene = scene;
-            run("shulkersininventory:list_box_in_chest", this::boxInChest);
-            run("shulkersininventory:list_shift_click", this::shiftClick);
-            run("shulkersininventory:list_box_from_hotbar", this::boxFromHotbar);
-            run("shulkersininventory:list_ender_box", this::enderBox);
-            run("shulkersininventory:list_bundle", this::bundle);
-            run("shulkersininventory:list_nested", this::nestedRefused);
-            run("shulkersininventory:list_ender_section", this::enderSection);
-            run("shulkersininventory:list_ender_section_box", this::enderSectionBox);
-            run("shulkersininventory:list_ender_at_ender_chest", this::enderAtEnderChest);
+            run("openanywhere:list_box_in_chest", this::boxInChest);
+            run("openanywhere:list_shift_click", this::shiftClick);
+            run("openanywhere:list_box_from_hotbar", this::boxFromHotbar);
+            run("openanywhere:list_ender_box", this::enderBox);
+            run("openanywhere:list_bundle", this::bundle);
+            run("openanywhere:list_nested", this::nestedRefused);
+            run("openanywhere:list_ender_section", this::enderSection);
+            run("openanywhere:list_ender_section_box", this::enderSectionBox);
+            run("openanywhere:list_ender_at_ender_chest", this::enderAtEnderChest);
         }
         if (!failures.isEmpty()) throw new AssertionError("container list checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -200,7 +200,7 @@ public class ListChecks implements FabricClientGameTest {
         shiftLeftClick(s -> Groups.isIn(s, Openable.SHULKER) && s.getItem().is(Items.DIRT), "the dirt in the box");
         if (enderDirt() != before + 5) throw new AssertionError("shift-click out of the box put " + (enderDirt() - before) + " dirt in the ender chest, not 5");
         ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
-                new com.trevorschoeny.shulkersininventory.CloseC2S(Openable.ENDER_CHEST)));
+                new com.trevorschoeny.openanywhere.CloseC2S(Openable.ENDER_CHEST)));
         ctx.waitTicks(5);
         expectServerSession(Openable.ENDER_CHEST, false);
         expectServerSession(Openable.SHULKER, false);
@@ -243,7 +243,7 @@ public class ListChecks implements FabricClientGameTest {
             AbstractContainerScreen<?> screen = screen(mc);
             ScreenAccessor b = (ScreenAccessor) screen;
             Slot first = screen.getMenu().getSlot(0);
-            int top = b.shulkersininventory$topPos();
+            int top = b.openanywhere$topPos();
             return first.isActive() && first.y >= 0 && top + first.y + 16 <= screen.height;
         });
         if (!inside) throw new AssertionError("the chest's own grid isn't shown above the opened item");
@@ -335,7 +335,7 @@ public class ListChecks implements FabricClientGameTest {
             ScreenAccessor edge = (ScreenAccessor) screen;
             var w = mc.getWindow();
             double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
-            return new double[] {(edge.shulkersininventory$leftPos() + found.x + 8) * f, (edge.shulkersininventory$topPos() + found.y + 8) * f};
+            return new double[] {(edge.openanywhere$leftPos() + found.x + 8) * f, (edge.openanywhere$topPos() + found.y + 8) * f};
         });
         ctx.getInput().setCursorPos(at[0], at[1]);
         ctx.waitTick();

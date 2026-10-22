@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -10,7 +10,7 @@ import net.minecraft.resources.Identifier;
 public record CloseC2S(Openable kind) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<CloseC2S> TYPE =
-            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "close"));
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "close"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, CloseC2S> CODEC =
             ByteBufCodecs.VAR_INT.map(i -> Openable.values()[i], Openable::ordinal).map(CloseC2S::new, CloseC2S::kind).cast();

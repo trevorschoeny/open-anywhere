@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import java.util.function.Supplier;
 
@@ -19,7 +19,7 @@ import com.trevlar.slotkit.api.slot.ClientSlots;
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
 import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.SlotGroupElement;
-import com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor;
+import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
 
@@ -45,15 +45,15 @@ final class ClientPanels {
      * text label can't be this small: MenuKit pads a label to about 17 px each way.
      */
     private static final int CLOSE_SIZE = 11;
-    private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "close");
+    private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "close");
 
     static void register() {
         // On vanilla's own screen, the close button centres on the screen frame's corner.
         closeButton("native", ClientPanels::nativeSession, () -> {
             if (!(Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen)) return null;
             ScreenAccessor frame = (ScreenAccessor) screen;
-            return new Reference(frame.shulkersininventory$leftPos(), frame.shulkersininventory$topPos(),
-                    frame.shulkersininventory$imageWidth(), 0);
+            return new Reference(frame.openanywhere$leftPos(), frame.openanywhere$topPos(),
+                    frame.openanywhere$imageWidth(), 0);
         });
         containerList();
     }
@@ -91,7 +91,7 @@ final class ClientPanels {
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
-        ContainerRegion.section(ShulkersInInventory.MOD_ID + ":chest", ModeScope.BOTH)
+        ContainerRegion.section(OpenAnywhere.MOD_ID + ":chest", ModeScope.BOTH)
                 .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
                         ? screen.getTitle() : Component.translatable("container.chest"))
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
@@ -149,7 +149,7 @@ final class ClientPanels {
      * (Trev, 2026-10-16). Shown while {@code session} has one; a click closes that one.
      */
     private static void closeButton(String name, Supplier<@Nullable Session> session, Supplier<@Nullable Reference> box) {
-        Panel close = Panel.builder(ShulkersInInventory.MOD_ID + ":close_" + name)
+        Panel close = Panel.builder(OpenAnywhere.MOD_ID + ":close_" + name)
                 .add(Button.builder()
                         .icon(CLOSE_ICON)
                         .size(CLOSE_SIZE, CLOSE_SIZE)

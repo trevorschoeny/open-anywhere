@@ -1,4 +1,4 @@
-package com.trevorschoeny.shulkersininventory;
+package com.trevorschoeny.openanywhere;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -26,7 +26,7 @@ public final class BundleHost {
     public static final MenuType<ChestMenu> TYPE = new MenuType<>(BundleHost::create, FeatureFlags.VANILLA_SET);
 
     static void register() {
-        Registry.register(BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(ShulkersInInventory.MOD_ID, "bundle"), TYPE);
+        Registry.register(BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "bundle"), TYPE);
     }
 
     static ChestMenu create(int id, Inventory inventory) {

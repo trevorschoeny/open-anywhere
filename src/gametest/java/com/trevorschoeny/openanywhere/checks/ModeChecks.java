@@ -1,13 +1,13 @@
-package com.trevorschoeny.shulkersininventory.checks;
+package com.trevorschoeny.openanywhere.checks;
 
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.slotkit.api.slot.ClientSlots;
-import com.trevorschoeny.shulkersininventory.BundleHost;
-import com.trevorschoeny.shulkersininventory.Groups;
-import com.trevorschoeny.shulkersininventory.OpenC2S;
-import com.trevorschoeny.shulkersininventory.Openable;
-import com.trevorschoeny.shulkersininventory.Sessions;
+import com.trevorschoeny.openanywhere.BundleHost;
+import com.trevorschoeny.openanywhere.Groups;
+import com.trevorschoeny.openanywhere.OpenC2S;
+import com.trevorschoeny.openanywhere.Openable;
+import com.trevorschoeny.openanywhere.Sessions;
 
 import net.fabricmc.fabric.api.client.creativetab.v1.FabricCreativeModeInventoryScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -50,12 +50,12 @@ public class ModeChecks implements FabricClientGameTest {
         this.ctx = ctx;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "modes")) {
             this.scene = scene;
-            run("shulkersininventory:survival_shulker", this::survivalShulker);
-            run("shulkersininventory:survival_ender", this::survivalEnder);
-            run("shulkersininventory:survival_bundle", this::survivalBundle);
-            run("shulkersininventory:creative_inventory_tab", this::creativeInventoryTab);
-            run("shulkersininventory:creative_item_tab", this::creativeItemTab);
-            run("shulkersininventory:mode_switch", this::modeSwitch);
+            run("openanywhere:survival_shulker", this::survivalShulker);
+            run("openanywhere:survival_ender", this::survivalEnder);
+            run("openanywhere:survival_bundle", this::survivalBundle);
+            run("openanywhere:creative_inventory_tab", this::creativeInventoryTab);
+            run("openanywhere:creative_item_tab", this::creativeItemTab);
+            run("openanywhere:mode_switch", this::modeSwitch);
         }
         if (!failures.isEmpty()) throw new AssertionError("mode checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -111,11 +111,11 @@ public class ModeChecks implements FabricClientGameTest {
             throw new AssertionError("the bundle's slots didn't show");
         String first = ctx.computeOnClient(mc -> {
             var screen = (AbstractContainerScreen<?>) mc.gui.screen();
-            var edge = (com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor) screen;
+            var edge = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
             for (Slot sl : screen.getMenu().slots) {
                 var c = com.trevlar.slotkit.api.slot.CreatedSlot.of(sl);
                 if (c == null || !c.panelId().equals(Openable.BUNDLE.slotPanelId()) || c.getLocalIndex() != 0) continue;
-                int top = edge.shulkersininventory$topPos();
+                int top = edge.openanywhere$topPos();
                 boolean drawn = sl.isActive() && top + sl.y >= 0 && top + sl.y + 16 <= screen.height;
                 return (drawn ? "drawn" : "not drawn") + " " + sl.getItem();
             }
@@ -126,7 +126,7 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.BUNDLE, true);
         ctx.takeScreenshot("modes-survival_bundle-open");
         // The opened bundle's own slot is greyed and locked, as a box's is.
-        if (!ctx.computeOnClient(mc -> com.trevorschoeny.shulkersininventory.Sessions.isOpenAt(mc.player.getInventory(), 2)))
+        if (!ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.Sessions.isOpenAt(mc.player.getInventory(), 2)))
             throw new AssertionError("the open bundle's hotbar slot isn't marked open on the client (no grey)");
         click(hotbar(2), "the open bundle");
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
@@ -176,7 +176,7 @@ public class ModeChecks implements FabricClientGameTest {
         int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
         if (carried != 0) throw new AssertionError("the opened box was picked up after switching to creative");
         // The X: a close request for the open box; back to the inventory.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.shulkersininventory.CloseC2S(Openable.SHULKER)));
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER)));
         ctx.waitTicks(5);
         expectServerSession(Openable.SHULKER, false);
     }
@@ -243,10 +243,10 @@ public class ModeChecks implements FabricClientGameTest {
             Slot found = null;
             for (Slot s : screen.getMenu().slots) if (p.test(s)) { found = s; break; }
             if (found == null) throw new AssertionError("no " + what + " on " + screen);
-            var edge = (com.trevorschoeny.shulkersininventory.mixin.ScreenAccessor) screen;
+            var edge = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
             var w = mc.getWindow();
             double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
-            return new double[] {(edge.shulkersininventory$leftPos() + found.x + 8) * f, (edge.shulkersininventory$topPos() + found.y + 8) * f};
+            return new double[] {(edge.openanywhere$leftPos() + found.x + 8) * f, (edge.openanywhere$topPos() + found.y + 8) * f};
         });
         ctx.getInput().setCursorPos(at[0], at[1]);
         ctx.waitTick();
