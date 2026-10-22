@@ -59,6 +59,16 @@ final class SlotScroll {
             this.state = state;
         }
 
+        /** Whether its slots overflow this frame, and when it was last drawn. */
+        boolean scrolls;
+        long drawn;
+
+        @Override
+        public void render(com.trevlar.menukit.api.element.RenderContext ctx) {
+            drawn = net.minecraft.util.Util.getMillis();
+            super.render(ctx);
+        }
+
         /** This frame: how many slots are live, which layout shows them, the height cap and the width. */
         void frame(int room) {
             state[2] = 1;
@@ -66,7 +76,7 @@ final class SlotScroll {
             while (live < nine.size() && nine.get(live).isVisible()) live++;
             state[2] = 0;
             state[0] = live;
-            boolean scrolls = (live + 8) / 9 * ROW > room;
+            scrolls = (live + 8) / 9 * ROW > room;
             state[1] = narrows && scrolls ? 1 : 0;
             int per = state[1] == 1 ? 8 : 9;
             // As tall as the live rows, never the group's whole size: the scroll area measures
@@ -80,6 +90,13 @@ final class SlotScroll {
     private static final int LANE = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
 
     private static final List<Grid> GRIDS = new ArrayList<>();
+
+    /** True while a grid on screen (drawn in the last frames) has a scrollbar. */
+    static boolean anyScrolling() {
+        long now = net.minecraft.util.Util.getMillis();
+        for (Grid g : GRIDS) if (g.scrolls && now - g.drawn < 100) return true;
+        return false;
+    }
 
     /**
      * The slot group {@code id}, up to {@code max} slots, as a section's content, scrolling

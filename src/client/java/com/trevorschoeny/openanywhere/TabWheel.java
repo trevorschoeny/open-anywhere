@@ -15,8 +15,8 @@ import net.minecraft.resources.Identifier;
 
 /**
  * The wheel moves between tabs, one tab a notch, up to the left and down to the right,
- * anywhere on the screen (Trev, 2026-10-22). Over the container list it stays the list's
- * own: its scroll, a slot grid's scroll and its scrollbar. And only a turn nobody else used:
+ * anywhere on the screen (Trev, 2026-10-22). Over the container, while it has a scrollbar
+ * (the list's own, or a slot grid's), the wheel stays the container's. And only a turn nobody else used:
  * it runs after the screen and every other mod's scroll handler (Mouse Tweaks, a bundle's
  * own wheel), and before MenuKit's list scroll, which comes last of all.
  */
@@ -45,8 +45,12 @@ final class TabWheel {
         // read of the tab row would replace it.
         List<String> row = RegionTabs.rowForChecks();
         if (row == null || row.size() < 3) return false;
+        // Over the container, the wheel is the container's only while it has a scrollbar:
+        // the list's own, or a shown grid's.
+        var g = com.trevlar.menukit.inject.ContainerRegions.geometry(screen);
+        boolean scrollable = g != null && g.scrollable() || SlotScroll.anyScrolling();
         Reference list = ContainerRegion.CONTAINERS.box(screen);
-        if (list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
+        if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
                 && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;
         List<String> tabs = row.subList(1, row.size());
         int at = tabs.indexOf(row.getFirst());

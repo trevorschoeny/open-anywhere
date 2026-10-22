@@ -90,6 +90,14 @@ public class TabChecks implements FabricClientGameTest {
             int was = rowWas.subList(1, rowWas.size()).indexOf(rowWas.getFirst());
             int now = down.subList(1, down.size()).indexOf(down.getFirst());
             if (now != Math.min(was + 1, rowWas.size() - 2)) fail("a turn down moved the tab from " + was + " to " + now);
+            // Over a box's grid, which doesn't scroll, the wheel moves tabs too.
+            double[] mid = ctx.computeOnClient(mc -> {
+                var box = ContainerRegion.CONTAINERS.box(mc.gui.screen());
+                double f = (double) mc.getWindow().getScreenWidth() / mc.getWindow().getGuiScaledWidth();
+                return new double[] {(box.leftPos() + box.imageWidth() / 2.0) * f, (box.topPos() + box.imageHeight() / 2.0) * f};
+            });
+            ctx.getInput().setCursorPos(mid[0], mid[1]);
+            ctx.waitTick();
             ctx.getInput().scroll(1);
             ctx.waitTicks(2);
             List<String> up = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.RegionTabs.rowForChecks());
