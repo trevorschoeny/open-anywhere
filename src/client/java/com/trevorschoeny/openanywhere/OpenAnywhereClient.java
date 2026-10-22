@@ -44,12 +44,24 @@ public final class OpenAnywhereClient implements ClientModInitializer {
 
     /** Sessions just opened whose tab isn't showing yet, by section id. */
     private static final java.util.Map<String, Session> AWAITING = new java.util.HashMap<>();
+    // When each went in: an entry goes once its tab shows, or after this long whatever
+    // happened, so one whose slot wasn't drawn while its tab showed can't keep the grey off.
+    private static final java.util.Map<String, Long> AWAITING_SINCE = new java.util.HashMap<>();
+    private static final long AWAIT_MS = 300;
+
+    /** For the self-checks: {@link #awaitingTab}. */
+    public static boolean awaitingTabForChecks(Slot slot) {
+        return awaitingTab(slot);
+    }
 
     /** True while {@code slot} holds an item just opened whose tab hasn't shown yet: no grey for it. */
     static boolean awaitingTab(Slot slot) {
         if (AWAITING.isEmpty()) return false;
         var screen = Minecraft.getInstance().gui.screen();
-        AWAITING.keySet().removeIf(id -> screen == null || ContainerRegion.anchor(id).box(screen) != null);
+        long now = net.minecraft.util.Util.getMillis();
+        AWAITING.keySet().removeIf(id -> screen == null || ContainerRegion.anchor(id).box(screen) != null
+                || now - AWAITING_SINCE.getOrDefault(id, 0L) > AWAIT_MS);
+        AWAITING_SINCE.keySet().retainAll(AWAITING.keySet());
         for (Session s : AWAITING.values()) if (s.container() == slot.container && s.containerSlot() == slot.getContainerSlot()) return true;
         return false;
     }
@@ -244,6 +256,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             String id = ClientPanels.sectionIdOf(session);
             Tabs.pick(id);
             AWAITING.put(id, session);
+            AWAITING_SINCE.put(id, net.minecraft.util.Util.getMillis());
         }
     }
 }
