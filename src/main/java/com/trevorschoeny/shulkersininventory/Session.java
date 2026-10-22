@@ -4,7 +4,6 @@ import org.jspecify.annotations.Nullable;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -25,18 +24,14 @@ import net.minecraft.world.item.ItemStack;
  *                      when that container isn't on the open screen
  * @param containerSlot its index in that container
  * @param menuSlot      its index in {@code menu}, or -1 when it isn't on that menu
+ * @param stacked       true when the item opened in this mod's own slots, a section of
+ *                      MenuKit's container list (below a chest, or on the bundle's host),
+ *                      rather than as vanilla's own screen. Said outright, not read from
+ *                      the menu: the ender chest's own screen and a chest's are both
+ *                      vanilla's chest menu.
  */
 public record Session(Openable kind, AbstractContainerMenu menu, @Nullable Container container, int containerSlot,
-                      int menuSlot, ItemStack stack) {
-
-    /**
-     * True when the item opened in a section below the screen's container (MenuKit's
-     * container list) rather than as vanilla's own screen: a shulker box opened on a
-     * chest's screen, and the bundle, whose slots are always this mod's own.
-     */
-    public boolean stacked() {
-        return kind == Openable.BUNDLE || (kind == Openable.SHULKER && menu instanceof ChestMenu);
-    }
+                      int menuSlot, ItemStack stack, boolean stacked) {
 
     /** True while the opened stack is still exactly where it was opened. */
     public boolean stillInPlace() {

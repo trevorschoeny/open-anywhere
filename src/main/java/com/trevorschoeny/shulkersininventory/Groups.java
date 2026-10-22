@@ -46,8 +46,11 @@ public final class Groups {
 
     static final SlotGroupCategory SHULKER_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "shulker");
 
+    static final SlotGroupCategory ENDER_STORAGE = new SlotGroupCategory(ShulkersInInventory.MOD_ID, "ender_chest");
+
     private static ParityGroup bundle;
     private static ParityGroup shulker;
+    private static ParityGroup enderChest;
 
     /** The bundle's group. */
     public static ParityGroup bundle() {
@@ -62,8 +65,21 @@ public final class Groups {
         return shulker;
     }
 
+    /**
+     * The group for the ender chest opened from its item on a chest's screen, shown as a
+     * section between the chest and an opened box. From the inventory the ender chest
+     * opens vanilla's own screen instead.
+     */
+    public static ParityGroup enderChest() {
+        return enderChest;
+    }
+
     public static ParityGroup of(Openable kind) {
-        return kind == Openable.BUNDLE ? bundle : shulker;
+        return switch (kind) {
+            case BUNDLE -> bundle;
+            case SHULKER -> shulker;
+            case ENDER_CHEST -> enderChest;
+        };
     }
 
     static void register() {
@@ -81,6 +97,13 @@ public final class Groups {
                         ? EphemeralStorage.of(Openable.SHULKER.slots) : StackedShulkerStorage.of(player))
                 .shiftClickIn(true)
                 .activeCount(0));
+        enderChest = ParityGroup.register(Openable.ENDER_CHEST.panelId(), SlotSpec.at(GROUP, ENDER_STORAGE)
+                .count(Openable.ENDER_CHEST.slots)
+                .storage(player -> player.level().isClientSide()
+                        ? EphemeralStorage.of(Openable.ENDER_CHEST.slots) : new EnderChestStorage(player))
+                .shiftClickIn(true)
+                .activeCount(0));
+
         // A box refuses what vanilla's shulker box slot refuses: other boxes, anything that
         // can't go in a container item.
         for (int i = 0; i < Openable.SHULKER.slots; i++) {
@@ -106,7 +129,7 @@ public final class Groups {
 
     /** How many of a kind's slots are live with it open. */
     static int liveCount(Player player, Openable kind) {
-        if (kind == Openable.SHULKER) return Openable.SHULKER.slots;
+        if (kind != Openable.BUNDLE) return kind.slots;
         BundleContents contents = BundleView.contents(player);
         if (contents == null) return 0;
         // Its stacks, plus the add slot unless it's full.
@@ -159,13 +182,15 @@ public final class Groups {
     }
 
     /**
-     * Rule 6 for what this mod shows in its own slots, the bundle and a box below a chest:
-     * a shift-click goes into it, and out of it back to what holds it; what doesn't fit
+     * Rule 6 for what this mod shows in its own slots, the bundle, a box and the ender chest
+     * below a chest: a shift-click goes into it, and out of it back to what holds it; what doesn't fit
      * goes where vanilla sends it (Trev, 2026-10-16). A box opened from the inventory, and
      * the ender chest, get this from vanilla's own menus.
      */
     private static @Nullable List<Dest> route(net.minecraft.world.inventory.AbstractContainerMenu menu, Player player, Slot source) {
-        for (Openable kind : new Openable[] {Openable.SHULKER, Openable.BUNDLE}) {
+        // The innermost first: a box or bundle open (maybe from inside the ender chest), then
+        // the ender chest.
+        for (Openable kind : new Openable[] {Openable.SHULKER, Openable.BUNDLE, Openable.ENDER_CHEST}) {
             Session open = Sessions.get(player, kind);
             if (open == null || !open.stacked() || open.menu() != menu) continue;
             // Out of it: back to what holds it. From anywhere else: into it.
@@ -189,7 +214,7 @@ public final class Groups {
         return isIn(slot, Openable.SHULKER) || isIn(slot, Openable.BUNDLE);
     }
 
-    static boolean isIn(Slot slot, Openable kind) {
+    public static boolean isIn(Slot slot, Openable kind) {
         CreatedSlot created = CreatedSlot.of(slot);
         return created != null && created.panelId().equals(kind.slotPanelId());
     }

@@ -79,19 +79,28 @@ final class ServerSessions {
             }
             return;
         }
+        // A box, or the ender chest, on a chest's screen this mod didn't open itself: a
+        // section in the container list. (On the ender chest's own screen, which this mod
+        // opened natively, opening the ender chest item again is the toggle above.)
+        // At a placed ender chest the ender chest is already the screen: nothing to add.
+        if (kind == Openable.ENDER_CHEST && onChest
+                && ((ChestMenu) menu).getContainer() == player.getEnderChestInventory()) return;
+        if (onChest && !isOpenNative(player, menu)) {
+            openStacked(player, kind, menu, slot, menuSlot, stack);
+            return;
+        }
         if (kind == Openable.SHULKER && onChest) {
             openStacked(player, kind, menu, slot, menuSlot, stack);
             return;
         }
-        // Natively from the inventory, or swapping from a screen this mod opened. The
-        // ender chest from a placed chest's screen waits for its own section.
+        // Natively from the inventory, or swapping from a screen this mod opened.
         if (!(menu instanceof InventoryMenu) && !host && !isOpenNative(player, menu)) return;
         openNative(player, kind, slot.container, slot.getContainerSlot(), stack);
     }
 
     /** True when {@code menu} is one this mod opened natively (opening another from it swaps). */
     private static boolean isOpenNative(ServerPlayer player, AbstractContainerMenu menu) {
-        for (Session s : Sessions.of(player)) if (s.menu() == menu && s.kind() != Openable.BUNDLE) return true;
+        for (Session s : Sessions.of(player)) if (s.menu() == menu && !s.stacked()) return true;
         return false;
     }
 
@@ -118,8 +127,8 @@ final class ServerSessions {
 
         AbstractContainerMenu opened = player.containerMenu;
         int menuSlot = slotOf(opened, container, containerSlot);
-        Sessions.put(player, new Session(kind, opened, container, containerSlot, menuSlot, stack));
-        ServerPlayNetworking.send(player, SessionS2C.opened(kind, menuSlot));
+        Sessions.put(player, new Session(kind, opened, container, containerSlot, menuSlot, stack, false));
+        ServerPlayNetworking.send(player, SessionS2C.opened(kind, menuSlot, false));
     }
 
     /**
@@ -143,15 +152,28 @@ final class ServerSessions {
      */
     private static void openStacked(ServerPlayer player, Openable kind, AbstractContainerMenu menu, Slot slot,
                                     int menuSlot, ItemStack stack) {
-        for (Session s : Sessions.of(player)) if (s.stacked()) end(player, s);
-        Sessions.put(player, new Session(kind, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));
+        // One opened item at a time, with the ender chest beside it (design, Rule 2): a box
+        // or bundle replaces the open box or bundle and leaves the ender chest; the ender
+        // chest replaces only another ender chest.
+        for (Session s : Sessions.of(player)) {
+            if (s.stacked() && (s.kind() == Openable.ENDER_CHEST) == (kind == Openable.ENDER_CHEST)) end(player, s);
+        }
+        Sessions.put(player, new Session(kind, menu, slot.container, slot.getContainerSlot(), menuSlot, stack, true));
         // The client hears the session first, then the live count, then the contents.
-        ServerPlayNetworking.send(player, SessionS2C.opened(kind, menuSlot));
+        ServerPlayNetworking.send(player, SessionS2C.opened(kind, menuSlot, true));
         Groups.open(player, kind);
     }
 
     /** Ends a session without touching the screen: its slots close, the client hears. */
     private static void end(ServerPlayer player, Session s) {
+        // A box or bundle opened from inside the ender chest's section goes with it: its
+        // slot is about to stop showing.
+        if (s.kind() == Openable.ENDER_CHEST && s.stacked()) {
+            for (Session inner : Sessions.of(player)) {
+                if (inner == s || !inner.stacked() || inner.menuSlot() < 0 || inner.menuSlot() >= inner.menu().slots.size()) continue;
+                if (Groups.isIn(inner.menu().getSlot(inner.menuSlot()), Openable.ENDER_CHEST)) end(player, inner);
+            }
+        }
         Sessions.remove(player, s.kind());
         if (s.stacked()) Groups.close(player, s.kind());
         ServerPlayNetworking.send(player, SessionS2C.closed(s.kind(), false));

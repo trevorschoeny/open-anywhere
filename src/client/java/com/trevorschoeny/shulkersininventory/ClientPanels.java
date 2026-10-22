@@ -27,7 +27,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -60,22 +59,21 @@ final class ClientPanels {
     }
 
     /**
-     * What the close button on the screen's corner closes: an item open below the chest
-     * first (the innermost), else the shulker box or ender chest the screen is.
+     * What the close button on the screen's corner closes, innermost first: a box or bundle
+     * open below the chest, then the ender chest's section, else the shulker box or ender
+     * chest the screen is.
      */
     private static @Nullable Session nativeSession() {
         var mc = Minecraft.getInstance();
         if (mc.player == null || !(mc.gui.screen() instanceof AbstractContainerScreen<?> screen)) return null;
-        Session own = null;
+        Session own = null, ender = null;
         for (Session s : Sessions.of(mc.player)) {
             if (s.menu() != screen.getMenu()) continue;
-            if (s.stacked()) {
-                if (!(screen instanceof InventoryScreen)) return s;
-            } else {
-                own = s;
-            }
+            if (!s.stacked()) own = s;
+            else if (s.kind() == Openable.ENDER_CHEST) ender = s;
+            else return s;
         }
-        return own;
+        return ender != null ? ender : own;
     }
 
     /**
@@ -88,7 +86,8 @@ final class ClientPanels {
      * resource packs are MenuKit's.
      */
     private static void containerList() {
-        BooleanSupplier itemOpen = () -> ClientSlots.isShown(Groups.shulker().id()) || ClientSlots.isShown(Groups.bundle().id());
+        BooleanSupplier itemOpen = () -> ClientSlots.isShown(Groups.shulker().id()) || ClientSlots.isShown(Groups.bundle().id())
+                || ClientSlots.isShown(Groups.enderChest().id());
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open below it; otherwise
         // the screen is vanilla's own.
@@ -98,6 +97,19 @@ final class ClientPanels {
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
                 .visibleWhen(itemOpen)
+                .declare();
+        // The ender chest opened from its item, between the chest and an opened box (which
+        // may be one from inside it). Its source is the item, so MenuKit names it "Ender
+        // Chest" and gives it the chest's art, as a placed one has.
+        ContainerRegion.section(Openable.ENDER_CHEST.panelId(), ModeScope.BOTH)
+                .title(() -> Component.translatable("container.enderchest"))
+                .source(() -> {
+                    Session s = clientSession(Openable.ENDER_CHEST);
+                    return s == null || !s.stacked() || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
+                })
+                .content(SlotGroupElement.of(Groups.enderChest().id()))
+                .on(ContainerScreen.class)
+                .order(5)
                 .declare();
         // The opened item, below the chest. Each shows exactly while its group's slots do;
         // the bundle's grows a row at a time with its active count.

@@ -52,6 +52,9 @@ public class ListChecks implements FabricClientGameTest {
             run("shulkersininventory:list_ender_box", this::enderBox);
             run("shulkersininventory:list_bundle", this::bundle);
             run("shulkersininventory:list_nested", this::nestedRefused);
+            run("shulkersininventory:list_ender_section", this::enderSection);
+            run("shulkersininventory:list_ender_section_box", this::enderSectionBox);
+            run("shulkersininventory:list_ender_at_ender_chest", this::enderAtEnderChest);
         }
         if (!failures.isEmpty()) throw new AssertionError("container list checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -155,6 +158,70 @@ public class ListChecks implements FabricClientGameTest {
         shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
         int inBox = boxCount(Items.DIRT);
         if (inBox != 16) throw new AssertionError("after the refused bundle, shift-click put " + inBox + " dirt in the box, not 16");
+    }
+
+    /**
+     * Station "list_ender_section": the ender chest item on a chest's screen opens your ender
+     * chest as a section below the chest, and dirt shift-clicked in lands in your real ender
+     * chest. Again on the item: it closes, the chest stays.
+     */
+    private void enderSection() {
+        command("item replace entity @p hotbar.2 with minecraft:ender_chest");
+        command("item replace entity @p inventory.0 with minecraft:dirt 16");
+        int before = enderDirt();
+        openBlock();
+        shiftRightClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        expectStacked(Openable.ENDER_CHEST);
+        expectChestSection();
+        shiftLeftClick(s -> s.container instanceof Inventory && s.getItem().is(Items.DIRT), "the dirt");
+        if (enderDirt() != before + 16) throw new AssertionError("shift-click put " + (enderDirt() - before) + " dirt in the ender chest, not 16");
+        shiftRightClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the open ender chest");
+        expectServerSession(Openable.ENDER_CHEST, false);
+        if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen))
+            throw new AssertionError("closing the ender chest closed the chest's screen too");
+    }
+
+    /**
+     * Station "list_ender_section_box": the green box inside the ender chest's section opens
+     * below it with the ender chest still open (design, Rule 2), shift-clicking out of the
+     * box goes back into the ender chest, and closing the ender chest closes the box.
+     */
+    private void enderSectionBox() {
+        command("item replace entity @p hotbar.2 with minecraft:ender_chest");
+        command("item replace entity @p enderchest.4 with minecraft:green_shulker_box[container=[{slot:0,item:{id:\"minecraft:dirt\",count:5}}]]");
+        int before = enderDirt();
+        openBlock();
+        shiftRightClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        expectStacked(Openable.ENDER_CHEST);
+        shiftRightClick(s -> Groups.isIn(s, Openable.ENDER_CHEST) && Openable.of(s.getItem()) == Openable.SHULKER, "the green box in the ender chest");
+        expectStacked(Openable.SHULKER);
+        expectServerSession(Openable.ENDER_CHEST, true);
+        ctx.takeScreenshot("list-ender-and-box-open");
+        shiftLeftClick(s -> Groups.isIn(s, Openable.SHULKER) && s.getItem().is(Items.DIRT), "the dirt in the box");
+        if (enderDirt() != before + 5) throw new AssertionError("shift-click out of the box put " + (enderDirt() - before) + " dirt in the ender chest, not 5");
+        ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                new com.trevorschoeny.shulkersininventory.CloseC2S(Openable.ENDER_CHEST)));
+        ctx.waitTicks(5);
+        expectServerSession(Openable.ENDER_CHEST, false);
+        expectServerSession(Openable.SHULKER, false);
+    }
+
+    /** Station "list_ender_at_ender_chest": at a placed ender chest the item adds nothing. */
+    private void enderAtEnderChest() {
+        command("item replace entity @p hotbar.2 with minecraft:ender_chest");
+        openBlock();
+        shiftRightClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 2, "the ender chest in the hotbar");
+        expectServerSession(Openable.ENDER_CHEST, false);
+    }
+
+    /** Dirt in the player's real ender chest, read on the server. */
+    private int enderDirt() {
+        return scene.world().getServer().computeOnServer(server -> {
+            var ender = player(server).getEnderChestInventory();
+            int n = 0;
+            for (int i = 0; i < ender.getContainerSize(); i++) if (ender.getItem(i).is(Items.DIRT)) n += ender.getItem(i).getCount();
+            return n;
+        });
     }
 
     // ── Expectations ───────────────────────────────────────────────────────
