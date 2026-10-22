@@ -26,7 +26,7 @@ import testgallery.SceneWorld;
  * Tabs on a double chest (scene shulkers-in-inventory/tabs): the ender chest, a box inside
  * it, two boxes from the chest and one from the hotbar, each shown on its own as it opens,
  * then the chest again. Checked for what shows and how tall the panel is, and screenshotted
- * at GUI scale 4.
+ * at GUI scale 2 (240 px tall, as Trev plays at).
  */
 public class TabChecks implements FabricClientGameTest {
 
@@ -40,7 +40,7 @@ public class TabChecks implements FabricClientGameTest {
         this.ctx = ctx;
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "tabs")) {
             int scale = ctx.computeOnClient(mc -> mc.options.guiScale().get());
-            ctx.runOnClient(mc -> { mc.options.guiScale().set(4); mc.resizeGui(); });
+            ctx.runOnClient(mc -> { mc.options.guiScale().set(2); mc.resizeGui(); });
             var station = scene.station("openanywhere:tabs");
             JsonArray o = station.getAsJsonArray("origin");
             BlockPos chest = new BlockPos(o.get(0).getAsInt() + 2, o.get(1).getAsInt(), o.get(2).getAsInt() + 2);
@@ -72,6 +72,14 @@ public class TabChecks implements FabricClientGameTest {
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box");
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
             if (open != 5) fail(open + " things open, not 5");
+
+            // A bundle of 60 stacks (61 slots, seven rows) grows to the room there is, then
+            // its grid scrolls: the panel stops short of the double chest's height.
+            open(s -> isChest(s) && idOf(s).equals("bundle"), "the full bundle");
+            int bundleHeight = height();
+            if (bundleHeight > chestHeight) fail("the full bundle's panel (" + bundleHeight + ") is taller than the double chest's (" + chestHeight + ")");
+            if (bundleHeight <= boxHeight) fail("the full bundle's panel (" + bundleHeight + ") didn't grow past a box's (" + boxHeight + ")");
+            ctx.takeScreenshot("tabs-full-bundle");
 
             ctx.runOnClient(mc -> ContainerRegion.select(CHEST));
             ctx.waitTicks(3);

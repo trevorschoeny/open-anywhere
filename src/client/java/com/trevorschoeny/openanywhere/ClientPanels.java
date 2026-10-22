@@ -84,6 +84,7 @@ final class ClientPanels {
             ScreenAccessor frame = (ScreenAccessor) screen;
             return new Reference(frame.openanywhere$leftPos(), frame.openanywhere$topPos(), frame.openanywhere$imageWidth(), 0);
         });
+        SlotScroll.register();
         containerList();
     }
 
@@ -115,6 +116,8 @@ final class ClientPanels {
         ContainerRegion.section(CHEST_ID, ModeScope.BOTH)
                 .title(() -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
                         ? screen.getTitle() : Component.translatable("container.chest"))
+                // The screen's own grid: vanilla's slots, six rows at most, so it never needs the
+                // grid scroll (and its vanilla slots don't present inside one).
                 .content(SlotGroupElement.of(SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)))
                 .on(ContainerScreen.class)
                 .visibleWhen(ClientPanels::anyOpenHere)
@@ -131,7 +134,7 @@ final class ClientPanels {
                     Session s = clientSession(Openable.ENDER_CHEST, 0);
                     return s == null || s.stack().isEmpty() ? null : ContainerRegion.Source.of(s.stack());
                 })
-                .content(SlotGroupElement.of(Groups.group(Openable.ENDER_CHEST, 0).id()))
+                .content(SlotScroll.of(Groups.group(Openable.ENDER_CHEST, 0).id(), Openable.ENDER_CHEST.slots))
                 .on(ContainerScreen.class)
                 .order(Source.ENDER_CHEST.order)
                 .visibleWhen(() -> clientSession(Openable.ENDER_CHEST, 0) != null)
@@ -152,7 +155,7 @@ final class ClientPanels {
                 : Component.translatable("item.minecraft.bundle");
         var section = ContainerRegion.section(id, ModeScope.BOTH)
                 .title(() -> title(kind, lane, plain))
-                .content(SlotGroupElement.of(Groups.group(kind, lane).id()))
+                .content(SlotScroll.of(Groups.group(kind, lane).id(), kind.slots))
                 .on(ContainerScreen.class)
                 .order(orderOf(kind, lane, source))
                 .visibleWhen(() -> sourceOf(clientSession(kind, lane)) == source);
