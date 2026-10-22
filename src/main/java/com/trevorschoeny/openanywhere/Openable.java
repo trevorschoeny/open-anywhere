@@ -17,7 +17,7 @@ public enum Openable {
     // ponytail: fixed lanes, because SlotKit groups are registered at start and sit on
     // every menu. Six boxes and three bundles at once is the ceiling; a group SlotKit adds
     // to an open menu on demand would lift it.
-    SHULKER(27, 6),
+    SHULKER(27, 12),
     /** One: there is one ender chest per player. */
     ENDER_CHEST(27, 1),
     /**

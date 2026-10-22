@@ -110,7 +110,12 @@ final class ServerSessions {
     private static void openStacked(ServerPlayer player, Openable kind, AbstractContainerMenu menu, Slot slot,
                                     int menuSlot, ItemStack stack) {
         int lane = kind == Openable.ENDER_CHEST ? 0 : freeLane(player, kind);
-        if (lane < 0) return;
+        if (lane < 0) {
+            // ponytail: a fixed number of lanes (12 boxes, 3 bundles); goes when SlotKit adds
+            // a group on demand. Until then, say why nothing opened, above the hotbar.
+            player.sendOverlayMessage(Component.translatable("openanywhere.too_many"));
+            return;
+        }
         Session old = Sessions.at(player, kind, lane);
         if (old != null) end(player, old);
         Sessions.put(player, new Session(kind, lane, menu, slot.container, slot.getContainerSlot(), menuSlot, stack));

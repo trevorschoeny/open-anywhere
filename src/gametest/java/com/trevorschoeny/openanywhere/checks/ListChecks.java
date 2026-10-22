@@ -270,7 +270,7 @@ public class ListChecks implements FabricClientGameTest {
 
         // Fill every lane from boxes in the inventory (its panel never scrolls, unlike the
         // chest's grid with this many sections), then one more: refused.
-        String[] colors = {"white", "gray", "black", "brown", "pink", "purple"};
+        String[] colors = {"white", "gray", "black", "brown", "pink", "lime", "yellow", "light_blue", "magenta", "blue", "purple"};
         for (int i = 0; i < colors.length; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:" + colors[i] + "_shulker_box");
         ctx.waitTicks(3);
         for (int i = 0; i < colors.length - 1; i++) {
@@ -280,7 +280,20 @@ public class ListChecks implements FabricClientGameTest {
             doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == slot, colors[i] + " box");
         }
         // The purple box is never reached above: it is the one too many.
-        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 15, "the purple box, one too many");
+        int purpleSlot = 9 + colors.length;
+        doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == purpleSlot, "the purple box, one too many");
+        // What's above the hotbar: Hud's own field, read by reflection (dev names), test only.
+        String said = ctx.computeOnClient(mc -> {
+            try {
+                var field = net.minecraft.client.gui.Hud.class.getDeclaredField("overlayMessageString");
+                field.setAccessible(true);
+                Object overlay = field.get(mc.gui.hud);
+                return overlay == null ? "nothing" : ((net.minecraft.network.chat.Component) overlay).getString();
+            } catch (ReflectiveOperationException e) {
+                return "unreadable: " + e;
+            }
+        });
+        if (!said.equals("Too many open, close one first")) throw new AssertionError("the refused box said \"" + said + "\" above the hotbar");
         int open = scene.world().getServer().computeOnServer(server -> (int) Sessions.of(player(server)).stream()
                 .filter(x -> x.kind() == Openable.SHULKER).count());
         boolean purpleOpen = scene.world().getServer().computeOnServer(server -> Sessions.of(player(server)).stream()

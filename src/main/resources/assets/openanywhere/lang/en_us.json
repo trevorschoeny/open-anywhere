@@ -1,5 +1,6 @@
 {
   "key.category.openanywhere.keys": "Open Anywhere",
   "key.openanywhere.open": "Open (hold and click, instead of double-click)",
-  "openanywhere.tab.in": "In %s"
+  "openanywhere.tab.in": "In %s",
+  "openanywhere.too_many": "Too many open, close one first"
 }
