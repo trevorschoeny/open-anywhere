@@ -316,7 +316,6 @@ public class ListChecks implements FabricClientGameTest {
     private void expectStacked(Openable kind) {
         Session s = scene.world().getServer().computeOnServer(server -> firstOf(player(server), kind));
         if (s == null) throw new AssertionError("no " + kind + " session on the server");
-        if (!s.stacked()) throw new AssertionError("the " + kind + " opened its own screen, not below the chest");
         if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(kind, 0))))
             throw new AssertionError("the " + kind + "'s slots don't show");
         if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ContainerScreen))

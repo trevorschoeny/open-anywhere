@@ -89,7 +89,7 @@ public class TabChecks implements FabricClientGameTest {
                         for (Slot sl : ((AbstractContainerScreen<?>) screen).getMenu().slots)
                             if (isChest(sl) && idOf(sl).equals("red_shulker_box")) { red = sl; break; }
                         boolean grey = red != null && Sessions.isOpenOnClient(red.container, red.getContainerSlot())
-                                && !com.trevorschoeny.openanywhere.OpenAnywhereClient.awaitingTabForChecks(red);
+                                && !com.trevorschoeny.openanywhere.ClientMarks.awaitingTabForChecks(red);
                         String shownNow = Tabs.shown();
                         frames.add(shownNow + " drawn=" + (shownNow != null && Tabs.drawnForChecks(shownNow))
                                 + " chestDrawn=" + Tabs.drawnForChecks(CHEST) + " grey=" + grey
@@ -128,7 +128,7 @@ public class TabChecks implements FabricClientGameTest {
                 for (Slot sl : ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().slots) {
                     if (!isChest(sl) || !idOf(sl).equals("red_shulker_box")) continue;
                     return "open=" + Sessions.isOpenOnClient(sl.container, sl.getContainerSlot())
-                            + " awaiting=" + com.trevorschoeny.openanywhere.OpenAnywhereClient.awaitingTabForChecks(sl);
+                            + " awaiting=" + com.trevorschoeny.openanywhere.ClientMarks.awaitingTabForChecks(sl);
                 }
                 return "no red box";
             });

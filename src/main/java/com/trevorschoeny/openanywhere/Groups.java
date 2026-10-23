@@ -102,9 +102,8 @@ public final class Groups {
 
         // The opened item's own slot refuses every operation while it's open, from
         // vanilla's clicks, keys and drops to any other mod's (SlotKit's slot lock).
-        // Hoppers and dispensers don't ask; the per-tick check covers those. Both modes:
-        // opening is survival only, but a session open when the player turns creative
-        // stays locked until it closes.
+        // Hoppers and dispensers don't ask; the per-tick check covers those. Both modes,
+        // as items open in both.
         SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Sessions.isOpenAt(ref.container(), ref.containerSlot()));
 
         QuickMoveRoutes.register(Groups::route);
@@ -115,7 +114,7 @@ public final class Groups {
      * The lane it took, or -1 when the player's client can't show it.
      */
     static int add(ServerPlayer player, Openable kind, ItemStack stack) {
-        BundleStorage bundle = kind == Openable.BUNDLE ? new BundleStorage(player, stack) : null;
+        BundleStorage bundle = kind == Openable.BUNDLE ? new BundleStorage(stack) : null;
         Storage storage = switch (kind) {
             case SHULKER -> new ShulkerStorage(stack);
             case BUNDLE -> bundle;
@@ -180,14 +179,13 @@ public final class Groups {
      * items, and out of one back to what holds it; what doesn't fit goes where vanilla sends
      * it (Trev, 2026-10-16). With several open, into the newest box or bundle first, then
      * the older ones, then the ender chest. Out of the ender chest, into the open boxes and
-     * bundles first, then back to what holds it. A box opened from the inventory, and the
-     * ender chest opened the same way, get this from vanilla's own menus.
+     * bundles first, then back to what holds it.
      */
     private static @Nullable List<Dest> route(AbstractContainerMenu menu, Player player, Slot source) {
         List<Session> open = new ArrayList<>();
         Session ender = null;
         for (Session s : Sessions.of(player)) {
-            if (!s.stacked() || s.menu() != menu) continue;
+            if (s.menu() != menu) continue;
             if (s.kind() == Openable.ENDER_CHEST) ender = s;
             else open.add(s);
         }

@@ -11,6 +11,7 @@ import com.trevlar.menukit.api.panel.ScreenMatcher;
 import org.jspecify.annotations.Nullable;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.Util;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -64,7 +65,7 @@ public final class Tabs {
         var player = Minecraft.getInstance().player;
         if (player == null) return List.of();
         List<Key> keys = new ArrayList<>();
-        for (Session s : Sessions.of(player)) if (s.stacked() && s.menu() == screen.getMenu()) keys.add(new Key(s.kind(), s.lane()));
+        for (Session s : Sessions.of(player)) if (s.menu() == screen.getMenu()) keys.add(new Key(s.kind(), s.lane()));
         return keys;
     }
 
@@ -99,8 +100,8 @@ public final class Tabs {
         var player = Minecraft.getInstance().player;
         if (player == null) return false;
         for (Session s : Sessions.of(player)) {
-            if (s.stacked() && id.equals(idOf(s)))
-                return net.minecraft.util.Util.getMillis() - SlotScroll.drawnAt(Groups.id(s.kind(), s.lane())) < 100;
+            if (id.equals(idOf(s)))
+                return Util.getMillis() - SlotScroll.drawnAt(Groups.id(s.kind(), s.lane())) < 100;
         }
         return false;
     }

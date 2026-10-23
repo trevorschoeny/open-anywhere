@@ -27,7 +27,7 @@ public final class ContainerHost {
     public static final MenuType<ChestMenu> TYPE = new MenuType<>(ContainerHost::create, FeatureFlags.VANILLA_SET);
 
     static void register() {
-        Registry.register(BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "bundle"), TYPE);
+        Registry.register(BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "host"), TYPE);
     }
 
     static ChestMenu create(int id, Inventory inventory) {

@@ -7,8 +7,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 
 /**
- * A container screen's slot under the mouse (what shift+right-click opens) and its
- * frame (where the close button sits on vanilla's own screens).
+ * A container screen's slot under the mouse (what a double-click or the Open key acts on)
+ * and its frame's top-left (where a lifted item is drawn back in its slot).
  */
 @Mixin(AbstractContainerScreen.class)
 public interface ScreenAccessor {
@@ -22,6 +22,4 @@ public interface ScreenAccessor {
     @Accessor("topPos")
     int openanywhere$topPos();
 
-    @Accessor("imageWidth")
-    int openanywhere$imageWidth();
 }

@@ -8,8 +8,6 @@ import org.jspecify.annotations.Nullable;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
@@ -28,15 +26,13 @@ import net.minecraft.world.item.component.BundleContents;
  */
 final class BundleStorage implements Storage {
 
-    private final Player player;
     private final ItemStack bundle;
     private BundleContents loadedFrom = null;
     private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
     // The slots it shows in, whose live count follows the bundle. Set right after they're added.
     private OnDemandGroup.@Nullable Instance shownIn;
 
-    BundleStorage(Player player, ItemStack bundle) {
-        this.player = player;
+    BundleStorage(ItemStack bundle) {
         this.bundle = bundle;
     }
 

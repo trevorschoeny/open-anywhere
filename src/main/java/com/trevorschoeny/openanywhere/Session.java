@@ -16,11 +16,9 @@ import net.minecraft.world.item.ItemStack;
  * at {@code container}/{@code containerSlot} with {@code menu} open, and ends the
  * session the moment it isn't ({@link ServerSessions#tick}).
  *
- * @param lane          the slot group the item shows in, a section of MenuKit's container
- *                      list ({@link #stacked()}); -1 for one opened as vanilla's own screen
- * @param menu          the menu it opened on: vanilla's shulker box or ender chest menu,
- *                      or, for a section, the screen's own menu (a chest's, or the
- *                      bundle's host)
+ * @param lane          its slot group's number among its kind's on {@code menu}
+ *                      ({@link Groups}); its tab is keyed by it
+ * @param menu          the menu it opened on: a chest's, or the host's ({@link ContainerHost})
  * @param container     the container holding the opened item (the player's inventory, a
  *                      chest, or the ender chest's group); null on the client when that
  *                      container isn't on the open screen
@@ -30,12 +28,7 @@ import net.minecraft.world.item.ItemStack;
 public record Session(Openable kind, int lane, AbstractContainerMenu menu, @Nullable Container container,
                       int containerSlot, int menuSlot, ItemStack stack) {
 
-    /** True when the item opened as a section in its lane, rather than as vanilla's own screen. */
-    public boolean stacked() {
-        return lane >= 0;
-    }
-
-    /** True for the same opened thing: the same kind in the same lane (or both native). */
+    /** True for the same opened thing: the same kind in the same lane. */
     public boolean sameSlotAs(Openable kind, int lane) {
         return this.kind == kind && this.lane == lane;
     }

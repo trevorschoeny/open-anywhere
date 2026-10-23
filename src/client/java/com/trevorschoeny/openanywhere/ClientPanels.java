@@ -1,6 +1,6 @@
 package com.trevorschoeny.openanywhere;
 
-import java.util.function.Supplier;
+import java.util.List;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.MKTooltip;
@@ -13,30 +13,29 @@ import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.Reference;
-import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
-import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.slotkit.api.group.SlotGroupCategory;
 import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.SlotGroupElement;
-import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 
 /**
- * What this mod adds to screens: the sections of MenuKit's container list (on a chest's
- * screen, and on the bundle's host, where the bundle is the only one), a close button on
- * each, and a close button on the corner of vanilla's own shulker box and ender chest
- * screens when this mod opened them.
+ * What this mod adds to a chest's screen (or the host's, {@link ContainerHost}): the
+ * screen's own container and each opened item as sections of MenuKit's container list, one
+ * shown at a time by tabs ({@link Tabs}), and a close button for the item shown.
  */
 final class ClientPanels {
 
@@ -62,22 +61,9 @@ final class ClientPanels {
     private static final int CHEST_ORDER = 100, OPENED_ORDER = 200;
 
     static void register() {
-        closeButton("native", ClientPanels::nativeSession, () -> {
-            if (!(Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen)) return null;
-            ScreenAccessor frame = (ScreenAccessor) screen;
-            return new Reference(frame.openanywhere$leftPos(), frame.openanywhere$topPos(), frame.openanywhere$imageWidth(), 0);
-        });
         SlotScroll.register();
         TabWheel.register();
         containerList();
-    }
-
-    /** The shulker box or ender chest the screen is, when this mod opened it as vanilla's own. */
-    private static @Nullable Session nativeSession() {
-        var mc = Minecraft.getInstance();
-        if (mc.player == null || !(mc.gui.screen() instanceof AbstractContainerScreen<?> screen)) return null;
-        for (Session s : Sessions.of(mc.player)) if (!s.stacked() && s.menu() == screen.getMenu()) return s;
-        return null;
     }
 
     /**
@@ -168,13 +154,11 @@ final class ClientPanels {
         Source source = session == null ? null : sourceOf(session);
         if (source == null) return name;
         Component where = switch (source) {
-            case CONTAINER -> Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen
-                    ? screen.getTitle() : Component.translatable("container.chest");
+            case CONTAINER -> screenTitle();
             case ENDER_CHEST -> Component.translatable("container.enderchest");
             case INVENTORY -> Component.translatable("container.inventory");
         };
-        return MKTooltip.joinLines(java.util.List.of(name,
-                Component.translatable("openanywhere.tab.in", where).withStyle(net.minecraft.ChatFormatting.GRAY)));
+        return MKTooltip.joinLines(List.of(name, Component.translatable("openanywhere.tab.in", where).withStyle(ChatFormatting.GRAY)));
     }
 
     /** Where the item open in {@code session} came from, read off its slot on the open menu. */
@@ -199,9 +183,8 @@ final class ClientPanels {
      */
     private static ItemStack screenBlock() {
         ContainerRegion.Source source = ContainerRegion.openedOn();
-        net.minecraft.world.level.block.Block block = source == null || source.block() == null
-                ? null : net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(source.block());
-        return block == null ? new ItemStack(net.minecraft.world.item.Items.CHEST) : new ItemStack(block);
+        Block block = source == null || source.block() == null ? null : BuiltInRegistries.BLOCK.getValue(source.block());
+        return block == null ? new ItemStack(Items.CHEST) : new ItemStack(block);
     }
 
     static @Nullable Session clientSession(Tabs.Key key) {
@@ -229,57 +212,38 @@ final class ClientPanels {
         var player = Minecraft.getInstance().player;
         String shown = Tabs.shown();
         if (player == null || shown == null) return null;
-        for (Session s : Sessions.of(player)) if (s.stacked() && shown.equals(Tabs.idOf(s))) return s;
+        for (Session s : Sessions.of(player)) if (shown.equals(Tabs.idOf(s))) return s;
         return null;
     }
 
     /**
-     * The shown item's close button, centred on the container panel's top-right corner,
-     * as on vanilla's own screens this mod opens (Trev, 2026-10-16), so it sits over the
-     * frame's edge and never over a slot or a tab. One button for whichever item is shown;
-     * none while the screen's own container is.
+     * The shown item's close button: a raised button with a black "x" in its own unstyled
+     * panel, centred on the container panel's top-right corner (Trev, 2026-10-16), so it
+     * sits over the frame's edge and never over a slot or a tab, and the whole button takes
+     * clicks. One button for whichever item is shown; none while the screen's own container is.
      */
     private static void shownClose() {
-        Panel close = closePanel("shown", ClientPanels::shownSession,
-                Placement.around(ContainerRegion.CONTAINERS, PanelPosition.pixel(() -> {
-                    var screen = Minecraft.getInstance().gui.screen();
-                    Reference list = screen == null ? null : ContainerRegion.CONTAINERS.box(screen);
-                    if (list == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
-                    return new ScreenOrigin(list.leftPos() + list.imageWidth() - CLOSE_SIZE / 2 - 1, list.topPos() - CLOSE_SIZE / 2);
-                })));
-        new AnchorPanelAdapter(close);
-    }
-
-    /**
-     * A raised button with a black "x", in its own unstyled panel centred on the top-right
-     * corner of {@code box}, so it sits over both edges and the whole button takes clicks
-     * (Trev, 2026-10-16). Shown while {@code session} has one; a click closes that one.
-     */
-    private static void closeButton(String name, Supplier<@Nullable Session> session, Supplier<@Nullable Reference> box) {
-        Panel close = closePanel(name, session, Placement.screen(PanelPosition.pixel(() -> {
-            Reference b = box.get();
-            // Off screen when there's nothing to close (hidden then anyway).
-            if (b == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
-            return new ScreenOrigin(b.leftPos() + b.imageWidth() - CLOSE_SIZE / 2, b.topPos() - CLOSE_SIZE / 2);
-        })));
-        new ScreenPanelAdapter(close, 0).onMatching(ScreenMatcher.all());
-    }
-
-    private static Panel closePanel(String name, Supplier<@Nullable Session> session, Placement placement) {
-        return Panel.builder(OpenAnywhere.MOD_ID + ":close_" + name)
+        Panel close = Panel.builder(OpenAnywhere.MOD_ID + ":close_shown")
                 .add(Button.builder()
                         .icon(CLOSE_ICON)
                         .size(CLOSE_SIZE, CLOSE_SIZE)
                         .onClick(() -> {
-                            Session open = session.get();
+                            Session open = shownSession();
                             if (open != null) ClientPlayNetworking.send(new CloseC2S(open.kind(), open.lane()));
                         })
                         .build())
                 .style(PanelStyle.NONE)
                 // Both modes, like the session it closes: one opened in survival outlives a
                 // /gamemode switch.
-                .in(ModeScope.BOTH, placement)
+                .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS, PanelPosition.pixel(() -> {
+                    var screen = Minecraft.getInstance().gui.screen();
+                    Reference list = screen == null ? null : ContainerRegion.CONTAINERS.box(screen);
+                    // Off screen when there's no list (hidden then anyway).
+                    if (list == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
+                    return new ScreenOrigin(list.leftPos() + list.imageWidth() - CLOSE_SIZE / 2 - 1, list.topPos() - CLOSE_SIZE / 2);
+                })))
                 .build()
-                .visibleWhen(() -> session.get() != null);
+                .visibleWhen(() -> shownSession() != null);
+        new AnchorPanelAdapter(close);
     }
 }

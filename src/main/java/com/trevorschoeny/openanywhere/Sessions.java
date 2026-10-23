@@ -17,8 +17,7 @@ import net.minecraft.world.item.ItemStack;
  * truth; the client mirrors its own from {@link SessionS2C} so its slot lock, grey mark
  * and shift-click routes predict the server's answers.
  *
- * <p>Any number per player, one per lane (design, Rule 2), plus at most one opened as
- * vanilla's own screen. Keyed weakly by player, so a player object that's gone (respawn,
+ * <p>Any number per player, one per lane (design, Rule 2). Keyed weakly by player, so a player object that's gone (respawn,
  * disconnect) takes its sessions with it.
  *
  * <p>One table per side. In singleplayer both sides run in one game, and a player is
@@ -38,7 +37,7 @@ public final class Sessions {
         return player.level().isClientSide() ? CLIENT : SERVER;
     }
 
-    /** The session in {@code kind}'s lane {@code lane} (-1: the one opened natively), or null. */
+    /** The session in {@code kind}'s lane {@code lane}, or null. */
     public static @Nullable Session at(Player player, Openable kind, int lane) {
         for (Session s : of(player)) if (s.sameSlotAs(kind, lane)) return s;
         return null;

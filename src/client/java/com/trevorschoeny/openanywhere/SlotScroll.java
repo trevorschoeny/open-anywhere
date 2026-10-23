@@ -3,6 +3,7 @@ package com.trevorschoeny.openanywhere;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.panel.ContainerRegion;
@@ -10,6 +11,8 @@ import com.trevlar.slotkit.api.group.SlotGroupId;
 import com.trevlar.slotkit.api.slot.SlotElement;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.util.Util;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
@@ -71,8 +74,8 @@ final class SlotScroll {
         long drawn;
 
         @Override
-        public void render(com.trevlar.menukit.api.element.RenderContext ctx) {
-            drawn = net.minecraft.util.Util.getMillis();
+        public void render(RenderContext ctx) {
+            drawn = Util.getMillis();
             super.render(ctx);
         }
 
@@ -101,7 +104,7 @@ final class SlotScroll {
 
     /** True while a grid on screen (drawn in the last frames) has a scrollbar. */
     static boolean anyScrolling() {
-        long now = net.minecraft.util.Util.getMillis();
+        long now = Util.getMillis();
         for (Grid g : GRIDS) if (g.scrolls && now - g.drawn < 100) return true;
         return false;
     }
@@ -147,7 +150,7 @@ final class SlotScroll {
         // Sized now, not at the next frame: MenuKit makes an opened item's grid mid-frame
         // and lays the list out from it at once, so an unsized grid drew the panel 8 px tall
         // for a frame (the flash on opening, Trev 2026-10-23).
-        var screen = net.minecraft.client.Minecraft.getInstance().gui.screen();
+        var screen = Minecraft.getInstance().gui.screen();
         if (screen != null) scroll.frame(room(screen.height));
         return scroll;
     }

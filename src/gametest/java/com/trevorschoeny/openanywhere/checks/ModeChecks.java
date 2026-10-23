@@ -32,8 +32,8 @@ import java.util.function.Predicate;
 
 /**
  * Checks for the modes scene (test-gallery/scenes/shulkers-in-inventory/modes.json): opening
- * is survival only for now (design, Rule 4), read from the player's mode, not from which
- * screen is open. Every check opens the way a hand does, double-click through the mouse.
+ * in survival and creative, a mode switch with an item open, and the settings. Every check
+ * opens the way a hand does, double-click through the mouse.
  */
 public class ModeChecks implements FabricClientGameTest {
 

@@ -8,8 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
 
 /**
- * An opened shulker box's 27 stacks, as the container behind vanilla's shulker box menu
- * (wrapped in SlotKit's {@code StorageContainerAdapter}).
+ * An opened shulker box's 27 stacks, as the storage behind its slot group ({@link Groups#add}).
  *
  * <p>Live, not copied. Vanilla often changes a slot's stack in place and then only says
  * so ({@code itemstack.grow(n); slot.setChanged()} when stacking onto it), so reads hand
@@ -18,8 +17,8 @@ import net.minecraft.world.item.component.ItemContainerContents;
  * component at once. The list is reloaded whenever the component is no longer the one
  * it was read from (the box changed by anything else).
  *
- * <p>Bound to the one box for the menu's life; the session's per-tick check closes the
- * menu if the box moves.
+ * <p>Bound to the one box while it's open; the session's per-tick check closes it if the
+ * box moves.
  */
 final class ShulkerStorage implements Storage {
 

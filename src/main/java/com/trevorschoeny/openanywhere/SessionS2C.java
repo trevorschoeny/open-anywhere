@@ -9,8 +9,8 @@ import net.minecraft.resources.Identifier;
 /**
  * The server opened or closed an item. On open, {@code menuSlot} is the opened item's
  * slot on the now-open menu (-1 when it isn't on it); the client mirrors the session,
- * which locks and greys that slot and shows the close button; {@code lane} is the
- * section it shows in, or -1 for vanilla's own screen ({@link Session#lane()}). On close,
+ * which locks and greys that slot and shows its tab; {@code lane} names the tab
+ * ({@link Session#lane()}). On close,
  * {@code toInventory} tells the client to step back to its inventory screen.
  */
 public record SessionS2C(Openable kind, int lane, boolean open, int menuSlot, boolean toInventory) implements CustomPacketPayload {
@@ -19,7 +19,7 @@ public record SessionS2C(Openable kind, int lane, boolean open, int menuSlot, bo
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "session"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, SessionS2C> CODEC = StreamCodec.composite(
-            ByteBufCodecs.VAR_INT.map(i -> Openable.values()[i], Openable::ordinal), SessionS2C::kind,
+            Openable.STREAM_CODEC, SessionS2C::kind,
             ByteBufCodecs.VAR_INT, SessionS2C::lane,
             ByteBufCodecs.BOOL, SessionS2C::open,
             ByteBufCodecs.VAR_INT, SessionS2C::menuSlot,

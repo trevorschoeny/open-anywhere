@@ -2,6 +2,10 @@ package com.trevorschoeny.openanywhere;
 
 import org.jspecify.annotations.Nullable;
 
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.BundleItem;
 import net.minecraft.world.item.ItemStack;
@@ -27,6 +31,9 @@ public enum Openable {
     Openable(int slots) {
         this.slots = slots;
     }
+
+    /** On the wire, by ordinal: both sides run the same build, so the order matches. */
+    public static final StreamCodec<ByteBuf, Openable> STREAM_CODEC = ByteBufCodecs.VAR_INT.map(i -> values()[i], Openable::ordinal);
 
     /** What a stack opens as, or null for anything this mod doesn't open. */
     public static @Nullable Openable of(ItemStack stack) {

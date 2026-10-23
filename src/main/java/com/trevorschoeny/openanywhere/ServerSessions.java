@@ -125,14 +125,14 @@ final class ServerSessions {
     private static void end(ServerPlayer player, Session s) {
         // An item opened from inside the ender chest's section goes with it: its slot is
         // about to stop showing.
-        if (s.kind() == Openable.ENDER_CHEST && s.stacked()) {
+        if (s.kind() == Openable.ENDER_CHEST) {
             for (Session inner : Sessions.of(player)) {
-                if (inner == s || !inner.stacked() || inner.menuSlot() < 0 || inner.menuSlot() >= inner.menu().slots.size()) continue;
+                if (inner == s || inner.menuSlot() < 0 || inner.menuSlot() >= inner.menu().slots.size()) continue;
                 if (Groups.isIn(inner.menu().getSlot(inner.menuSlot()), Openable.ENDER_CHEST)) end(player, inner);
             }
         }
         Sessions.remove(player, s.kind(), s.lane());
-        if (s.stacked()) Groups.remove(s.menu(), s.kind(), s.lane());
+        Groups.remove(s.menu(), s.kind(), s.lane());
         ServerPlayNetworking.send(player, SessionS2C.closed(s.kind(), s.lane(), false));
     }
 
@@ -142,33 +142,31 @@ final class ServerSessions {
         return -1;
     }
 
-    /** A close button: the session in that lane (-1: vanilla's own screen). */
+    /** A close button: the session in that lane. */
     static void close(ServerPlayer player, Openable kind, int lane) {
         Session session = Sessions.at(player, kind, lane);
         if (session != null) closeAndStepBack(player, session);
     }
 
     /**
-     * Closes one opened item. A section closes alone, leaving the screen as it was; one on
-     * vanilla's own screen, or the last one on the bundle's host, steps back to the
-     * inventory screen.
+     * Closes one opened item. Its tab closes alone, leaving the screen as it was; the last
+     * one on the host takes the host with it, back to the inventory screen.
      */
     static void closeAndStepBack(ServerPlayer player, Session session) {
-        boolean last = !session.stacked() || (ContainerHost.is(session.menu()) && othersOn(player, session) == 0);
-        if (!last) {
+        if (!ContainerHost.is(session.menu()) || othersOn(player, session) > 0) {
             end(player, session);
             return;
         }
+        // Closing the menu takes the item's slots off with it.
         Sessions.remove(player, session.kind(), session.lane());
-        if (session.stacked()) Groups.remove(session.menu(), session.kind(), session.lane());
         player.closeContainer();
         ServerPlayNetworking.send(player, SessionS2C.closed(session.kind(), session.lane(), true));
     }
 
-    /** How many other sections are open on {@code session}'s menu. */
+    /** How many other items are open on {@code session}'s menu. */
     private static int othersOn(ServerPlayer player, Session session) {
         int n = 0;
-        for (Session s : Sessions.of(player)) if (s != session && s.stacked() && s.menu() == session.menu()) n++;
+        for (Session s : Sessions.of(player)) if (s != session && s.menu() == session.menu()) n++;
         return n;
     }
 
@@ -190,7 +188,7 @@ final class ServerSessions {
                 if (valid) continue;
                 boolean emptyHost = ContainerHost.is(s.menu()) && othersOn(player, s) == 0;
                 end(player, s);
-                if ((!s.stacked() || emptyHost) && menuOpen) player.closeContainer();
+                if (emptyHost && menuOpen) player.closeContainer();
             }
         }
     }
