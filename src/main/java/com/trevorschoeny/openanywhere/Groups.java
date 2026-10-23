@@ -47,10 +47,17 @@ public final class Groups {
     /** Every group's id within its owner: {@code openanywhere:shulker_0:slots}, and so on. */
     public static final String GROUP = "slots";
 
+    /**
+     * What each kind's slots are to other mods: a box is shulker storage and the ender chest
+     * chest storage, as on vanilla's own screens for them, so a mod that acts on those (a
+     * sort button, a lock) finds them with nothing written for this mod (Trev, 2026-10-23).
+     * A bundle has no vanilla screen, so no vanilla category; ponytail: its own until
+     * SlotKit has a standard one for bundles.
+     */
     private static final Map<Openable, SlotGroupCategory> CATEGORY = new EnumMap<>(Map.of(
-            Openable.SHULKER, new SlotGroupCategory(OpenAnywhere.MOD_ID, "shulker"),
+            Openable.SHULKER, SlotGroupCategory.SHULKER_STORAGE,
             Openable.BUNDLE, new SlotGroupCategory(OpenAnywhere.MOD_ID, "bundle"),
-            Openable.ENDER_CHEST, new SlotGroupCategory(OpenAnywhere.MOD_ID, "ender_chest")));
+            Openable.ENDER_CHEST, SlotGroupCategory.CHEST_STORAGE));
 
     private static final Map<Openable, OnDemandGroup> GROUPS = new EnumMap<>(Openable.class);
 
