@@ -1,13 +1,16 @@
 package com.trevorschoeny.openanywhere;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.trevorschoeny.keybindery.api.KeybinderyAPI;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -37,16 +40,28 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     /**
      * An optional key: held while clicking an item, it opens it in one click. Unbound by
      * default; double-click is the way in, and this is for players who
-     * want a key instead, set in Controls or on the settings tab.
+     * want a key instead, set in Controls or in the settings.
      */
     public static final KeyMapping OPEN = new KeyMapping(
             "key.openanywhere.open", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
-    private static final boolean KEYBINDERY = FabricLoader.getInstance().isModLoaded("keybindery");
+    /**
+     * Opens the settings: Inventory Plus's menu on the Open Anywhere tab with IP installed,
+     * Open Anywhere's own screen without it. Unbound by default, so Mod Menu stays optional
+     * and a player without it still has a way in.
+     */
+    public static final KeyMapping OPEN_SETTINGS = new KeyMapping(
+            "key.openanywhere.open_settings", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
     @Override
     public void onInitializeClient() {
         KeyMappingHelper.registerKeyMapping(OPEN);
+        KeyMappingHelper.registerKeyMapping(OPEN_SETTINGS);
+        // In the world the settings key is polled on the client tick, as vanilla's own keys
+        // are; on a container screen it's matched on key press, and the settings return there.
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            while (OPEN_SETTINGS.consumeClick()) if (mc.gui.screen() == null) SettingsScreen.open(null);
+        });
         Settings.load();
         // The settings live in Inventory Plus's menu, so they show only when IP is installed.
         if (FabricLoader.getInstance().isModLoaded("inventoryplus")) com.trevorschoeny.openanywhere.ip.SettingsTab.register();
@@ -57,6 +72,9 @@ public final class OpenAnywhereClient implements ClientModInitializer {
 
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
+            ScreenKeyboardEvents.afterKeyPress(screen).register((inner, event) -> {
+                if (OPEN_SETTINGS.matches(event)) SettingsScreen.open(inner);
+            });
             // The trigger is the real mouse, read before the screen sees the click, so a
             // simulated click (a sort mod, Mouse Tweaks) never opens anything. On an item
             // that's already open it closes it (the server decides which).
@@ -101,22 +119,13 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     }
 
     /**
-     * A left or right click with the Open key held. With Keybindery the key may be a chord,
-     * and every key of it is read, under any screen. Without it, a modifier key is read from
-     * the click itself, as vanilla reads Shift, so a click arriving with Alt set counts
-     * whatever the keyboard says now; any other key is read from the keyboard.
+     * A left or right click with the Open key held. The key may be a Keybindery chord
+     * (Ctrl+X, say), and Keybindery reads every key of it from the input state, under any
+     * screen.
      */
     private static boolean isOpenClick(MouseButtonEvent event) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT && event.button() != InputConstants.MOUSE_BUTTON_RIGHT) return false;
-        if (KEYBINDERY) return com.trevorschoeny.openanywhere.ip.ChordKey.isHeld(OPEN);
-        InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(OPEN);
-        if (key.getType() != InputConstants.Type.KEYBOARD || key.getValue() == InputConstants.UNKNOWN.getValue()) return false;
-        return switch (key.getValue()) {
-            case InputConstants.KEY_LALT, InputConstants.KEY_RALT -> event.hasAltDown();
-            case InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT -> event.hasShiftDown();
-            case InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL -> event.hasControlDown();
-            default -> InputConstants.isKeyDown(key.getValue());
-        };
+        return KeybinderyAPI.getInstance().isHeld(OPEN);
     }
 
     /**

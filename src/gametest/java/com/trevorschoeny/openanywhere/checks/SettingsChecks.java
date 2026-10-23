@@ -1,27 +1,29 @@
 package com.trevorschoeny.openanywhere.checks;
 
-import com.trevorschoeny.inventoryplus.api.InventoryPlusApi;
-import com.trevorschoeny.openanywhere.OpenAnywhere;
+import com.trevorschoeny.openanywhere.SettingsScreen;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
- * The Open Anywhere tab in Inventory Plus's settings menu opens, screenshotted for a look.
- * Runs only with Inventory Plus loaded: {@code -PwithIp} on the gametest run. A plain run
- * has no Inventory Plus, as a player without it, and skips this.
+ * The settings open, screenshotted for a look: Open Anywhere's own screen in a plain run,
+ * as a player without Inventory Plus has it, and Inventory Plus's menu on the Open Anywhere
+ * tab with {@code -PwithIp}.
  */
 public class SettingsChecks implements FabricClientGameTest {
 
     @Override
     public void runTest(ClientGameTestContext ctx) {
-        if (!FabricLoader.getInstance().isModLoaded("inventoryplus")) return;
-        ctx.setScreen(() -> InventoryPlusApi.settingsScreen(null, OpenAnywhere.MOD_ID));
+        boolean ip = FabricLoader.getInstance().isModLoaded("inventoryplus");
+        ctx.setScreen(() -> SettingsScreen.create(null));
         ctx.waitTicks(5);
-        String screen = ctx.computeOnClient(mc -> String.valueOf(mc.gui.screen()));
-        ctx.takeScreenshot("settings-tab");
+        Object screen = ctx.computeOnClient(mc -> mc.gui.screen());
+        ctx.takeScreenshot(ip ? "settings-ip-tab" : "settings-screen");
         ctx.setScreen(() -> null);
-        if (screen.equals("null")) throw new AssertionError("Inventory Plus's settings menu didn't open on Open Anywhere's tab");
+        if (screen == null) throw new AssertionError("the settings didn't open");
+        if (ip == screen instanceof SettingsScreen)
+            throw new AssertionError(ip ? "with Inventory Plus, Open Anywhere's own screen opened instead of IP's tab"
+                    : "without Inventory Plus, " + screen + " opened instead of Open Anywhere's settings");
     }
 }

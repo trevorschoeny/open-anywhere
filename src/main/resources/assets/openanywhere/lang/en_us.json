@@ -9,5 +9,6 @@
   "openanywhere.settings.ender_chest": "Open the ender chest",
   "openanywhere.settings.double_click": "Double-click to open",
   "openanywhere.settings.open_key": "Open key (hold and click)",
-  "openanywhere.settings.wheel": "Scroll to switch tabs"
+  "openanywhere.settings.wheel": "Scroll to switch tabs",
+  "key.openanywhere.open_settings": "Open Settings"
 }

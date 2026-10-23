@@ -26,9 +26,11 @@ java {
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
-    // Not for this mod. Keybindery (compiled against for the settings tab) depends on YACL,
-    // whose builds are only on this Maven repository, so Gradle needs it to resolve
-    // Keybindery. This mod neither compiles against YACL nor bundles it.
+    // Terraformers' Maven, for Mod Menu's config entry point on the mods list.
+    maven { url 'https://maven.terraformersmc.com/releases/' }
+    // Not for this mod. Keybindery depends on YACL, whose builds are only on this Maven
+    // repository, so Gradle needs it to resolve Keybindery. This mod neither compiles
+    // against YACL nor bundles it.
     maven { url 'https://api.modrinth.com/maven' }
 }
 
@@ -79,13 +81,23 @@ dependencies {
     clientImplementation rootProject.project(':menukit').sourceSets.client.output
     clientImplementation rootProject.project(':slotkit').sourceSets.client.output
 
-    // Inventory Plus is optional ("suggests"): the settings are a tab in its menu. Its API,
-    // and Keybindery's chord button that IP always brings, are compiled against and never
-    // bundled; only the `ip` package touches them, and only when IP is loaded.
+    // Keybindery is required: the Open key is read through it, so it can be a chord, and the
+    // settings bind it with its chord button. Keybindery is universal, so the project
+    // dependency's default variant is its empty common entrypoint; its client code comes
+    // by output, like MenuKit's above.
+    clientImplementation project(':keybindery')
+    clientImplementation rootProject.project(':keybindery').sourceSets.client.output
+
+    // Inventory Plus is optional ("suggests"): with it, the settings are a tab in its menu.
+    // Its API is compiled against and never bundled; only the `ip` package touches it, and
+    // only when IP is loaded.
     clientCompileOnly project(':inventory-plus')
     clientCompileOnly rootProject.project(':inventory-plus').sourceSets.client.output
-    clientCompileOnly project(':keybindery')
-    clientCompileOnly rootProject.project(':keybindery').sourceSets.client.output
+
+    // Mod Menu opens the settings from the mods list. Optional at runtime: compiled against,
+    // and localRuntime brings it into the dev launch.
+    clientCompileOnly "com.terraformersmc:modmenu:21.0.0"
+    localRuntime "com.terraformersmc:modmenu:21.0.0"
 }
 
 // Self-checks: Fabric client gametests in src/gametest, run with
@@ -105,14 +117,14 @@ dependencies {
     gametestImplementation sourceSets.client.output
     gametestImplementation rootProject.project(':menukit').sourceSets.client.output
     gametestImplementation rootProject.project(':slotkit').sourceSets.client.output
-    // Inventory Plus and Keybindery as built jars, for the settings tab: the scene client with
+    gametestImplementation rootProject.project(':keybindery').sourceSets.client.output
+    // Inventory Plus as a built jar, for its settings tab and sort: the scene client with
     // ORG_GRADLE_PROJECT_withIp=1 test-gallery/run-scene.sh ..., the self-checks with
-    // -PwithIp (SettingsChecks). A plain run has neither, as a player without IP.
+    // -PwithIp (SettingsChecks). A plain run has no IP, as a player without it.
     gametestCompileOnly project(':inventory-plus')
     gametestCompileOnly rootProject.project(':inventory-plus').sourceSets.client.output
     if (project.hasProperty('withIp')) {
-        def ipJars = files(rootProject.project(':inventory-plus').tasks.named('jar'),
-                rootProject.project(':keybindery').tasks.named('jar'))
+        def ipJars = files(rootProject.project(':inventory-plus').tasks.named('jar'))
         clientRuntimeOnly ipJars
         gametestRuntimeOnly ipJars
     }
@@ -155,6 +167,7 @@ modrinth {
         required.project "fabric-api"
         required.project "menukit"
         required.project "slotkit"
+        required.project "keybindery"
         optional.project "inventory-plus"
     }
 }
