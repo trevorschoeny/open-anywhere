@@ -39,6 +39,8 @@ public final class OpenAnywhereClient implements ClientModInitializer {
      * default; double-click is the way in (Trev, 2026-10-22), and this is for players who
      * want a key instead, set to anything in Controls.
      */
+    private static final boolean KEYBINDERY = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("keybindery");
+
     public static final KeyMapping OPEN = new KeyMapping(
             "key.openanywhere.open", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
@@ -239,6 +241,8 @@ public final class OpenAnywhereClient implements ClientModInitializer {
      */
     private static boolean isOpenClick(MouseButtonEvent event) {
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT && event.button() != InputConstants.MOUSE_BUTTON_RIGHT) return false;
+        // With Keybindery the key may be a chord; it reads every key of it, under any screen.
+        if (KEYBINDERY) return com.trevorschoeny.openanywhere.ip.ChordKey.isHeld(OPEN);
         InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(OPEN);
         if (key.getType() != InputConstants.Type.KEYBOARD || key.getValue() == InputConstants.UNKNOWN.getValue()) return false;
         return switch (key.getValue()) {
