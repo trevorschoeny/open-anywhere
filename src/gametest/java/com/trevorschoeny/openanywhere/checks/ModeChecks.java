@@ -8,6 +8,12 @@ import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
 import com.trevorschoeny.openanywhere.Sessions;
+import com.trevorschoeny.openanywhere.api.OpenItems;
+import com.trevorschoeny.openanywhere.api.ShownItem;
+
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import net.fabricmc.fabric.api.client.creativetab.v1.FabricCreativeModeInventoryScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -56,6 +62,7 @@ public class ModeChecks implements FabricClientGameTest {
             run("openanywhere:creative_item_tab", this::creativeItemTab);
             run("openanywhere:mode_switch", this::modeSwitch);
             run("openanywhere:settings", this::settings);
+            run("openanywhere:attach_api", this::attachApi);
         }
         if (!failures.isEmpty()) throw new AssertionError("mode checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -224,6 +231,53 @@ public class ModeChecks implements FabricClientGameTest {
     }
 
     // Helpers
+
+    /**
+     * What other mods read: the shown item and its section on the client, the open check on
+     * the server, and that a component set on the open box survives a change to its contents
+     * with the box still open.
+     */
+    private void attachApi() {
+        openInventory();
+        doubleClick(hotbar(0), "shulker box");
+        expectScreen(ContainerScreen.class, "double-click on the box");
+        ctx.waitTicks(3);
+        int menuSlot = ctx.computeOnClient(mc -> {
+            var shown = ShownItem.get();
+            if (shown == null) throw new AssertionError("ShownItem.get() is null with the box open");
+            if (shown.kind() != Openable.SHULKER || shown.inventorySlot() != 0 || !shown.stack().is(Items.SHULKER_BOX))
+                throw new AssertionError("ShownItem.get() is " + shown + ", not the box in hotbar slot 0");
+            if (ShownItem.SECTION.box(mc.gui.screen()) == null) throw new AssertionError("ShownItem.SECTION has no box with the box shown");
+            return shown.menuSlot();
+        });
+        String server = scene.world().getServer().computeOnServer(srv -> {
+            var player = srv.getPlayerList().getPlayers().getFirst();
+            var box = OpenItems.openAt(player, menuSlot);
+            if (box == null || box != player.getInventory().getItem(0)) return "openAt(" + menuSlot + ") isn't the box in hotbar slot 0";
+            if (OpenItems.openAt(player, menuSlot == 0 ? 1 : 0) != null) return "openAt says another slot is open";
+            box.set(DataComponents.CUSTOM_NAME, Component.literal("Palette"));
+            for (Slot sl : player.containerMenu.slots) {
+                if (Groups.laneOf(sl, Openable.SHULKER) >= 0 && sl.getContainerSlot() == 1) { sl.set(new ItemStack(Items.DIRT, 3)); break; }
+            }
+            return null;
+        });
+        if (server != null) throw new AssertionError(server);
+        ctx.waitTicks(3);
+        String after = scene.world().getServer().computeOnServer(srv -> {
+            var player = srv.getPlayerList().getPlayers().getFirst();
+            var box = OpenItems.openAt(player, menuSlot);
+            if (box == null) return "the box closed after a component was set on it";
+            if (!Component.literal("Palette").equals(box.get(DataComponents.CUSTOM_NAME))) return "writing the contents back dropped the component";
+            var contents = box.get(DataComponents.CONTAINER);
+            if (contents == null || contents.nonEmptyItemCopyStream().noneMatch(i -> i.is(Items.DIRT))) return "the dirt didn't reach the box's contents";
+            return null;
+        });
+        if (after != null) throw new AssertionError(after);
+        ctx.runOnClient(mc -> mc.player.closeContainer());
+        ctx.waitTicks(3);
+        boolean stillOpen = scene.world().getServer().computeOnServer(srv -> OpenItems.openAt(srv.getPlayerList().getPlayers().getFirst(), menuSlot) != null);
+        if (stillOpen) throw new AssertionError("openAt still says open after the screen closed");
+    }
 
     private void clearCursor() {
         ctx.runOnClient(mc -> mc.player.containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));

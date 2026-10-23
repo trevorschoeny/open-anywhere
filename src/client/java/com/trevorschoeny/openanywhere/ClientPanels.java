@@ -64,6 +64,7 @@ final class ClientPanels {
         SlotScroll.register();
         TabWheel.register();
         containerList();
+        com.trevorschoeny.openanywhere.api.ShownItem.declare();
     }
 
     /**
