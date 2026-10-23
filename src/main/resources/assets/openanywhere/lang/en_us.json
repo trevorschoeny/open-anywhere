@@ -3,7 +3,7 @@
   "key.openanywhere.open": "Open (hold and click, instead of double-click)",
   "openanywhere.tab.in": "In %s",
   "openanywhere.settings": "Open Anywhere",
-  "openanywhere.settings.description": "Open shulker boxes, bundles and your ender chest from any inventory.",
+  "openanywhere.settings.description": "Open shulker boxes, bundles, and your ender chest from your inventory or an open chest.",
   "openanywhere.settings.shulker_boxes": "Open shulker boxes",
   "openanywhere.settings.bundles": "Open bundles",
   "openanywhere.settings.ender_chest": "Open the ender chest",

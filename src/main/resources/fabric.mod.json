@@ -3,7 +3,7 @@
   "id": "openanywhere",
   "version": "${version}",
   "name": "Open Anywhere",
-  "description": "Open shulker boxes, bundles and your ender chest right from your inventory, without placing anything. Goes with Inventory Plus.",
+  "description": "Open shulker boxes, bundles, and your ender chest from your inventory or an open chest, without placing anything. It pairs with Inventory Plus, which adds its settings menu.",
   "authors": [
     "trevorschoeny"
   ],
