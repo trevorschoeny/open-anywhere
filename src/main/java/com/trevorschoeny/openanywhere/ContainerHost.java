@@ -11,11 +11,10 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 
 /**
- * The screen items open on from the inventory: vanilla's own chest menu with no rows, just
- * the player's inventory, so the client shows vanilla's own chest screen and MenuKit's
- * container list shows each opened item above the inventory as a tab, exactly as on a
- * chest. Boxes, bundles and the ender chest opened from the inventory are tabs on one
- * screen, so several can be open at once there too.
+ * The screen a bundle opens on: vanilla's own chest menu with no rows, just the player's
+ * inventory, so the client shows vanilla's own chest screen, and MenuKit's container list
+ * shows the bundle's slots above the inventory. A bundle has no screen of its own in
+ * vanilla; a shulker box and the ender chest open on theirs.
  *
  * <p>Its own menu type only because vanilla's chest types start at one row. The menu and
  * the screen are vanilla's classes, so a mod that asks "is this a chest screen?" says yes.
@@ -31,7 +30,15 @@ public final class ContainerHost {
     }
 
     static ChestMenu create(int id, Inventory inventory) {
-        return new ChestMenu(TYPE, id, inventory, new SimpleContainer(0), 0);
+        return create(id, inventory, new SimpleContainer(0));
+    }
+
+    /**
+     * On the server: the host over an empty container whose {@code stillValid} is the open
+     * bundle's, so vanilla closes the host, and refuses clicks into it, once the bundle moves.
+     */
+    static ChestMenu create(int id, Inventory inventory, net.minecraft.world.Container validity) {
+        return new ChestMenu(TYPE, id, inventory, validity, 0);
     }
 
     public static boolean is(AbstractContainerMenu menu) {

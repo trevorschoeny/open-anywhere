@@ -2,14 +2,10 @@ package com.trevorschoeny.openanywhere.checks;
 
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
-import com.trevlar.slotkit.api.slot.ClientSlots;
 import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
-import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
-import com.trevorschoeny.openanywhere.Sessions;
 import com.trevorschoeny.openanywhere.api.OpenItems;
-import com.trevorschoeny.openanywhere.api.ShownItem;
 
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -24,6 +20,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.CreativeModeTab;
@@ -57,12 +54,9 @@ public class ModeChecks implements FabricClientGameTest {
             this.scene = scene;
             run("openanywhere:survival_shulker", this::survivalShulker);
             run("openanywhere:survival_ender", this::survivalEnder);
-            run("openanywhere:survival_bundle", this::survivalBundle);
             run("openanywhere:creative_inventory_tab", this::creativeInventoryTab);
             run("openanywhere:creative_item_tab", this::creativeItemTab);
-            run("openanywhere:mode_switch", this::modeSwitch);
             run("openanywhere:settings", this::settings);
-            run("openanywhere:attach_api", this::attachApi);
         }
         if (!failures.isEmpty()) throw new AssertionError("mode checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -93,20 +87,20 @@ public class ModeChecks implements FabricClientGameTest {
     // Stations
 
     /**
-     * From the inventory a box opens on the host screen, as a tab; a second item opened
-     * from there is a second tab, the first still open.
+     * From the inventory a box opens on vanilla's shulker box screen, as a tab; a bundle
+     * opened from there is a second tab, the box's still on the row.
      */
     private void survivalShulker() {
         openInventory();
         doubleClickNow(hotbar(0), "shulker box");
         frames("anim-shulker-open");
-        expectScreen(ContainerScreen.class, "double-click on the box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the box");
         expectServerSession(Openable.SHULKER, true);
         doubleClick(hotbar(2), "the bundle, from the box's screen");
-        int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
-        if (open != 2) throw new AssertionError("a box and a bundle opened from the inventory: " + open + " open, not 2");
+        int tabs = ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.row().size());
+        if (tabs != 3) throw new AssertionError("a box and a bundle opened from the inventory: " + tabs + " tabs, not 3");
         if (!ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
-            throw new AssertionError("the second item didn't open on the same host screen");
+            throw new AssertionError("the bundle didn't open on its host screen");
     }
 
     private void survivalEnder() {
@@ -118,6 +112,7 @@ public class ModeChecks implements FabricClientGameTest {
         // Again: it closes, back to the inventory, and its lid shuts.
         doubleClickNow(hotbar(1), "the open ender chest");
         frames("anim-ender-close");
+        expectServerSession(Openable.ENDER_CHEST, false);
     }
 
     /**
@@ -135,46 +130,6 @@ public class ModeChecks implements FabricClientGameTest {
     }
 
     /**
-     * From the inventory the bundle opens like a container: vanilla's chest screen on the
-     * bundle's host menu, its slots the container list's only section, drawn inside the
-     * screen and showing the bundle's stone. Again on the bundle: back to the inventory.
-     */
-    private void survivalBundle() {
-        openInventory();
-        doubleClick(hotbar(2), "bundle");
-        expectScreen(ContainerScreen.class, "double-click on the bundle");
-        if (!ctx.computeOnClient(mc -> ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
-            throw new AssertionError("the bundle's screen isn't on its host menu");
-        if (!ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.BUNDLE, 0))))
-            throw new AssertionError("the bundle's slots didn't show");
-        String first = ctx.computeOnClient(mc -> {
-            var screen = (AbstractContainerScreen<?>) mc.gui.screen();
-            var edge = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
-            for (Slot sl : screen.getMenu().slots) {
-                var c = com.trevlar.slotkit.api.slot.CreatedSlot.of(sl);
-                if (c == null || !c.panelId().equals(Groups.id(Openable.BUNDLE, 0).panelId()) || c.getLocalIndex() != 0) continue;
-                int top = edge.openanywhere$topPos();
-                boolean drawn = sl.isActive() && top + sl.y >= 0 && top + sl.y + 16 <= screen.height;
-                return (drawn ? "drawn" : "not drawn") + " " + sl.getItem();
-            }
-            return "missing";
-        });
-        if (!first.equals("drawn 4 minecraft:stone"))
-            throw new AssertionError("the bundle's first slot should be drawn with its 4 stone: " + first);
-        expectServerSession(Openable.BUNDLE, true);
-        ctx.takeScreenshot("modes-survival_bundle-open");
-        // The opened bundle's own slot is greyed and locked, as a box's is.
-        if (!ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.Sessions.isOpenAt(mc.player.getInventory(), 2)))
-            throw new AssertionError("the open bundle's hotbar slot isn't marked open on the client (no grey)");
-        click(hotbar(2), "the open bundle");
-        int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
-        if (carried != 0) throw new AssertionError("the open bundle was picked up");
-        doubleClick(hotbar(2), "the open bundle");
-        expectScreen(InventoryScreen.class, "double-click on the open bundle");
-        expectServerSession(Openable.BUNDLE, false);
-    }
-
-    /**
      * Creative's inventory tab: a double-click opens the box as if the player had opened the
      * container itself, so its own screen replaces creative's and the
      * creative tabs are gone. The box goes back in its slot, one box, none copied.
@@ -183,7 +138,7 @@ public class ModeChecks implements FabricClientGameTest {
         command("gamemode creative @p");
         openCreative(CreativeModeTab.Type.INVENTORY);
         doubleClick(item(Items.SHULKER_BOX), "shulker box on the inventory tab");
-        expectScreen(ContainerScreen.class, "double-click on the box in creative's inventory tab");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the box in creative's inventory tab");
         expectServerSession(Openable.SHULKER, true);
         int boxes = scene.world().getServer().computeOnServer(sv -> sv.getPlayerList().getPlayers().getFirst().getInventory().countItem(Items.SHULKER_BOX));
         if (boxes != 1) throw new AssertionError(boxes + " shulker boxes in the inventory after opening in creative, not 1");
@@ -196,28 +151,6 @@ public class ModeChecks implements FabricClientGameTest {
         doubleClick(item(Items.SHULKER_BOX), "shulker box on an item tab");
         // Vanilla's right-click picks the box up: still one box, on the cursor.
         nothingOpened(1);
-        if (ctx.computeOnClient(mc -> ClientSlots.isShown(Groups.id(Openable.BUNDLE, 0))))
-            throw new AssertionError("bundle slots shown on an item tab");
-    }
-
-    /**
-     * Opened in survival, then /gamemode creative with the box's screen up: the lock (scoped to
-     * both modes) still holds and the close button still closes it.
-     */
-    private void modeSwitch() {
-        openInventory();
-        doubleClick(hotbar(0), "shulker box");
-        expectScreen(ContainerScreen.class, "double-click on the box");
-        command("gamemode creative @p");
-        ctx.waitTicks(3);
-        // Click the opened box's own slot: locked, it stays where it is.
-        click(hotbar(0).and(s -> s.getItem().is(Items.SHULKER_BOX)), "the opened box");
-        int carried = ctx.computeOnClient(mc -> ((AbstractContainerScreen<?>) mc.gui.screen()).getMenu().getCarried().getCount());
-        if (carried != 0) throw new AssertionError("the opened box was picked up after switching to creative");
-        // The X: a close request for the open box; back to the inventory.
-        ctx.runOnClient(mc -> ClientPlayNetworking.send(new com.trevorschoeny.openanywhere.CloseC2S(Openable.SHULKER, 0)));
-        ctx.waitTicks(5);
-        expectServerSession(Openable.SHULKER, false);
     }
 
     /**
@@ -233,6 +166,10 @@ public class ModeChecks implements FabricClientGameTest {
             ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setOpens(Openable.BUNDLE, false));
             doubleClick(hotbar(2), "the open bundle, bundles now off");
             expectServerSession(Openable.BUNDLE, false);
+            // Its tab went with it: back to the inventory.
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+            openInventory();
 
             ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setOpens(Openable.SHULKER, false));
             doubleClick(hotbar(0), "shulker box, shulker boxes off");
@@ -250,53 +187,6 @@ public class ModeChecks implements FabricClientGameTest {
     }
 
     // Helpers
-
-    /**
-     * What other mods read: the shown item and its section on the client, the open check on
-     * the server, and that a component set on the open box survives a change to its contents
-     * with the box still open.
-     */
-    private void attachApi() {
-        openInventory();
-        doubleClick(hotbar(0), "shulker box");
-        expectScreen(ContainerScreen.class, "double-click on the box");
-        ctx.waitTicks(3);
-        int menuSlot = ctx.computeOnClient(mc -> {
-            var shown = ShownItem.get();
-            if (shown == null) throw new AssertionError("ShownItem.get() is null with the box open");
-            if (shown.kind() != Openable.SHULKER || shown.inventorySlot() != 0 || !shown.stack().is(Items.SHULKER_BOX))
-                throw new AssertionError("ShownItem.get() is " + shown + ", not the box in hotbar slot 0");
-            if (ShownItem.SECTION.box(mc.gui.screen()) == null) throw new AssertionError("ShownItem.SECTION has no box with the box shown");
-            return shown.menuSlot();
-        });
-        String server = scene.world().getServer().computeOnServer(srv -> {
-            var player = srv.getPlayerList().getPlayers().getFirst();
-            var box = OpenItems.openAt(player, menuSlot);
-            if (box == null || box != player.getInventory().getItem(0)) return "openAt(" + menuSlot + ") isn't the box in hotbar slot 0";
-            if (OpenItems.openAt(player, menuSlot == 0 ? 1 : 0) != null) return "openAt says another slot is open";
-            box.set(DataComponents.CUSTOM_NAME, Component.literal("Palette"));
-            for (Slot sl : player.containerMenu.slots) {
-                if (Groups.laneOf(sl, Openable.SHULKER) >= 0 && sl.getContainerSlot() == 1) { sl.set(new ItemStack(Items.DIRT, 3)); break; }
-            }
-            return null;
-        });
-        if (server != null) throw new AssertionError(server);
-        ctx.waitTicks(3);
-        String after = scene.world().getServer().computeOnServer(srv -> {
-            var player = srv.getPlayerList().getPlayers().getFirst();
-            var box = OpenItems.openAt(player, menuSlot);
-            if (box == null) return "the box closed after a component was set on it";
-            if (!Component.literal("Palette").equals(box.get(DataComponents.CUSTOM_NAME))) return "writing the contents back dropped the component";
-            var contents = box.get(DataComponents.CONTAINER);
-            if (contents == null || contents.nonEmptyItemCopyStream().noneMatch(i -> i.is(Items.DIRT))) return "the dirt didn't reach the box's contents";
-            return null;
-        });
-        if (after != null) throw new AssertionError(after);
-        ctx.runOnClient(mc -> mc.player.closeContainer());
-        ctx.waitTicks(3);
-        boolean stillOpen = scene.world().getServer().computeOnServer(srv -> OpenItems.openAt(srv.getPlayerList().getPlayers().getFirst(), menuSlot) != null);
-        if (stillOpen) throw new AssertionError("openAt still says open after the screen closed");
-    }
 
     private void clearCursor() {
         ctx.runOnClient(mc -> mc.player.containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));
@@ -353,10 +243,14 @@ public class ModeChecks implements FabricClientGameTest {
         if (!type.isInstance(screen)) throw new AssertionError(after + " opened " + screen + ", not a " + type.getSimpleName());
     }
 
+    /** Whether the server has an item of {@code kind} in front for the player, as other mods read it. */
     private void expectServerSession(Openable kind, boolean open) {
-        boolean isOpen = scene.world().getServer().computeOnServer(s ->
-                firstOf(s.getPlayerList().getPlayers().getFirst(), kind) != null);
-        if (isOpen != open) throw new AssertionError("server " + (open ? "has no " : "still has a ") + kind + " session");
+        ctx.waitTicks(3);
+        boolean isOpen = scene.world().getServer().computeOnServer(s -> {
+            var shown = OpenItems.shown(s.getPlayerList().getPlayers().getFirst());
+            return shown != null && shown.kind() == kind;
+        });
+        if (isOpen != open) throw new AssertionError("server " + (open ? "has no " : "still has a ") + kind + " in front");
     }
 
     private void hover(Predicate<Slot> p, String what) {
@@ -400,9 +294,4 @@ public class ModeChecks implements FabricClientGameTest {
         });
     }
 
-    /** The player's first open session of {@code kind} (the oldest), or null. */
-    private static com.trevorschoeny.openanywhere.@org.jspecify.annotations.Nullable Session firstOf(net.minecraft.world.entity.player.Player player, Openable kind) {
-        for (var s : Sessions.of(player)) if (s.kind() == kind) return s;
-        return null;
-    }
 }

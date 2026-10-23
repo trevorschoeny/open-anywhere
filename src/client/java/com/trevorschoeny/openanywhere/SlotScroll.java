@@ -89,7 +89,7 @@ final class SlotScroll {
         }
     }
 
-    // Weak: MenuKit builds a grid each time an item opens and lets it go when it closes.
+    // Weak, so a grid nothing shows any more goes.
     private static final java.util.Set<Grid> GRIDS = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /** True while a grid on screen (drawn in the last frames) has a scrollbar. */
@@ -137,10 +137,6 @@ final class SlotScroll {
         if (!narrows) b.laneOutside();
         Grid scroll = new Grid(b.fitRoom(ROW).content(cells), id, nine, narrows, state);
         GRIDS.add(scroll);
-        // Counted now, not at the next frame: MenuKit makes an opened item's grid mid-frame
-        // and lays the list out from it at once, so an uncounted grid drew the panel with no
-        // rows for a frame (a flash on opening).
-        scroll.frame();
         return scroll;
     }
 

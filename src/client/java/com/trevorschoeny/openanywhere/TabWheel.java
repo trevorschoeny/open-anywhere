@@ -40,7 +40,8 @@ final class TabWheel {
     /** One turn of the wheel at {@code (x, y)}: the next or previous tab, unless over the list. Whether it was used. */
     private static boolean turn(Screen screen, double x, double y, double amount) {
         if (amount == 0 || !Settings.wheel()) return false;
-        List<String> row = Tabs.row();
+        List<TabId> row = new java.util.ArrayList<>();
+        for (Tab tab : Tabs.row()) row.add(tab.id());
         if (row.size() < 2) return false;
         // Over the container, the wheel is the container's only while it has a scrollbar:
         // the list's own, or a shown grid's.
@@ -48,7 +49,7 @@ final class TabWheel {
         Reference list = ContainerRegion.CONTAINERS.box(screen);
         if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
                 && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;
-        int at = row.indexOf(Tabs.shown());
+        int at = row.indexOf(Tabs.selected());
         int next = Math.max(0, Math.min(row.size() - 1, at + (amount < 0 ? 1 : -1)));
         if (next != at) Tabs.pick(row.get(next));
         return true;

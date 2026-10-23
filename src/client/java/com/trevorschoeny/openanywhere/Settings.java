@@ -17,7 +17,7 @@ import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * The player's settings, the one place they live:
- * {@code config/openanywhere/settings.json}, all on by default. Changed from the Open
+ * {@code config/openanywhere/settings.json}, all on by default but every box getting a tab. Changed from the Open
  * Anywhere tab in Inventory Plus's settings menu when IP is installed; without it, the file
  * or the defaults apply. Every setter saves.
  *
@@ -38,6 +38,7 @@ public final class Settings {
     private static boolean doubleClick = true;
     private static boolean wheel = true;
     private static boolean animation = true;
+    private static boolean everyBox = false;
 
     /** Whether {@code kind} opens at all. Turning one off leaves any already open until closed. */
     public static boolean opens(Openable kind) { return OPENS.getOrDefault(kind, true); }
@@ -47,11 +48,14 @@ public final class Settings {
     public static boolean wheel() { return wheel; }
     /** Whether an opened box plays its open animation in its slot; off, it's greyed instead. */
     public static boolean animation() { return animation; }
+    /** Whether every box, bundle and ender chest in reach gets a tab, or only the ones opened by hand. Off by default. */
+    public static boolean everyBox() { return everyBox; }
 
     public static void setOpens(Openable kind, boolean on) { OPENS.put(kind, on); save(); }
     public static void setDoubleClick(boolean on) { doubleClick = on; save(); }
     public static void setWheel(boolean on) { wheel = on; save(); }
     public static void setAnimation(boolean on) { animation = on; save(); }
+    public static void setEveryBox(boolean on) { everyBox = on; save(); }
 
     /** Everything back to on, and saves: Reset to Defaults and Inventory Plus's Reset everything. */
     public static void reset() {
@@ -59,6 +63,7 @@ public final class Settings {
         doubleClick = true;
         wheel = true;
         animation = true;
+        everyBox = false;
         save();
     }
 
@@ -81,18 +86,22 @@ public final class Settings {
             if (root.has("double_click")) doubleClick = root.get("double_click").getAsBoolean();
             if (root.has("wheel_switches_tabs")) wheel = root.get("wheel_switches_tabs").getAsBoolean();
             if (root.has("open_animation")) animation = root.get("open_animation").getAsBoolean();
+            if (root.has("every_box_tab")) everyBox = root.get("every_box_tab").getAsBoolean();
         } catch (IOException | RuntimeException ex) {
             LOG.error("[openanywhere] couldn't read {}; using the defaults", path, ex);
         }
     }
 
     private static void save() {
+        // The row's settings are the server's to act on: it hears every change.
+        OpenAnywhereClient.sendPrefs();
         Path path = path();
         JsonObject root = new JsonObject();
         KEYS.forEach((kind, key) -> root.addProperty(key, opens(kind)));
         root.addProperty("double_click", doubleClick);
         root.addProperty("wheel_switches_tabs", wheel);
         root.addProperty("open_animation", animation);
+        root.addProperty("every_box_tab", everyBox);
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, new GsonBuilder().setPrettyPrinting().create().toJson(root));

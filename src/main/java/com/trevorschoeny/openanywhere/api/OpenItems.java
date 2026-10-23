@@ -1,34 +1,23 @@
 package com.trevorschoeny.openanywhere.api;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.trevlar.slotkit.api.group.SlotGroupId;
-import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.Openable;
-import com.trevorschoeny.openanywhere.Session;
-import com.trevorschoeny.openanywhere.Sessions;
+import com.trevorschoeny.openanywhere.Shown;
 
 import org.jspecify.annotations.Nullable;
 
-import net.minecraft.world.Container;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * What a player has open through Open Anywhere, for other mods. Both sides: the server's
- * answer is the truth; the client's mirrors what the server told it.
+ * The item a player has open through Open Anywhere, for other mods. Every opened item is a
+ * screen of its own (a shulker box on vanilla's shulker box screen, the ender chest on
+ * vanilla's ender chest screen, a bundle on Open Anywhere's), so "the open item" is the one
+ * whose screen is in front: the player's open menu is that item's.
  *
- * <p>An opened item is named by its {@link OpenItem#menuSlot()}: its slot on the player's
- * open menu, whatever holds it (the inventory, a chest, the ender chest's section). That
- * is the number to send in a packet; the server checks it with {@link #openAt}.
- *
- * <p>The item stays the same stack object for as long as it is open, and it is open only
- * while that object is still in its slot. So change it in place ({@code stack.set(...)}):
- * putting a copy in the slot closes it. Writing the contents back touches only
- * {@code minecraft:container} (a box) or {@code minecraft:bundle_contents} (a bundle),
- * on that same stack, so every other component stays as it is.
+ * <p>Both sides. On the server it is the item itself, live: change it in place
+ * ({@code stack.set(...)}) and the change is kept, written back up to the slot it's in.
+ * Putting a copy in its slot instead moves it, and its screen closes. On the client it is a
+ * copy, as the server last showed it, for reading.
  */
 public final class OpenItems {
 
@@ -37,48 +26,19 @@ public final class OpenItems {
     /**
      * One opened item.
      *
-     * @param kind          a shulker box, the ender chest or a bundle
-     * @param lane          its number among the open items of its kind
-     * @param menuSlot      its slot on the menu it opened on, the player's open menu
-     * @param container     what holds it; null on the client when that isn't on the screen
-     * @param containerSlot its index in {@code container}
+     * @param kind  a shulker box, the ender chest or a bundle
+     * @param stack the item: live on the server, a copy on the client
      */
-    public record OpenItem(Openable kind, int lane, int menuSlot, @Nullable Container container, int containerSlot) {
-
-        /** The item as it is now, read from its slot; empty when the container isn't known. */
-        public ItemStack stack() {
-            return container == null ? ItemStack.EMPTY : container.getItem(containerSlot);
-        }
-
-        /** Its index in the player's inventory, or -1 when it isn't in the inventory. */
-        public int inventorySlot() {
-            return container instanceof Inventory ? containerSlot : -1;
-        }
-
-        /** The slot group showing its contents on the menu: the box's slots, in their order. */
-        public SlotGroupId group() {
-            return Groups.id(kind, lane);
-        }
-    }
-
-    /** Everything {@code player} has open on this side, oldest first. */
-    public static List<OpenItem> of(Player player) {
-        List<OpenItem> open = new ArrayList<>();
-        for (Session s : Sessions.of(player)) {
-            if (s.menu() == player.containerMenu) open.add(new OpenItem(s.kind(), s.lane(), s.menuSlot(), s.container(), s.containerSlot()));
-        }
-        return open;
-    }
+    public record OpenItem(Openable kind, ItemStack stack) {}
 
     /**
-     * On the server: the item {@code player} has open at {@code menuSlot} of their open menu,
-     * the very stack to change, or null when nothing is open there. Check this before acting on
-     * a request about an opened item, as for an item in the hand.
+     * The item whose screen {@code player} has in front, or null when their screen is
+     * something else (the inventory, a chest, any other). Check this on the server before
+     * acting on a request about the open item, as for an item in the hand.
      */
-    public static @Nullable ItemStack openAt(Player player, int menuSlot) {
-        for (Session s : Sessions.of(player)) {
-            if (s.menuSlot() == menuSlot && s.menu() == player.containerMenu && s.stillInPlace()) return s.stack();
-        }
-        return null;
+    public static @Nullable OpenItem shown(Player player) {
+        ItemStack stack = Shown.item(player);
+        Openable kind = Openable.of(stack);
+        return kind == null ? null : new OpenItem(kind, stack);
     }
 }

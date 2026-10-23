@@ -13,19 +13,17 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.BundleContents;
 
 /**
- * An open bundle as both sides see it, for what its slots show and accept: read from
- * the bundle in the source slot now, so the client predicts the server's answers.
+ * An open bundle as both sides see it, for what its slots show and accept: the live bundle
+ * on the server, the row's copy of it on the client, so the client predicts the server's answers.
  */
 final class BundleView {
 
     private BundleView() {}
 
-    /** The contents of the bundle open in {@code lane}, or null with none open there. */
-    static @Nullable BundleContents contents(@Nullable Player player, int lane) {
-        if (player == null) return null;
-        Session session = Sessions.at(player, Openable.BUNDLE, lane);
-        if (session == null) return null;
-        ItemStack bundle = session.container() == null ? session.stack() : session.container().getItem(session.containerSlot());
+    /** The contents of the bundle {@code player} has open, or null with none open. */
+    static @Nullable BundleContents contents(@Nullable Player player) {
+        ItemStack bundle = Shown.item(player);
+        if (Openable.of(bundle) != Openable.BUNDLE) return null;
         return bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
     }
 

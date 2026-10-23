@@ -6,6 +6,7 @@ import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
@@ -28,9 +29,9 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Client init: the clicks that open and close an item (a double-click, {@link DoubleClick},
- * or a click with the optional Open key held), the settings, the tabs and their sections
- * ({@link ClientPanels}), and the mirror of what the server opened ({@link SessionS2C}).
- * Escape is vanilla's: it closes the screen, which closes everything on it.
+ * or a click with the optional Open key held), the settings, the tab row ({@link Tabs},
+ * {@link ClientPanels}), and what the server sends of it ({@link TabsS2C}). Escape is
+ * vanilla's: it closes the screen, which closes everything behind it.
  */
 public final class OpenAnywhereClient implements ClientModInitializer {
 
@@ -53,6 +54,9 @@ public final class OpenAnywhereClient implements ClientModInitializer {
     public static final KeyMapping OPEN_SETTINGS = new KeyMapping(
             "key.openanywhere.open_settings", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
+    // Whether the last tick's screen was one the row stands on.
+    private static boolean wasOnTabs;
+
     @Override
     public void onInitializeClient() {
         KeyMappingHelper.registerKeyMapping(OPEN);
@@ -65,7 +69,21 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         Settings.load();
         // The settings live in Inventory Plus's menu, so they show only when IP is installed.
         if (FabricLoader.getInstance().isModLoaded("inventoryplus")) com.trevorschoeny.openanywhere.ip.SettingsTab.register();
-        ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
+        ClientPlayNetworking.registerGlobalReceiver(TabsS2C.TYPE, (payload, context) -> Tabs.receive(payload));
+        Shown.client(Tabs.VIEW);
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> sendPrefs());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Tabs.clear());
+        // Back in the world from the screens (Escape, the inventory key): the row goes, and
+        // the server closes what was opened by hand. A switch between tabs never passes
+        // through no screen: the screen in front stays up until the next one's contents arrive.
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            boolean onTabs = Tabs.isTabScreen(mc.gui.screen());
+            if (wasOnTabs && mc.gui.screen() == null) {
+                Tabs.clear();
+                if (ClientPlayNetworking.canSend(DoneC2S.TYPE)) ClientPlayNetworking.send(DoneC2S.INSTANCE);
+            }
+            wasOnTabs = onTabs;
+        });
         ClientPanels.register();
         ClientMarks.register();
         // The host is vanilla's chest menu, so it gets vanilla's chest screen.
@@ -113,10 +131,9 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         return kind != null && (Settings.opens(kind) || isOpen(player, slot));
     }
 
-    /** True when the item in {@code slot} is open: a session holds that slot of the open menu. */
+    /** True when the item in {@code slot} is open: it has a tab, or, with every box tabbed, it's in front. */
     static boolean isOpen(Player player, Slot slot) {
-        for (Session s : Sessions.of(player)) if (s.menu() == player.containerMenu && s.menuSlot() == slot.index) return true;
-        return false;
+        return Tabs.looksOpen(slot);
     }
 
     /**
@@ -129,28 +146,16 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         return KeybinderyAPI.getInstance().isHeld(OPEN);
     }
 
-    /**
-     * Mirrors one server decision. The slot is resolved on the client's own copy of the
-     * now-open menu, so the client's slot lock and grey name the same slot as the server's.
-     */
-    private static void mirror(Player player, SessionS2C payload) {
-        Openable kind = payload.kind();
-        if (!payload.open()) {
-            Sessions.remove(player, kind, payload.lane());
-            // Closed with its button or a double-click: back to the inventory screen.
-            if (payload.toInventory()) Minecraft.getInstance().gui.setScreen(new InventoryScreen(player));
-            return;
-        }
-        AbstractContainerMenu menu = player.containerMenu;
-        boolean onMenu = payload.menuSlot() >= 0 && payload.menuSlot() < menu.slots.size();
-        Slot slot = onMenu ? menu.getSlot(payload.menuSlot()) : null;
-        Session session = new Session(kind, payload.lane(), menu, slot == null ? null : slot.container,
-                slot == null ? -1 : slot.getContainerSlot(), payload.menuSlot(),
-                slot == null ? ItemStack.EMPTY : slot.getItem());
-        Sessions.put(player, session);
-        // What was just opened is what the player wants to see: its tab is picked, and its
-        // slot isn't greyed until the tab shows (ClientMarks).
-        Tabs.pick(Tabs.idOf(session));
-        ClientMarks.awaitTab(session);
+    /** The frame the item in front shows in, for {@code ShownItem.SECTION}. */
+    public static com.trevlar.menukit.api.panel.@org.jspecify.annotations.Nullable Reference frameOf(net.minecraft.client.gui.screens.Screen screen) {
+        return ClientPanels.frame(screen);
+    }
+
+    /** Tells the server the settings that shape the row: on joining, and on every change. */
+    static void sendPrefs() {
+        if (!ClientPlayNetworking.canSend(PrefsC2S.TYPE)) return;
+        int kinds = 0;
+        for (Openable kind : Openable.values()) if (Settings.opens(kind)) kinds |= 1 << kind.ordinal();
+        ClientPlayNetworking.send(new PrefsC2S(Settings.everyBox(), kinds));
     }
 }

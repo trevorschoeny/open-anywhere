@@ -17,7 +17,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
-import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -30,46 +29,15 @@ public final class ClientMarks {
 
     private ClientMarks() {}
 
-    /** Items just opened whose tab hasn't drawn yet, and since when. */
-    private record Awaiting(Session session, long since) {}
-    private static final Map<String, Awaiting> AWAITING = new HashMap<>();
-    // However it went, an entry goes after this long, so one whose tab never drew can't keep the grey off.
-    private static final long AWAIT_MS = 300;
-
-    /**
-     * {@code session} just opened: its slot isn't marked open until its tab draws. MenuKit
-     * shows the tab a frame later; until then the slot looks as it did before the click,
-     * instead of flashing the box greyed in the chest.
-     */
-    static void awaitTab(Session session) {
-        AWAITING.put(Tabs.idOf(session), new Awaiting(session, Util.getMillis()));
-    }
-
-    /** For the self-checks: {@link #awaitingTab}. */
-    public static boolean awaitingTabForChecks(Slot slot) {
-        return awaitingTab(slot);
-    }
-
-    /** True while {@code slot} holds an item just opened whose tab hasn't drawn yet. */
-    private static boolean awaitingTab(Slot slot) {
-        if (AWAITING.isEmpty()) return false;
-        boolean onScreen = Minecraft.getInstance().gui.screen() != null;
-        long now = Util.getMillis();
-        AWAITING.values().removeIf(a -> !onScreen || now - a.since() > AWAIT_MS
-                || SlotScroll.drawnAt(Groups.id(a.session().kind(), a.session().lane())) >= a.since());
-        for (Awaiting a : AWAITING.values()) {
-            if (a.session().container() == slot.container && a.session().containerSlot() == slot.getContainerSlot()) return true;
-        }
-        return false;
-    }
-
     /** Whether {@code slot} holds an item open, as the player should see it. */
     private static boolean shownOpen(Slot slot) {
-        return Sessions.isOpenOnClient(slot.container, slot.getContainerSlot()) && !awaitingTab(slot);
+        return Tabs.looksOpen(slot);
     }
 
-    /** Where an opened item sits: what its animation is keyed by, so a redraw picks it up where it stood. */
-    private record Place(Container container, int slot) {}
+    /**
+     * Where an opened item sits, as the server names it: what its animation is keyed by, so a
+     * screen opened in place of another picks it up where it stood.
+     */
 
     /**
      * A quarter second, as a placed shulker box takes to open. The property slows it for a
@@ -91,7 +59,9 @@ public final class ClientMarks {
         SlotItemLooks.declare(OpenAnywhere.MOD_ID + ":open_items", (screen, slot, stack) -> {
             Openable kind = Openable.of(stack);
             if (kind == null || kind == Openable.BUNDLE || !Settings.animation()) return null;
-            float t = OPENING.toward(new Place(slot.container, slot.getContainerSlot()), shownOpen(slot));
+            var place = Tabs.pathOf(slot);
+            if (place == null) return null;
+            float t = OPENING.toward(place, shownOpen(slot));
             return t > 0 ? OPEN.at(t) : null;
         });
     }
@@ -127,9 +97,8 @@ public final class ClientMarks {
     }
 
     private static boolean isAddSlot(Slot slot, CreatedSlot created) {
-        int lane = Groups.laneOf(slot, Openable.BUNDLE);
-        if (lane < 0) return false;
-        int add = BundleView.addSlot(BundleView.contents(Minecraft.getInstance().player, lane));
+        if (Groups.bundleIndex(slot) < 0) return false;
+        int add = BundleView.addSlot(BundleView.contents(Minecraft.getInstance().player));
         return add >= 0 && created.getLocalIndex() == add;
     }
 

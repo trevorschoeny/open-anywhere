@@ -6,11 +6,11 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 /**
- * Open Anywhere: open a shulker box, a bundle or your ender chest as a panel on
- * the screen you're on, without placing it.
+ * Open Anywhere: open a shulker box, a bundle or your ender chest from your inventory or an
+ * open chest, without placing it, each on its own screen, picked by tabs.
  *
- * <p>Common init, both sides: the slot groups, the slot lock and the shift-click routes ({@link Groups}), the three
- * payloads, and the server's open, close and per-tick check ({@link ServerSessions}).
+ * <p>Common init, both sides: the bundle's slots, the slot lock and the host's shift-click
+ * ({@link Groups}), the payloads, and the server's tabs ({@link ServerTabs}).
  */
 public final class OpenAnywhere implements ModInitializer {
 
@@ -23,12 +23,17 @@ public final class OpenAnywhere implements ModInitializer {
 
         PayloadTypeRegistry.serverboundPlay().register(OpenC2S.TYPE, OpenC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CloseC2S.TYPE, CloseC2S.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(SessionS2C.TYPE, SessionS2C.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(PickC2S.TYPE, PickC2S.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(PrefsC2S.TYPE, PrefsC2S.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(DoneC2S.TYPE, DoneC2S.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(TabsS2C.TYPE, TabsS2C.CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(OpenC2S.TYPE,
-                (payload, context) -> ServerSessions.open(context.player(), payload.menuSlot(), payload.fromCursor()));
-        ServerPlayNetworking.registerGlobalReceiver(CloseC2S.TYPE,
-                (payload, context) -> ServerSessions.close(context.player(), payload.kind(), payload.lane()));
-        ServerTickEvents.END_SERVER_TICK.register(ServerSessions::tick);
+                (payload, context) -> ServerTabs.open(context.player(), payload.menuSlot(), payload.fromCursor()));
+        ServerPlayNetworking.registerGlobalReceiver(CloseC2S.TYPE, (payload, context) -> ServerTabs.close(context.player(), payload.id()));
+        ServerPlayNetworking.registerGlobalReceiver(PickC2S.TYPE, (payload, context) -> ServerTabs.pick(context.player(), payload.id()));
+        ServerPlayNetworking.registerGlobalReceiver(PrefsC2S.TYPE, (payload, context) -> ServerTabs.prefs(context.player(), payload));
+        ServerPlayNetworking.registerGlobalReceiver(DoneC2S.TYPE, (payload, context) -> ServerTabs.done(context.player()));
+        ServerTickEvents.END_SERVER_TICK.register(ServerTabs::tick);
     }
 }
