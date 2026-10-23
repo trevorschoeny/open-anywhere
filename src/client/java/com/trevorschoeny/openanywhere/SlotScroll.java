@@ -25,6 +25,11 @@ final class SlotScroll {
 
     private SlotScroll() {}
 
+    /** The most a grid may take of a screen {@code height} tall, in whole rows. */
+    private static int room(int height) {
+        return Math.max(MIN_ROWS, (height - OVERHEAD) / ROW) * ROW;
+    }
+
     private static final int ROW = 18;
     /** Never fewer rows than a vanilla container shows, however short the window. */
     private static final int MIN_ROWS = 3;
@@ -139,6 +144,11 @@ final class SlotScroll {
                 .fitHeight()
                 .content(cells), id, nine, narrows, state);
         GRIDS.add(scroll);
+        // Sized now, not at the next frame: MenuKit makes an opened item's grid mid-frame
+        // and lays the list out from it at once, so an unsized grid drew the panel 8 px tall
+        // for a frame (the flash on opening, Trev 2026-10-23).
+        var screen = net.minecraft.client.Minecraft.getInstance().gui.screen();
+        if (screen != null) scroll.frame(room(screen.height));
         return scroll;
     }
 
@@ -152,7 +162,7 @@ final class SlotScroll {
         ScreenEvents.AFTER_INIT.register(early, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> {
-                int room = Math.max(MIN_ROWS, (s.height - OVERHEAD) / ROW) * ROW;
+                int room = room(s.height);
                 for (Grid grid : GRIDS) grid.frame(room);
             });
         });

@@ -73,7 +73,50 @@ public class TabChecks implements FabricClientGameTest {
             int after = ctx.computeOnClient(mc -> com.trevlar.menukit.inject.ContainerRegions.relayouts());
             if (after - before > 2) fail("with a box's tab shown, the screen was laid out again " + (after - before) + " times in 20 ticks");
 
+            // Every frame from the double-click on looks either as before it (the chest shown,
+            // the red box not greyed) or as after (the box's grid drawn at its height, the box
+            // greyed in the chest): never a frame between, which is the flash (Trev, 2026-10-23;
+            // it was a frame of the panel 8 px tall, laid out before the new grid was sized).
+            ctx.runOnClient(mc -> Tabs.pick(CHEST));
+            ctx.waitTicks(3);
+            List<String> frames = java.util.Collections.synchronizedList(new ArrayList<>());
+            boolean[] recording = {true};
+            // Attached again on every init: a screen's own events are cleared when it inits.
+            java.util.function.Consumer<net.minecraft.client.gui.screens.Screen> record = sc ->
+                    net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(sc).register((screen, g, mx, my, delta) -> {
+                        if (!recording[0]) return;
+                        Slot red = null;
+                        for (Slot sl : ((AbstractContainerScreen<?>) screen).getMenu().slots)
+                            if (isChest(sl) && idOf(sl).equals("red_shulker_box")) { red = sl; break; }
+                        boolean grey = red != null && Sessions.isOpenOnClient(red.container, red.getContainerSlot())
+                                && !com.trevorschoeny.openanywhere.OpenAnywhereClient.awaitingTabForChecks(red);
+                        String shownNow = Tabs.shown();
+                        frames.add(shownNow + " drawn=" + (shownNow != null && Tabs.drawnForChecks(shownNow))
+                                + " chestDrawn=" + Tabs.drawnForChecks(CHEST) + " grey=" + grey
+                                + " h=" + (ContainerRegion.CONTAINERS.box(screen) == null ? -1 : ContainerRegion.CONTAINERS.box(screen).imageHeight()));
+                    });
+            ctx.runOnClient(mc -> {
+                record.accept(mc.gui.screen());
+                net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+                    if (!recording[0] || !(screen instanceof ContainerScreen)) return;
+                    frames.add("INIT");
+                    record.accept(screen);
+                });
+            });
             open(s -> isChest(s) && idOf(s).equals("red_shulker_box"), "the red box");
+            recording[0] = false;
+            List<String> seen = List.copyOf(frames);
+            // After the open, every frame is the box at its own height, the last frame's.
+            String settled = seen.getLast().substring(seen.getLast().indexOf(" h="));
+            boolean unchanged = true;
+            for (String f : seen) {
+                if (f.equals("INIT")) continue;
+                boolean old = f.startsWith(CHEST + " ") && f.contains("chestDrawn=true") && f.contains("grey=false");
+                boolean now = !f.startsWith(CHEST + " ") && f.contains(" drawn=true") && f.contains("grey=true") && f.endsWith(settled);
+                if (unchanged && old) continue;
+                unchanged = false;
+                if (!now) { fail("a frame between the chest and the opened box: " + String.join(" | ", seen)); break; }
+            }
             open(s -> isChest(s) && idOf(s).equals("orange_shulker_box"), "the orange box");
             open(s -> s.container instanceof Inventory && s.getContainerSlot() == 0, "the lime box");
             int open = scene.world().getServer().computeOnServer(sv -> Sessions.of(sv.getPlayerList().getPlayers().getFirst()).size());
