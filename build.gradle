@@ -118,6 +118,10 @@ apply from: rootProject.file('Trevlar Mods Codebases/test-gallery/kit/checks.gra
 if (project.hasProperty('openanywhere.capture')) {
     tasks.matching { it.name == 'runClientGameTest' }.configureEach { systemProperty 'openanywhere.openMillis', '4000' }
 }
+// -Popenanywhere.walk: ScreenChecks films the tabs in use, at real speed, for a WebP.
+if (project.hasProperty('openanywhere.walk')) {
+    tasks.matching { it.name == 'runClientGameTest' }.configureEach { systemProperty 'openanywhere.walk', 'true' }
+}
 dependencies {
     gametestImplementation sourceSets.client.output
     gametestImplementation rootProject.project(':menukit').sourceSets.client.output

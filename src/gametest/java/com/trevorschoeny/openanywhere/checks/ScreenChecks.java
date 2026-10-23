@@ -76,6 +76,8 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::lock);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
+            // With -Popenanywhere.walk: the tabs in use, frame by frame, for a WebP.
+            if (Boolean.getBoolean("openanywhere.walk")) run("openanywhere:screens_every_box", this::walkthrough);
         }
         if (!failures.isEmpty()) throw new AssertionError("screen checks failed:\n- " + String.join("\n- ", failures));
     }
@@ -288,6 +290,52 @@ public class ScreenChecks implements FabricClientGameTest {
         });
         if (!api.equals("lime_shulker_box")) throw new AssertionError("OpenItems.shown is " + api + " on the server");
         if (ctx.computeOnClient(mc -> ShownItem.get() == null)) throw new AssertionError("ShownItem.get() is null with the lime box in front");
+    }
+
+    /**
+     * Not a check: the tabs in use, screenshotted as fast as screenshots come and named by
+     * the milliseconds since it started, stitched into a WebP. Opens the chest, two boxes,
+     * goes to the inventory and back, then every box gets a tab and the wheel runs along them.
+     */
+    private void walkthrough() {
+        long start = System.currentTimeMillis();
+        openBlock();
+        film(start, 700);
+        doubleClick(containerSlot(0), "the red box");
+        film(start, 900);
+        pick(TabId.WORLD);
+        film(start, 600);
+        doubleClick(containerSlot(4), "the cyan box");
+        film(start, 900);
+        doubleClick(s -> !(s.container instanceof Inventory) && s.getContainerSlot() == 0, "the bundle in the cyan box");
+        film(start, 900);
+        pick(TabId.INVENTORY);
+        film(start, 900);
+        pick(TabId.WORLD);
+        film(start, 900);
+        ctx.runOnClient(mc -> mc.player.closeContainer());
+        ctx.waitTicks(5);
+        ctx.runOnClient(mc -> Settings.setEveryBox(true));
+        openBlock();
+        film(start, 700);
+        List<TabId> ids = ctx.computeOnClient(mc -> {
+            List<TabId> all = new ArrayList<>();
+            for (Tab tab : Tabs.row()) all.add(tab.id());
+            return all;
+        });
+        for (TabId id : ids.subList(2, ids.size())) {
+            pick(id);
+            film(start, 500);
+        }
+    }
+
+    /** Screenshots for {@code millis}, each named by its time since {@code start}. */
+    private void film(long start, long millis) {
+        // The mouse off every slot, so no tooltip covers the screen.
+        ctx.getInput().setCursorPos(2, 2);
+        long until = System.currentTimeMillis() + millis;
+        while (System.currentTimeMillis() < until)
+            ctx.takeScreenshot("walk-" + String.format("%06d", System.currentTimeMillis() - start));
     }
 
     // Reads
