@@ -67,6 +67,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         if (FabricLoader.getInstance().isModLoaded("inventoryplus")) com.trevorschoeny.openanywhere.ip.SettingsTab.register();
         ClientPlayNetworking.registerGlobalReceiver(SessionS2C.TYPE, (payload, context) -> mirror(context.player(), payload));
         ClientPanels.register();
+        ClientMarks.register();
         // The host is vanilla's chest menu, so it gets vanilla's chest screen.
         MenuScreens.register(ContainerHost.TYPE, ContainerScreen::new);
 

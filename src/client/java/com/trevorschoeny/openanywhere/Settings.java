@@ -37,6 +37,7 @@ public final class Settings {
     private static final Map<Openable, Boolean> OPENS = new EnumMap<>(Openable.class);
     private static boolean doubleClick = true;
     private static boolean wheel = true;
+    private static boolean animation = true;
 
     /** Whether {@code kind} opens at all. Turning one off leaves any already open until closed. */
     public static boolean opens(Openable kind) { return OPENS.getOrDefault(kind, true); }
@@ -44,16 +45,20 @@ public final class Settings {
     public static boolean doubleClick() { return doubleClick; }
     /** Whether the wheel moves between tabs. */
     public static boolean wheel() { return wheel; }
+    /** Whether an opened box plays its open animation in its slot; off, it's greyed instead. */
+    public static boolean animation() { return animation; }
 
     public static void setOpens(Openable kind, boolean on) { OPENS.put(kind, on); save(); }
     public static void setDoubleClick(boolean on) { doubleClick = on; save(); }
     public static void setWheel(boolean on) { wheel = on; save(); }
+    public static void setAnimation(boolean on) { animation = on; save(); }
 
     /** Everything back to on, and saves: Reset to Defaults and Inventory Plus's Reset everything. */
     public static void reset() {
         OPENS.clear();
         doubleClick = true;
         wheel = true;
+        animation = true;
         save();
     }
 
@@ -75,6 +80,7 @@ public final class Settings {
             });
             if (root.has("double_click")) doubleClick = root.get("double_click").getAsBoolean();
             if (root.has("wheel_switches_tabs")) wheel = root.get("wheel_switches_tabs").getAsBoolean();
+            if (root.has("open_animation")) animation = root.get("open_animation").getAsBoolean();
         } catch (IOException | RuntimeException ex) {
             LOG.error("[openanywhere] couldn't read {}; using the defaults", path, ex);
         }
@@ -86,6 +92,7 @@ public final class Settings {
         KEYS.forEach((kind, key) -> root.addProperty(key, opens(kind)));
         root.addProperty("double_click", doubleClick);
         root.addProperty("wheel_switches_tabs", wheel);
+        root.addProperty("open_animation", animation);
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, new GsonBuilder().setPrettyPrinting().create().toJson(root));

@@ -5,6 +5,10 @@ import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 
+import com.trevlar.menukit.api.element.Easing;
+import com.trevlar.menukit.api.element.ItemAnimation;
+import com.trevlar.menukit.api.element.Transition;
+import com.trevlar.menukit.api.panel.SlotItemLooks;
 import com.trevlar.slotkit.api.slot.CreatedSlot;
 
 import net.minecraft.client.Minecraft;
@@ -13,12 +17,14 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
+import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * How an opened item looks in its slot ({@code SlotMarksMixin}, {@code OpenBundleLookMixin}):
- * greyed, a bundle drawn open, and an open bundle's add slot marked with a plus.
+ * a box or ender chest plays its open animation and stays open (greyed instead, with the
+ * animation turned off), a bundle drawn open, and an open bundle's add slot marked with a plus.
  */
 public final class ClientMarks {
 
@@ -62,13 +68,42 @@ public final class ClientMarks {
         return Sessions.isOpenOnClient(slot.container, slot.getContainerSlot()) && !awaitingTab(slot);
     }
 
+    /** Where an opened item sits: what its animation is keyed by, so a redraw picks it up where it stood. */
+    private record Place(Container container, int slot) {}
+
+    /**
+     * A quarter second, as a placed shulker box takes to open. The property slows it for a
+     * frame-by-frame capture, whose screenshots each take longer than the whole animation.
+     */
+    private static final Transition OPENING = Transition.of(Integer.getInteger("openanywhere.openMillis", 250), Easing.EASE_OUT);
+    /**
+     * The lid opening, the box shrinking as it goes and sitting a little lower, so the open
+     * lid stays inside the slot.
+     */
+    private static final ItemAnimation OPEN = ItemAnimation.OPEN_LID
+            .posed(t -> new ItemAnimation.Pose(1f - 0.3f * t, 0f, 2f * t));
+
+    /**
+     * Boxes and ender chests open in their slots, and close again, through MenuKit's slot
+     * looks. A bundle has no lid; it's drawn open by {@link #drawnAs}.
+     */
+    static void register() {
+        SlotItemLooks.declare(OpenAnywhere.MOD_ID + ":open_items", (screen, slot, stack) -> {
+            Openable kind = Openable.of(stack);
+            if (kind == null || kind == Openable.BUNDLE || !Settings.animation()) return null;
+            float t = OPENING.toward(new Place(slot.container, slot.getContainerSlot()), shownOpen(slot));
+            return t > 0 ? OPEN.at(t) : null;
+        });
+    }
+
     /** Shulker Palette's grey for its open box: a disabled control's. */
     private static final int GREY = 0x80606060;
     /** MenuKit's add mark (ItemPicker): white over vanilla's shadow for white. */
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
 
     public static void draw(GuiGraphicsExtractor graphics, Slot slot, @Nullable CreatedSlot created) {
-        if (shownOpen(slot)) {
+        // With the animation on, an open box shows by its lid and a bundle by its open bag.
+        if (shownOpen(slot) && !Settings.animation()) {
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
         }
         if (created != null && !slot.hasItem() && isAddSlot(slot, created)) {

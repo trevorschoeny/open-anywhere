@@ -113,6 +113,11 @@ fabricApi {
     }
 }
 apply from: rootProject.file('Trevlar Mods Codebases/test-gallery/kit/checks.gradle')   // SceneWorld
+// -Popenanywhere.capture: the open animation slowed 16 times, so ModeChecks' screenshots
+// catch it frame by frame (they're stitched into a WebP played back at real speed).
+if (project.hasProperty('openanywhere.capture')) {
+    tasks.matching { it.name == 'runClientGameTest' }.configureEach { systemProperty 'openanywhere.openMillis', '4000' }
+}
 dependencies {
     gametestImplementation sourceSets.client.output
     gametestImplementation rootProject.project(':menukit').sourceSets.client.output

@@ -5,10 +5,12 @@ import java.util.List;
 import com.trevlar.menukit.api.dialog.ConfirmDialog;
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.panel.MKScreen;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.ScreenKind;
 
 import net.fabricmc.loader.api.FabricLoader;
@@ -54,7 +56,7 @@ public final class SettingsScreen extends MKScreen {
     private static Panel page() {
         return Panel.builder(OpenAnywhere.MOD_ID + ":settings")
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.main())
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.main()))
                 .elements(SettingsPage.body((title, body, action) -> pending = new Asked(title, body, action), false))
                 .build();
     }
@@ -78,7 +80,7 @@ public final class SettingsScreen extends MKScreen {
     private static Panel done(@Nullable Screen parent) {
         return Panel.builder(OpenAnywhere.MOD_ID + ":settings_done")
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.BOTTOM_CENTER)))
                 .add(Button.builder().label(CommonComponents.GUI_DONE).size(200, 20)
                         .onClick(() -> Minecraft.getInstance().gui.setScreen(parent)).build())
                 .build();

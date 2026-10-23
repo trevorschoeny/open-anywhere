@@ -98,7 +98,8 @@ public class ModeChecks implements FabricClientGameTest {
      */
     private void survivalShulker() {
         openInventory();
-        doubleClick(hotbar(0), "shulker box");
+        doubleClickNow(hotbar(0), "shulker box");
+        frames("anim-shulker-open");
         expectScreen(ContainerScreen.class, "double-click on the box");
         expectServerSession(Openable.SHULKER, true);
         doubleClick(hotbar(2), "the bundle, from the box's screen");
@@ -110,9 +111,27 @@ public class ModeChecks implements FabricClientGameTest {
 
     private void survivalEnder() {
         openInventory();
-        doubleClick(hotbar(1), "ender chest");
+        doubleClickNow(hotbar(1), "ender chest");
+        frames("anim-ender-open");
         expectScreen(ContainerScreen.class, "double-click on the ender chest");
         expectServerSession(Openable.ENDER_CHEST, true);
+        // Again: it closes, back to the inventory, and its lid shuts.
+        doubleClickNow(hotbar(1), "the open ender chest");
+        frames("anim-ender-close");
+    }
+
+    /**
+     * Screenshots as fast as they come, named by the milliseconds since the click, for as
+     * long as the open animation runs and a little after: the animation, for a look,
+     * stitched into a WebP. Only with {@code -Popenanywhere.capture}, which slows the
+     * animation so the screenshots keep up; otherwise the double-click's usual wait.
+     */
+    private void frames(String name) {
+        int millis = Integer.getInteger("openanywhere.openMillis", 0);
+        long start = System.currentTimeMillis();
+        while (millis > 0 && System.currentTimeMillis() - start < millis + 600)
+            ctx.takeScreenshot(name + "-" + String.format("%05d", System.currentTimeMillis() - start));
+        ctx.waitTicks(6);
     }
 
     /**
@@ -367,13 +386,18 @@ public class ModeChecks implements FabricClientGameTest {
      * TestInput clicks carry no modifiers, so this goes through the MouseHandler hook.
      */
     private void doubleClick(Predicate<Slot> p, String what) {
+        doubleClickNow(p, what);
+        ctx.waitTicks(6);
+    }
+
+    /** The double-click alone, with no wait after: for catching what follows frame by frame. */
+    private void doubleClickNow(Predicate<Slot> p, String what) {
         hover(p, what);
         ctx.runOnClient(mc -> {
             var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
             for (int i = 0; i < 2; i++) for (int action : new int[] {1, 0})
                 mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
         });
-        ctx.waitTicks(6);
     }
 
     /** The player's first open session of {@code kind} (the oldest), or null. */

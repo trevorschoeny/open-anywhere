@@ -63,7 +63,8 @@ public final class SettingsPage {
                 checkbox(top + 94, "openanywhere.settings.double_click", Settings::doubleClick, Settings::setDoubleClick),
                 ChordButton.builder(OpenAnywhereClient.OPEN).at(0, top + 110)
                         .label(Component.translatable("openanywhere.settings.open_key")).build(),
-                checkbox(top + 134, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel)));
+                checkbox(top + 134, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
+                checkbox(top + 150, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
         return page;
     }
 
