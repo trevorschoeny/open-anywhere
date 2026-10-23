@@ -3,8 +3,8 @@
 // sides: the server owns every change (sessions, the dupe guard, the ender chest sync),
 // the client the tooltip view and, later, the panels. Built on SlotKit and MenuKit.
 //
-// Included from the root settings.gradle as `:shulkers-in-inventory`. Build with
-// `./gradlew :shulkers-in-inventory:build` from the workspace root.
+// Included from the root settings.gradle as `:open-anywhere`. Build with
+// `./gradlew :open-anywhere:build` from the workspace root.
 
 plugins {
     // The Loom plugin id is namespaced from 1.15 on. The version is pinned at the workspace root.
@@ -13,10 +13,10 @@ plugins {
     id 'com.modrinth.minotaur' version '2.+'
 }
 
-version = property('shulkersininventory_version')
+version = property('openanywhere_version')
 group   = property('maven_group')
 
-base.archivesName = 'shulkers-in-inventory'
+base.archivesName = 'open-anywhere'
 
 java {
     // Minecraft 26.x runs on Java 25.
@@ -64,7 +64,7 @@ loom {
         client { ideConfigGenerated = false }
         server { ideConfigGenerated = false }
         // Test Gallery: boots straight into the generated test world in run/saves/TestGallery.
-        // Generate it with `test-gallery/run-scene.sh shulkers-in-inventory <scene>` (which also runs this).
+        // Generate it with `test-gallery/run-scene.sh open-anywhere <scene>` (which also runs this).
         testGallery {
             inherit client
             name 'Test Gallery'
@@ -89,7 +89,7 @@ dependencies {
 }
 
 // Self-checks: Fabric client gametests in src/gametest, run with
-// `./gradlew :shulkers-in-inventory:runClientGameTest`. The run opens its own window, runs
+// `./gradlew :open-anywhere:runClientGameTest`. The run opens its own window, runs
 // every check against the scenes' check worlds and closes; it never touches run/ or a scene client.
 fabricApi {
     configureTests {
@@ -133,14 +133,14 @@ processResources {
 }
 
 // ── Modrinth Publishing ────────────────────────────────────────────────
-// Shulkers in Inventory (slug shulkers-in-inventory). Lead creates the project at the
+// Open Anywhere (slug open-anywhere). Lead creates the project at the
 // first release and fills in its id; empty until then (new-mod-setup.md step 7).
 // Lead @ Trevlar Mods owns the publish.
 modrinth {
     token = System.getenv("MODRINTH_TOKEN")
     projectId = ""
-    versionNumber = property('shulkersininventory_version')
-    versionName = "Shulkers in Inventory ${property('shulkersininventory_version')}"
+    versionNumber = property('openanywhere_version')
+    versionName = "Open Anywhere ${property('openanywhere_version')}"
     versionType = "release"
     // ci-cd.md stage 5: the player-facing changelog lives in changelog.md, one entry,
     // overwritten each release (git keeps the history).
