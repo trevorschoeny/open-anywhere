@@ -12,6 +12,7 @@ import com.trevlar.slotkit.api.slot.SlotElement;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.util.Util;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -28,21 +29,18 @@ final class SlotScroll {
 
     private SlotScroll() {}
 
-    /** The most a grid may take of a screen {@code height} tall, in whole rows. */
-    private static int room(int height) {
-        return Math.max(MIN_ROWS, (height - OVERHEAD) / ROW) * ROW;
+    /**
+     * The most a grid may take on {@code screen}, in whole rows: the room MenuKit's fitted
+     * list leaves for a section's content, never under {@link #MIN_ROWS} (also while the
+     * list isn't laid out yet, when MenuKit says 0).
+     */
+    private static int room(Screen screen) {
+        return Math.max(MIN_ROWS, ContainerRegion.contentRoom(screen) / ROW) * ROW;
     }
 
     private static final int ROW = 18;
     /** Never fewer rows than a vanilla container shows, however short the window. */
     private static final int MIN_ROWS = 3;
-    /**
-     * The height a container panel in tabs mode needs besides its grid: the tabs, the
-     * frame, the inventory part and MenuKit's margins. ponytail: measured (a double chest
-     * fits a 240 px window exactly with 20 px tabs, so the tab row's height counts above that);
-     * MenuKit's layout could hand this out.
-     */
-    private static final int OVERHEAD = 240 - 6 * ROW - 20 + com.trevlar.menukit.inject.RegionLayout.TAB_ROW;
 
     /**
      * A scroll area as tall as its slots up to a cap, set each frame from the window
@@ -151,7 +149,7 @@ final class SlotScroll {
         // and lays the list out from it at once, so an unsized grid drew the panel 8 px tall
         // for a frame (the flash on opening, Trev 2026-10-23).
         var screen = Minecraft.getInstance().gui.screen();
-        if (screen != null) scroll.frame(room(screen.height));
+        if (screen != null) scroll.frame(room(screen));
         return scroll;
     }
 
@@ -165,7 +163,7 @@ final class SlotScroll {
         ScreenEvents.AFTER_INIT.register(early, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> {
-                int room = room(s.height);
+                int room = room(s);
                 for (Grid grid : GRIDS) grid.frame(room);
             });
         });
