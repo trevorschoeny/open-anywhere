@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Checks for the modes scene (test-gallery/scenes/shulkers-in-inventory/modes.json): opening
+ * Checks for the modes scene (test-gallery/scenes/open-anywhere/modes.json): opening
  * in survival and creative, a mode switch with an item open, and the settings. Every check
  * opens the way a hand does, double-click through the mouse.
  */
@@ -47,7 +47,7 @@ public class ModeChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
-        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "modes")) {
+        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "modes")) {
             this.scene = scene;
             run("openanywhere:survival_shulker", this::survivalShulker);
             run("openanywhere:survival_ender", this::survivalEnder);

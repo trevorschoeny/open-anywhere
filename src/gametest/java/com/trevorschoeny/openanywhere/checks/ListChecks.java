@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Checks for the container-list scene (test-gallery/scenes/shulkers-in-inventory/container-list.json):
+ * Checks for the container-list scene (test-gallery/scenes/open-anywhere/container-list.json):
  * on a chest's screen a box or bundle opens below the chest, in MenuKit's container list,
  * and the chest stays open. Every open is a real shift+right-click through the mouse.
  */
@@ -44,7 +44,7 @@ public class ListChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
-        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "container-list")) {
+        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "container-list")) {
             this.scene = scene;
             run("openanywhere:list_box_in_chest", this::boxInChest);
             run("openanywhere:list_shift_click", this::shiftClick);

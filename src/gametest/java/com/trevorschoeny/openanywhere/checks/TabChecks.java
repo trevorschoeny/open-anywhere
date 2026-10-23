@@ -24,7 +24,7 @@ import net.minecraft.world.inventory.Slot;
 import testgallery.SceneWorld;
 
 /**
- * Tabs on a double chest (scene shulkers-in-inventory/tabs): the ender chest, a box inside
+ * Tabs on a double chest (scene open-anywhere/tabs): the ender chest, a box inside
  * it, two boxes from the chest and one from the hotbar, each shown on its own as it opens,
  * then the chest again. Checked for what shows and how tall the panel is, and screenshotted
  * at GUI scale 2 (240 px tall, the size it's played at).
@@ -39,7 +39,7 @@ public class TabChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
-        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "shulkers-in-inventory", "tabs")) {
+        try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "tabs")) {
             int scale = ctx.computeOnClient(mc -> mc.options.guiScale().get());
             ctx.runOnClient(mc -> { mc.options.guiScale().set(2); mc.resizeGui(); });
             var station = scene.station("openanywhere:tabs");
