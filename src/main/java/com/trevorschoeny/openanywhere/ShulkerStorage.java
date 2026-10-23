@@ -1,14 +1,16 @@
 package com.trevorschoeny.openanywhere;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.trevlar.slotkit.api.storage.Storage;
 
-import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
 
 /**
- * An opened shulker box's 27 stacks, as the storage behind its slot group ({@link Groups#add}).
+ * An opened shulker box's stacks, as the storage behind its screen's container.
  *
  * <p>Live, not copied. Vanilla often changes a slot's stack in place and then only says
  * so ({@code itemstack.grow(n); slot.setChanged()} when stacking onto it), so reads hand
@@ -17,24 +19,30 @@ import net.minecraft.world.item.component.ItemContainerContents;
  * component at once. The list is reloaded whenever the component is no longer the one
  * it was read from (the box changed by anything else).
  *
- * <p>Bound to the one box while it's open; the session's per-tick check closes it if the
- * box moves.
+ * <p>Its size is the box's room: vanilla's 27, or more when another mod gives the box more
+ * ({@link com.trevorschoeny.openanywhere.api.OpenItems#boxSize}). Whatever the box holds past
+ * its room is kept as it is and written back with the rest, so nothing in the box is ever
+ * lost by opening it here.
  */
 final class ShulkerStorage implements Storage {
 
     private final ItemStack box;
+    private final int size;
     private ItemContainerContents loadedFrom = null;
-    private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.SHULKER.slots, ItemStack.EMPTY);
+    // The box's whole list: the room's slots, then anything stored past them.
+    private final List<ItemStack> live = new ArrayList<>();
 
-    ShulkerStorage(ItemStack box) {
+    ShulkerStorage(ItemStack box, int size) {
         this.box = box;
+        this.size = size;
     }
 
-    private NonNullList<ItemStack> live() {
+    private List<ItemStack> live() {
         ItemContainerContents contents = box.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
         if (contents != loadedFrom) {
-            for (int i = 0; i < live.size(); i++) live.set(i, ItemStack.EMPTY);
-            contents.copyInto(live);
+            live.clear();
+            contents.itemCopies().forEach(live::add);
+            while (live.size() < size) live.add(ItemStack.EMPTY);
             loadedFrom = contents;
         }
         return live;
@@ -53,7 +61,7 @@ final class ShulkerStorage implements Storage {
 
     @Override
     public int size() {
-        return live.size();
+        return size;
     }
 
     @Override

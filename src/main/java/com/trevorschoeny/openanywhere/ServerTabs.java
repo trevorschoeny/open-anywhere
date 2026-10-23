@@ -19,6 +19,7 @@ import com.trevlar.slotkit.api.item.LiveItem;
 import com.trevlar.slotkit.api.menu.MenuSwitch;
 import com.trevlar.slotkit.api.storage.Storage;
 import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
+import com.trevorschoeny.openanywhere.api.OpenItems;
 
 import org.jspecify.annotations.Nullable;
 
@@ -440,12 +441,8 @@ public final class ServerTabs {
         if (live == null) return;
         Component title = live.stack().getHoverName();
         if (kind == Openable.SHULKER) {
-            Storage storage = live.storage(new ShulkerStorage(live.stack()));
-            // Vanilla refuses clicks into a menu that's no longer valid, and closes it: once
-            // the box has moved, nothing lands in it.
-            Container box = new StorageContainerAdapter(storage) {
-                @Override public boolean stillValid(Player p) { return !live.isStale(); }
-            };
+            Storage storage = live.storage(new ShulkerStorage(live.stack(), OpenItems.boxSizeOf(live.stack())));
+            Container box = new BoxContainer(storage, live);
             show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(new ShulkerBoxMenu(id, inventory, box)), title),
                     path, kind, live, top);
             return;
@@ -469,6 +466,24 @@ public final class ServerTabs {
         if (opened.isEmpty()) return false;
         st.front = new Front(player.containerMenu, TabId.item(path), kind, live, top, path.slot());
         return true;
+    }
+
+    /**
+     * An opened box's container: its storage, with vanilla's validity check tied to the live
+     * item, so once the box has moved vanilla refuses clicks into it and closes it, and the
+     * box item for other mods ({@link OpenItems.Box}).
+     */
+    private static final class BoxContainer extends StorageContainerAdapter implements OpenItems.Box {
+        private final LiveItem live;
+
+        BoxContainer(Storage storage, LiveItem live) {
+            super(storage);
+            this.live = live;
+        }
+
+        @Override public boolean stillValid(Player player) { return !live.isStale(); }
+
+        @Override public ItemStack stack() { return live.stack(); }
     }
 
     private static <M extends AbstractContainerMenu> M ours(M menu) {

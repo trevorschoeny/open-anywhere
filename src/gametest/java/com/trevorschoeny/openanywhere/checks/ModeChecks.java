@@ -142,6 +142,9 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.SHULKER, true);
         int boxes = scene.world().getServer().computeOnServer(sv -> sv.getPlayerList().getPlayers().getFirst().getInventory().countItem(Items.SHULKER_BOX));
         if (boxes != 1) throw new AssertionError(boxes + " shulker boxes in the inventory after opening in creative, not 1");
+        // The Inventory tab goes back to creative's own inventory, as the inventory key does in creative.
+        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick(com.trevorschoeny.openanywhere.TabId.INVENTORY));
+        expectScreen(CreativeModeInventoryScreen.class, "the Inventory tab in creative");
     }
 
     /** An item tab shows only the hotbar; nothing opens from it and no bundle slots appear. */

@@ -59,9 +59,17 @@ public class ScreenChecks implements FabricClientGameTest {
     private JsonObject station;
     private final List<String> failures = new ArrayList<>();
 
+    // Every frame drawn while recording: the screen, and how many of its container's slots show an item.
+    private static volatile boolean recording;
+    private static final List<String> FRAMES = java.util.Collections.synchronizedList(new ArrayList<>());
+
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
+        ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->
+                net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((sc, g, mx, my, delta) -> {
+                    if (recording) FRAMES.add(describe(sc));
+                })));
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "screens")) {
             this.scene = scene;
             run("openanywhere:screens_chest_tabs", this::chestTabs);
@@ -76,6 +84,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::lock);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
+            run("openanywhere:screens_no_flash", this::noFlash);
             // With -Popenanywhere.walk: the tabs in use, frame by frame, for a WebP.
             if (Boolean.getBoolean("openanywhere.walk")) run("openanywhere:screens_every_box", this::walkthrough);
         }
@@ -140,8 +149,18 @@ public class ScreenChecks implements FabricClientGameTest {
         if (!cobble) throw new AssertionError("the chest came back without its cobblestone");
     }
 
-    /** Taking from a box opened in a chest takes from the box itself. */
+    /**
+     * Taking from a box opened in a chest takes from the box itself, and what the box holds
+     * past vanilla's 27 slots (another mod's extra rows) stays put.
+     */
     private void boxEdits() {
+        scene.world().getServer().runOnServer(server -> {
+            ItemStack box = chest(server).getItem(4);
+            List<ItemStack> items = new ArrayList<>(box.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).itemCopies().toList());
+            while (items.size() < 41) items.add(ItemStack.EMPTY);
+            items.set(40, new ItemStack(Items.CACTUS, 8));
+            box.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+        });
         openBlock();
         doubleClick(containerSlot(4), "the purple box in the chest");
         expectScreen(ShulkerBoxScreen.class, "double-click on the box");
@@ -150,6 +169,8 @@ public class ScreenChecks implements FabricClientGameTest {
         if (left != 0) throw new AssertionError("the box in the chest still holds " + left + " diamonds after taking them");
         int carried = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.DIAMOND));
         if (carried != 5) throw new AssertionError("the inventory has " + carried + " diamonds, not 5");
+        int kept = scene.world().getServer().computeOnServer(server -> count(chest(server).getItem(4), Items.CACTUS));
+        if (kept != 8) throw new AssertionError("the box's slot 41 held 8 cactus; after an edit it holds " + kept);
     }
 
     /** From the inventory: the box's screen, back to the inventory with the box shown open, then double-clicked shut. */
@@ -338,6 +359,54 @@ public class ScreenChecks implements FabricClientGameTest {
             ctx.takeScreenshot("walk-" + String.format("%06d", System.currentTimeMillis() - start));
     }
 
+    /**
+     * No frame shows a switched-to screen empty: each switch is filmed frame by frame (every
+     * frame drawn, not screenshots), and a frame of the new screen with nothing in its
+     * container's slots is a flash. The box holds diamonds, the bundle stone, the chest cobblestone.
+     */
+    private void noFlash() {
+        openBlock();
+        switchAndWatch(() -> doubleClickNow(containerSlot(4), "the purple box"), "ShulkerBoxScreen", "opening the box");
+        switchAndWatch(() -> ctx.runOnClient(mc -> Tabs.pick(TabId.WORLD)), "ContainerScreen", "back to the chest");
+        switchAndWatch(() -> doubleClickNow(hotbar(2), "the bundle"), "ContainerScreen", "opening the bundle");
+        TabId box = tabOf("purple_shulker_box");
+        switchAndWatch(() -> ctx.runOnClient(mc -> Tabs.pick(box)), "ShulkerBoxScreen", "the box's tab from the bundle");
+        TabId bundle = tabOf("bundle");
+        switchAndWatch(() -> ctx.runOnClient(mc -> Tabs.pick(bundle)), "ContainerScreen", "the bundle's tab from the box");
+    }
+
+    /** The row's tab for the item named {@code name}. */
+    private TabId tabOf(String name) {
+        return ctx.computeOnClient(mc -> {
+            for (Tab tab : Tabs.row()) if (tab.id().type() == TabId.Type.ITEM && name(tab.item()).equals(name)) return tab.id();
+            throw new AssertionError("no " + name + " tab on the row");
+        });
+    }
+
+    /** Runs {@code action}, records every frame for half a second, and fails on a frame of {@code screen} with an empty container. */
+    private void switchAndWatch(Runnable action, String screen, String what) {
+        FRAMES.clear();
+        recording = true;
+        action.run();
+        ctx.waitTicks(10);
+        recording = false;
+        List<String> frames;
+        synchronized (FRAMES) { frames = new ArrayList<>(FRAMES); }
+        if (frames.stream().noneMatch(f -> f.startsWith(screen + ":") && !f.endsWith(":0")))
+            throw new AssertionError(what + ": " + screen + " never showed filled; frames " + frames);
+        for (String f : frames) {
+            if (f.equals(screen + ":0")) throw new AssertionError(what + ": a frame drew " + screen + " empty (a flash); frames " + frames);
+        }
+    }
+
+    /** A frame, as {@code ScreenClass:items}: how many of the screen's own container slots (not the inventory's) show an item. */
+    private static String describe(net.minecraft.client.gui.screens.Screen screen) {
+        if (!(screen instanceof AbstractContainerScreen<?> container)) return screen.getClass().getSimpleName() + ":-";
+        int items = 0;
+        for (Slot s : container.getMenu().slots) if (!(s.container instanceof Inventory) && s.isActive() && s.hasItem()) items++;
+        return screen.getClass().getSimpleName() + ":" + items;
+    }
+
     // Reads
 
     /** The row as names: the inventory and world tabs by type, items by their item's id. */
@@ -472,6 +541,16 @@ public class ScreenChecks implements FabricClientGameTest {
                 mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
         });
         ctx.waitTicks(8);
+    }
+
+    /** A double-click with no wait after it. */
+    private void doubleClickNow(Predicate<Slot> p, String what) {
+        hover(p, what);
+        ctx.runOnClient(mc -> {
+            var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+            for (int i = 0; i < 2; i++) for (int action : new int[] {1, 0})
+                mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
+        });
     }
 
     /** A shift-click, with SDL's Left Shift bit, through the mouse hook (TestInput clicks carry no modifiers). */

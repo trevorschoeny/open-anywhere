@@ -16,10 +16,12 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 /**
- * A section's slots, growing with the group's rows (a bundle as it fills, a box with more
- * rows) until the panel would leave the screen, then scrolling inside the grid alone. The
- * tabs and the inventory stay put. MenuKit's {@code fitRoom} does the sizing: as tall as
- * the live rows while the window has room, shorter by whole rows when it hasn't.
+ * A section's slots: never fewer than three rows, so a bundle's screen is as tall as a
+ * chest's or a box's and the tab row stays put as tabs switch; growing with the bundle's
+ * rows past that until the panel would leave the screen, then scrolling inside the grid
+ * alone. The tabs and the inventory stay put. MenuKit's {@code fitRoom} does the sizing:
+ * never below its declared three rows, as tall as the live rows while the window has room,
+ * shorter by whole rows when it hasn't.
  *
  * <p>Kept in Open Anywhere until another mod needs it, then it moves to MenuKit or SlotKit
  * as a primitive.

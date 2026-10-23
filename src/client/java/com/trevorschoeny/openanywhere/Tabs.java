@@ -66,7 +66,7 @@ public final class Tabs {
     }
 
     /** The item tabs, in order, while the row shows: MenuKit's keys for them. */
-    static List<TabId> items() {
+    public static List<TabId> items() {
         List<TabId> ids = new ArrayList<>();
         for (Tab tab : row()) if (tab.id().type() == TabId.Type.ITEM) ids.add(tab.id());
         return ids;
