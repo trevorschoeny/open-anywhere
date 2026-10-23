@@ -32,13 +32,13 @@ import net.minecraft.world.item.component.BundleContents;
 /**
  * The slot groups items open in: one SlotKit {@link OnDemandGroup} per kind, on no menu
  * until the server opens an item, when an instance of it joins the open menu ({@link #add}),
- * and leaves when the item closes. As many open at once as the player likes (Trev,
- * 2026-10-22). An instance's number on its menu is the session's lane
+ * and leaves when the item closes. As many open at once as the player likes. An
+ * instance's number on its menu is the session's lane
  * ({@link Session#lane()}): SlotKit gives the lowest free one, the client hears the same.
  * What shows the groups is the client's ({@code ClientPanels}).
  *
  * <p>Also here, because both sides need them: the slot lock on opened items, the bundle's
- * per-slot rules, and where a shift-click goes (design, Rule 6).
+ * per-slot rules, and where a shift-click goes.
  */
 public final class Groups {
 
@@ -50,7 +50,7 @@ public final class Groups {
     /**
      * What each kind's slots are to other mods: a box is shulker storage and the ender chest
      * chest storage, as on vanilla's own screens for them, so a mod that acts on those (a
-     * sort button, a lock) finds them with nothing written for this mod (Trev, 2026-10-23).
+     * sort button, a lock) finds them with nothing written for this mod.
      * A bundle is SlotKit's bundle storage, the category any mod's opened bundle shares.
      */
     private static final Map<Openable, SlotGroupCategory> CATEGORY = new EnumMap<>(Map.of(
@@ -143,7 +143,7 @@ public final class Groups {
      *   <li>The add slot takes as much as vanilla's 64-weight rule allows.</li>
      *   <li>A filled slot never grows: more of the same goes in through the add slot.</li>
      *   <li>A filled slot swaps with a different item on the cursor, when that item fits
-     *       the bundle once the slot's stack is out (Trev, 2026-10-16).</li>
+     *       the bundle once the slot's stack is out.</li>
      * </ul>
      */
     private static void bundleRules() {
@@ -175,9 +175,9 @@ public final class Groups {
     }
 
     /**
-     * Rule 6 for what this mod shows in its own slots: a shift-click goes into the opened
+     * Shift-click routes for this mod's own slots: a shift-click goes into the opened
      * items, and out of one back to what holds it; what doesn't fit goes where vanilla sends
-     * it (Trev, 2026-10-16). With several open, into the newest box or bundle first, then
+     * it. With several open, into the newest box or bundle first, then
      * the older ones, then the ender chest. Out of the ender chest, into the open boxes and
      * bundles first, then back to what holds it.
      */

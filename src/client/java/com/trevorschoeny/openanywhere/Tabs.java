@@ -18,12 +18,12 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 
 /**
  * One container at a time on a chest's screen, picked by a row of tabs on the list's top
- * edge (Trev, 2026-10-21). MenuKit draws the row, makes a section and tab for each opened
+ * edge. MenuKit draws the row, makes a section and tab for each opened
  * item ({@link ContainerRegion#sections}) and fits the frame; which one is picked, the
  * fallback when the picked one goes away and the wheel are ours.
  *
- * <p>The row is the screen's own container (the host has none), then what's open, in the order it opened
- * (Trev, 2026-10-22): one closed and opened again goes to the end. That's the order of
+ * <p>The row is the screen's own container (the host has none), then what's open, in the
+ * order it opened: one closed and opened again goes to the end. That's the order of
  * the player's sessions, which MenuKit is given as the keys. The row shows only with two
  * or more: one container needs no picking.
  */

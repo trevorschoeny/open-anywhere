@@ -14,8 +14,8 @@ import net.minecraft.world.inventory.MenuType;
  * The screen items open on from the inventory: vanilla's own chest menu with no rows, just
  * the player's inventory, so the client shows vanilla's own chest screen and MenuKit's
  * container list shows each opened item above the inventory as a tab, exactly as on a
- * chest (Trev, 2026-10-22: boxes, bundles and the ender chest opened from the inventory
- * are tabs on one screen, so several can be open at once there too).
+ * chest. Boxes, bundles and the ender chest opened from the inventory are tabs on one
+ * screen, so several can be open at once there too.
  *
  * <p>Its own menu type only because vanilla's chest types start at one row. The menu and
  * the screen are vanilla's classes, so a mod that asks "is this a chest screen?" says yes.

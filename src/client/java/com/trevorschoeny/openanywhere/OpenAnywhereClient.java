@@ -36,7 +36,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
 
     /**
      * An optional key: held while clicking an item, it opens it in one click. Unbound by
-     * default; double-click is the way in (Trev, 2026-10-22), and this is for players who
+     * default; double-click is the way in, and this is for players who
      * want a key instead, set in Controls or on the settings tab.
      */
     public static final KeyMapping OPEN = new KeyMapping(

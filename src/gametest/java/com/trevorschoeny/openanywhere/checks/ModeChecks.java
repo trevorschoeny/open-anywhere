@@ -83,11 +83,11 @@ public class ModeChecks implements FabricClientGameTest {
         }
     }
 
-    // ── Stations ───────────────────────────────────────────────────────────
+    // Stations
 
     /**
      * From the inventory a box opens on the host screen, as a tab; a second item opened
-     * from there is a second tab, the first still open (Trev, 2026-10-22).
+     * from there is a second tab, the first still open.
      */
     private void survivalShulker() {
         openInventory();
@@ -150,7 +150,7 @@ public class ModeChecks implements FabricClientGameTest {
 
     /**
      * Creative's inventory tab: a double-click opens the box as if the player had opened the
-     * container itself (Trev, 2026-10-22), so its own screen replaces creative's and the
+     * container itself, so its own screen replaces creative's and the
      * creative tabs are gone. The box goes back in its slot, one box, none copied.
      */
     private void creativeInventoryTab() {
@@ -195,7 +195,7 @@ public class ModeChecks implements FabricClientGameTest {
     }
 
     /**
-     * The player's settings (Trev, 2026-10-22): a kind turned off doesn't open, double-click
+     * The player's settings: a kind turned off doesn't open, double-click
      * turned off doesn't open, and an item opened before its kind went off still closes.
      * Every setting goes back on at the end, pass or fail.
      */
@@ -223,7 +223,7 @@ public class ModeChecks implements FabricClientGameTest {
         }
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
+    // Helpers
 
     private void clearCursor() {
         ctx.runOnClient(mc -> mc.player.containerMenu.setCarried(net.minecraft.world.item.ItemStack.EMPTY));

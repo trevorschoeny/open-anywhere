@@ -16,7 +16,7 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Opening and closing items on the server, where every rule is checked.
  *
- * <p>Every opened item is a tab in MenuKit's container list (Trev, 2026-10-22): on a
+ * <p>Every opened item is a tab in MenuKit's container list: on a
  * chest's screen beside the chest, and from the inventory on the host screen
  * ({@link ContainerHost}), vanilla's chest screen with no rows of its own. Any number open
  * at once.
@@ -31,12 +31,12 @@ final class ServerSessions {
      * A refused request changes nothing, so a modified client gains nothing by sending one.
      *
      * <p>{@code fromCursor}: a double-click's first click was vanilla's, and lifted the item
-     * onto the cursor (Trev, 2026-10-22: the brief lift is accepted). It goes back into its
+     * onto the cursor, a brief lift that is accepted. It goes back into its
      * now-empty slot first, through the slot's own rules, then opens as if never lifted. If
      * it can't go back, nothing happens: the item stays on the cursor, as after one click.
      */
     static void open(ServerPlayer player, int menuSlot, boolean fromCursor) {
-        // Any game mode (Trev, 2026-10-22): in creative, opening from the inventory opens the
+        // Any game mode: in creative, opening from the inventory opens the
         // container's own screen, as in survival, so creative's tabs give way to it.
         AbstractContainerMenu menu = player.containerMenu;
         if (menuSlot < 0 || menuSlot >= menu.slots.size()) return;
@@ -52,7 +52,7 @@ final class ServerSessions {
         if (!menu.getCarried().isEmpty()) return;
 
         Slot slot = menu.getSlot(menuSlot);
-        // Nothing opens from inside an opened box or bundle (design, Rule 3): the inner item
+        // Nothing opens from inside an opened box or bundle: the inner item
         // lives in the outer one's contents, so it couldn't stay open once that one closes.
         if (Groups.isOpenedContents(slot)) return;
         ItemStack stack = slot.getItem();
@@ -71,7 +71,7 @@ final class ServerSessions {
         // One player per item: two players can't have the same box open.
         if (Sessions.isOpenByAnyone(stack)) return;
 
-        // From the inventory, anything opens on the host screen, as a tab (Trev, 2026-10-22);
+        // From the inventory, anything opens on the host screen, as a tab;
         // on the host, or on a chest's screen (a placed chest, a barrel), it opens as another
         // tab beside what's there.
         boolean host = ContainerHost.is(menu);
@@ -101,7 +101,7 @@ final class ServerSessions {
     }
 
     /**
-     * Opens an item on the open menu, beside whatever else is open (design, Rule 2): its
+     * Opens an item on the open menu, beside whatever else is open: its
      * slots join the menu, and their number there is its lane. There is one ender chest,
      * so another ender chest item takes the open one's place.
      */

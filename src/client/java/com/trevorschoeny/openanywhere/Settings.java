@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
- * The player's settings (Trev, 2026-10-22), the one place they live:
+ * The player's settings, the one place they live:
  * {@code config/openanywhere/settings.json}, all on by default. Changed from the Open
  * Anywhere tab in Inventory Plus's settings menu when IP is installed; without it, the file
  * or the defaults apply. Every setter saves.

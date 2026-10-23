@@ -14,7 +14,7 @@ import net.minecraft.resources.Identifier;
 
 /**
  * The wheel moves between tabs, one tab a notch, up to the left and down to the right,
- * anywhere on the screen (Trev, 2026-10-22). Over the container, while it has a scrollbar
+ * anywhere on the screen. Over the container, while it has a scrollbar
  * (the list's own, or a slot grid's), the wheel stays the container's. And only a turn nobody else used:
  * it runs after the screen and every other mod's scroll handler (Mouse Tweaks, a bundle's
  * own wheel), and before MenuKit's list scroll, which comes last of all.

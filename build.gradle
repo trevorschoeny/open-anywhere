@@ -2,7 +2,6 @@
 // inventory or an open chest, without placing anything. Universal jar, needed on both
 // sides: the server owns every change (sessions, the dupe guard, the ender chest sync),
 // the client the tooltip view and, later, the panels. Built on SlotKit and MenuKit.
-// Design: Inventory Suite drive, mods/shulkers-in-inventory/design.md.
 //
 // Included from the root settings.gradle as `:shulkers-in-inventory`. Build with
 // `./gradlew :shulkers-in-inventory:build` from the workspace root.

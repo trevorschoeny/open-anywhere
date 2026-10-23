@@ -75,7 +75,7 @@ public class ListChecks implements FabricClientGameTest {
         }
     }
 
-    // ── Stations ───────────────────────────────────────────────────────────
+    // Stations
 
     private void boxInChest() {
         openBlock();
@@ -141,7 +141,7 @@ public class ListChecks implements FabricClientGameTest {
         doubleClick(s -> s.container instanceof Inventory && s.getContainerSlot() == 1, "the bundle");
         expectStacked(Openable.BUNDLE);
         expectChestSection();
-        // Stone the bundle already holds stacks onto its stone (Trev, 2026-10-22): still two stacks.
+        // Stone the bundle already holds stacks onto its stone: still two stacks.
         command("item replace entity @p inventory.0 with minecraft:stone 3");
         ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.pick("openanywhere:opened#bundle_0"));
         ctx.waitTicks(3);
@@ -194,7 +194,7 @@ public class ListChecks implements FabricClientGameTest {
 
     /**
      * Station "list_ender_section_box": the green box inside the ender chest's section opens
-     * below it with the ender chest still open (design, Rule 2), shift-clicking out of the
+     * below it with the ender chest still open, shift-clicking out of the
      * box goes back into the ender chest, and closing the ender chest closes the box.
      */
     private void enderSectionBox() {
@@ -310,7 +310,7 @@ public class ListChecks implements FabricClientGameTest {
         });
     }
 
-    // ── Expectations ───────────────────────────────────────────────────────
+    // Expectations
 
     /** A server session below the chest, its slots shown, and still the chest's screen. */
     private void expectStacked(Openable kind) {
@@ -346,7 +346,7 @@ public class ListChecks implements FabricClientGameTest {
         if (isOpen != open) throw new AssertionError("server " + (open ? "has no " : "still has a ") + kind + " session");
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
+    // Helpers
 
     private static ServerPlayer player(net.minecraft.server.MinecraftServer server) {
         return server.getPlayerList().getPlayers().getFirst();

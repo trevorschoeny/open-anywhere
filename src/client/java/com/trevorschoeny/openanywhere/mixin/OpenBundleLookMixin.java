@@ -12,8 +12,8 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * An open bundle is drawn open in its slot, with vanilla's own open-bag art (Trev,
- * 2026-10-22): the stack drawn, not the stack held, so nothing about the item changes.
+ * An open bundle is drawn open in its slot, with vanilla's own open-bag art: the stack
+ * drawn, not the stack held, so nothing about the item changes.
  */
 @Mixin(AbstractContainerScreen.class)
 abstract class OpenBundleLookMixin {

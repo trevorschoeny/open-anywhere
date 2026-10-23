@@ -12,8 +12,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 /**
  * The item just picked up by what may be the first half of a double-click is drawn where
- * it sat, not at the cursor, until the window passes or the cursor moves (Trev,
- * 2026-10-22): a double-click that opens it then shows no movement at all.
+ * it sat, not at the cursor, until the window passes or the cursor moves, so a double-click
+ * that opens it shows no movement at all.
  */
 @Mixin(AbstractContainerScreen.class)
 abstract class HeldItemMixin {

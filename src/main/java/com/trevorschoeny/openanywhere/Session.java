@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
  * One opened item: what it is, the menu it opened on, where it sits, and its lane.
  *
  * <p>The session is tied to the item, not to its slot: {@code stack} is the exact stack
- * object that was opened. Every open-from-inventory mod in the research shipped dupes
+ * object that was opened. Every open-from-inventory mod we looked at shipped dupes
  * because its session followed a slot or a hand, so whatever moved or copied the item
  * forked its contents. Here the server checks every tick that this very stack is still
  * at {@code container}/{@code containerSlot} with {@code menu} open, and ends the

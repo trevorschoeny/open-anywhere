@@ -15,7 +15,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * A plain left double-click on an openable item opens it (Trev, 2026-10-22); on an item
+ * A plain left double-click on an openable item opens it; on an item
  * that's open, it closes it. Shift+double-click stays vanilla's "move all".
  *
  * <p>The first click is vanilla's: it lifts the item onto the cursor (an open item's slot
@@ -23,7 +23,7 @@ import net.minecraft.world.item.ItemStack;
  * with the cursor not moved, would be vanilla's "gather all of this item"; it is taken
  * instead and sent as an open, the item going back in its slot first. A stack of boxes
  * (Carpet) never opens, so its double-click stays vanilla's gather; a stack of ender chests
- * opens the ender chest (Trev: gather is given up for ender chests).
+ * opens the ender chest, giving up gather for ender chests.
  *
  * <p>Between the clicks the lifted item is drawn where it sat ({@link #heldAt}), so a
  * double-click shows no movement; moving the cursor ends the window, and the item goes to
@@ -33,7 +33,7 @@ public final class DoubleClick {
 
     private DoubleClick() {}
 
-    /** The window (Trev, 2026-10-22): one second, as long as the cursor stays put. */
+    /** The window: one second, as long as the cursor stays put. */
     private static final long WINDOW_MS = 1000;
 
     // The first click worth pairing: its slot (-1: none), when, where the mouse was, and

@@ -90,10 +90,10 @@ final class BundleStorage implements Storage {
      * Writes the panel's stacks into the bundle in the panel's order, so a stack stays
      * where it was put. Not {@code BundleContents.copyWithContents}: that re-inserts
      * every stack through vanilla's {@code tryInsert}, which adds each one at the front,
-     * reversing the bundle on every write (found in game, 2026-10-16).
+     * reversing the bundle on every write.
      */
     private void writeBack(ItemStack bundle) {
-        // An item the bundle already holds stacks onto it (Trev, 2026-10-22): each stack
+        // An item the bundle already holds stacks onto it: each stack
         // folds into the first earlier stack of the same item, up to a full stack, as
         // vanilla's own bundle does. The rest, if any, stays where it was put.
         for (int i = 1; i < live.size(); i++) {

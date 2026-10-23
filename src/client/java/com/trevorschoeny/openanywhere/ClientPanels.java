@@ -68,14 +68,14 @@ final class ClientPanels {
 
     /**
      * On a chest's screen, the chest and each opened item are sections of MenuKit's
-     * container list, one shown at a time, picked by tabs (Trev, 2026-10-21). Each section's
+     * container list, one shown at a time, picked by tabs. Each section's
      * content is one SlotKit group: the chest's own, or the one the server added to the menu
      * when the item opened. MenuKit makes an item's section and tab when it opens and drops
      * them when it closes, so any number can be open.
      */
     private static void containerList() {
         // One container at a time, picked by tabs on the panel's top edge, the panel fitting
-        // the one shown (Trev, 2026-10-21). The pick is ours (Tabs); MenuKit draws the row.
+        // the one shown. The pick is ours (Tabs); MenuKit draws the row.
         Tabs.fit();
         // No source: the screen's own container, so MenuKit names and dresses it from the
         // block the screen was opened on. Shown only with an item open; otherwise the screen
@@ -146,8 +146,8 @@ final class ClientPanels {
     }
 
     /**
-     * An opened item's tab tooltip: its name, then where it sits, in grey (Trev,
-     * 2026-10-22): "In Large Chest" (the screen's own container, by its title), "In
+     * An opened item's tab tooltip: its name, then where it sits, in grey:
+     * "In Large Chest" (the screen's own container, by its title), "In
      * Inventory", or "In Ender Chest".
      */
     static Component tooltip(Component name, @Nullable Session session) {
@@ -218,7 +218,7 @@ final class ClientPanels {
 
     /**
      * The shown item's close button: a raised button with a black "x" in its own unstyled
-     * panel, centred on the container panel's top-right corner (Trev, 2026-10-16), so it
+     * panel, centred on the container panel's top-right corner, so it
      * sits over the frame's edge and never over a slot or a tab, and the whole button takes
      * clicks. One button for whichever item is shown; none while the screen's own container is.
      */

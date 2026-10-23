@@ -27,7 +27,7 @@ import testgallery.SceneWorld;
  * Tabs on a double chest (scene shulkers-in-inventory/tabs): the ender chest, a box inside
  * it, two boxes from the chest and one from the hotbar, each shown on its own as it opens,
  * then the chest again. Checked for what shows and how tall the panel is, and screenshotted
- * at GUI scale 2 (240 px tall, as Trev plays at).
+ * at GUI scale 2 (240 px tall, the size it's played at).
  */
 public class TabChecks implements FabricClientGameTest {
 
@@ -75,8 +75,8 @@ public class TabChecks implements FabricClientGameTest {
 
             // Every frame from the double-click on looks either as before it (the chest shown,
             // the red box not greyed) or as after (the box's grid drawn at its height, the box
-            // greyed in the chest): never a frame between, which is the flash (Trev, 2026-10-23;
-            // it was a frame of the panel 8 px tall, laid out before the new grid was sized).
+            // greyed in the chest): never a frame between, which is the flash (a frame of the
+            // panel 8 px tall, laid out before the new grid was sized).
             ctx.runOnClient(mc -> Tabs.pick(CHEST));
             ctx.waitTicks(3);
             List<String> frames = java.util.Collections.synchronizedList(new ArrayList<>());

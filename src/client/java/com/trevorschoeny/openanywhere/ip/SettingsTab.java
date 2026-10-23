@@ -26,7 +26,7 @@ import net.minecraft.network.chat.Component;
  * The Open Anywhere tab in Inventory Plus's settings menu, loaded only when IP is, laid out
  * as the Inventory Suite's other tabs (Simple Elytra Slot's): title, description, Reset to
  * Defaults, a line, then the settings. No On/Off of its own: the three kinds are the
- * switches (Trev, 2026-10-22). The Open key sits under the double-click it stands in for,
+ * switches. The Open key sits under the double-click it stands in for,
  * on Keybindery's chord button, which IP always brings.
  */
 public final class SettingsTab {

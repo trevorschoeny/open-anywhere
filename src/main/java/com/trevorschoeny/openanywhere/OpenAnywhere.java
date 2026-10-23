@@ -7,8 +7,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 /**
  * Open Anywhere: open a shulker box, a bundle or your ender chest as a panel on
- * the screen you're on, without placing it. Design: Inventory Suite drive,
- * {@code mods/shulkers-in-inventory/design.md}.
+ * the screen you're on, without placing it.
  *
  * <p>Common init, both sides: the slot groups, the slot lock and the shift-click routes ({@link Groups}), the three
  * payloads, and the server's open, close and per-tick check ({@link ServerSessions}).

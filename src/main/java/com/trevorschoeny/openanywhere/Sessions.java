@@ -17,14 +17,13 @@ import net.minecraft.world.item.ItemStack;
  * truth; the client mirrors its own from {@link SessionS2C} so its slot lock, grey mark
  * and shift-click routes predict the server's answers.
  *
- * <p>Any number per player, one per lane (design, Rule 2). Keyed weakly by player, so a player object that's gone (respawn,
- * disconnect) takes its sessions with it.
+ * <p>Any number per player, one per lane. Keyed weakly by player, so a player object
+ * that's gone (respawn, disconnect) takes its sessions with it.
  *
  * <p>One table per side. In singleplayer both sides run in one game, and a player is
  * equal to any player with the same entity id ({@code Entity.equals}), so the client's
  * player and the server's are the same key: one shared table let the client's mirror
- * overwrite the server's session (found 2026-10-16, when the server saw the client's
- * menu).
+ * overwrite the server's session, and the server then saw the client's menu.
  */
 public final class Sessions {
 

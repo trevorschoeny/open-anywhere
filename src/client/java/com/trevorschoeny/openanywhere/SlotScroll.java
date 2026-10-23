@@ -20,10 +20,10 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 /**
  * A section's slots, growing with the group's rows (a bundle as it fills, a box with more
  * rows) until the panel would leave the screen, then scrolling inside the grid alone, as
- * Shulker Palette's box grid does (Trev, 2026-10-22). The tabs and the inventory stay put.
+ * Shulker Palette's box grid does. The tabs and the inventory stay put.
  *
- * <p>Kept in Open Anywhere until another mod needs it (Trev): then it graduates to MenuKit
- * or SlotKit as a primitive.
+ * <p>Kept in Open Anywhere until another mod needs it, then it moves to MenuKit or SlotKit
+ * as a primitive.
  */
 final class SlotScroll {
 
@@ -46,7 +46,7 @@ final class SlotScroll {
      * A scroll area as tall as its slots up to a cap, set each frame from the window
      * ({@link #frame}). The cap is the declared height {@code fitHeight} reads. A grid that
      * may narrow (a bundle) drops to eight a row while it scrolls, so eight slots and the
-     * scrollbar fill nine slots' width and the panel never widens for it (Trev, 2026-10-22);
+     * scrollbar fill nine slots' width and the panel never widens for it;
      * one that must stay nine wide gets the scrollbar's lane beside it while it scrolls.
      * What shows is read once a frame into {@link #state}: MenuKit's layout asks each slot
      * many times a frame, and asking SlotKit each time made a shown box cost three
@@ -147,7 +147,7 @@ final class SlotScroll {
         GRIDS.add(scroll);
         // Sized now, not at the next frame: MenuKit makes an opened item's grid mid-frame
         // and lays the list out from it at once, so an unsized grid drew the panel 8 px tall
-        // for a frame (the flash on opening, Trev 2026-10-23).
+        // for a frame (a flash on opening).
         var screen = Minecraft.getInstance().gui.screen();
         if (screen != null) scroll.frame(room(screen));
         return scroll;
