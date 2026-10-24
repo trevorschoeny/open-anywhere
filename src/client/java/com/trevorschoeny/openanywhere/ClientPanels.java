@@ -208,22 +208,37 @@ final class ClientPanels {
     private static final ItemTurn.Light HEAD_LIGHT = new ItemTurn.Light(
             new org.joml.Vector3f(0, -0.67f, 1).normalize(), new org.joml.Vector3f(1, 0, 0));
     /**
-     * The head's shadow once it faces front, so it stands off the tab's grey: the head again,
-     * a pixel down and right, under no light but the shader's ambient, which leaves it at two
-     * fifths of its colour. It follows the head's own outline, hair and all.
+     * The head's soft shadow once it faces front, so it stands off the tab's grey: translucent
+     * black down and right of the face, in layers each a screen pixel further out, so it is
+     * darkest by the face and fades away from it. Each layer's alpha; they stack where they overlap.
      */
-    private static final ItemTurn.Light SHADOW_LIGHT = new ItemTurn.Light(
-            new org.joml.Vector3f(0, 0, -1), new org.joml.Vector3f(0, 0, -1));
+    private static final int SHADOW_ALPHA = 0x12, SHADOW_LAYERS = 4;
 
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
         float scale = w / 16f * (1f + HEAD_GROWTH * t);
         // The shadow slides out from under the head over the end of the turn, once it's square to the viewer.
         float shadow = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
-        if (shadow > 0) drawHeadAt(g, x + w / 2f + shadow, y + h / 2f + shadow, scale, t, SHADOW_LIGHT);
+        if (shadow > 0) drawShadow(g, x + w / 2f, y + h / 2f, scale, shadow);
         // Lit from the viewer rather than by vanilla's 3D light from the upper left, which
         // leaves a head dim.
         drawHeadAt(g, x + w / 2f, y + h / 2f, scale, t, HEAD_LIGHT);
+    }
+
+    /**
+     * The soft shadow under the face-on head centred on {@code (cx, cy)}, faded in by
+     * {@code in}. The face covers item pixels 4 to 12 across and 5 to 13 down. Drawn under the
+     * head, in screen pixels so it's as smooth as the screen allows.
+     */
+    private static void drawShadow(GuiGraphicsExtractor g, float cx, float cy, float scale, float in) {
+        float px = 1f / (float) Minecraft.getInstance().getWindow().getGuiScale();
+        int color = Math.round(SHADOW_ALPHA * in) << 24;
+        g.pose().pushMatrix();
+        g.pose().scale(px, px);
+        int l = Math.round((cx - 4 * scale) / px), r = Math.round((cx + 4 * scale) / px);
+        int top = Math.round((cy - 3 * scale) / px), bottom = Math.round((cy + 5 * scale) / px);
+        for (int i = 1; i <= SHADOW_LAYERS; i++) g.fill(l + i, top + i, r + i, bottom + i, color);
+        g.pose().popMatrix();
     }
 
     /** The head centred on {@code (cx, cy)}, {@code scale} GUI pixels to its pixel, turned {@code t} of the way to the front. */
