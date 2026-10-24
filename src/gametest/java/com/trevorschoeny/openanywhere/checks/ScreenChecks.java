@@ -420,7 +420,18 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.runOnClient(mc -> Settings.setKeepGroupsOpen(true));
         ctx.waitTicks(10);
         int last = ctx.computeOnClient(mc -> Tabs.row().size()) - 1;
-        for (int i : new int[] {12, 22, last - 2, last}) {
+        TabId early = ctx.computeOnClient(mc -> Tabs.row().get(4).id());
+        pick(early);
+        ctx.waitTicks(10);
+        ctx.takeScreenshot("screens-overflow-early");
+        // Paged on past it: the inventory's header and the bundle in front stay at the left end.
+        for (int k = 0; k < 3; k++) {
+            ctx.getInput().setCursorPos(588, 48);
+            ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+            ctx.waitTicks(10);
+            ctx.takeScreenshot("screens-overflow-paged-" + k);
+        }
+        for (int i : new int[] {last}) {
             TabId id = ctx.computeOnClient(mc -> Tabs.row().get(i).id());
             pick(id);
             ctx.waitTicks(10);

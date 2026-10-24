@@ -113,6 +113,8 @@ final class ClientPanels {
                         .icon(headerIcon)
                         .tooltip(headerTooltip)
                         .visibleWhen(() -> Tabs.header(group) != null)
+                        // Pinned at the row's left end while its group is open, when the row overflows.
+                        .stickyWhen(() -> Tabs.expanded(group))
                         .selectedWhen(() -> {
                             TabId header = Tabs.header(group);
                             return header != null && header.equals(Tabs.selected());
@@ -125,9 +127,10 @@ final class ClientPanels {
                         .icon((g, x, y, w, h) -> drawOpening(g, item(tabId), tabId, Tabs.selected().equals(tabId), x, y, w))
                         .tooltip(() -> tooltip(tabId))
                         .selectedWhen(() -> Tabs.selected().equals(tabId))
+                        // The tab in front pins beside its group's header.
+                        .stickyWhen(() -> Tabs.selected().equals(tabId))
                         .onClick(() -> Tabs.pick(tabId)))
                 .expandedWhen(() -> Tabs.expanded(group))
-                .stickyHeader()
                 .on(SCREENS)
                 .order(order)
                 .declare();
