@@ -413,6 +413,19 @@ public class ScreenChecks implements FabricClientGameTest {
         });
         if (!api.equals("lime_shulker_box")) throw new AssertionError("OpenItems.shown is " + api + " on the server");
         if (ctx.computeOnClient(mc -> ShownItem.get() == null)) throw new AssertionError("ShownItem.get() is null with the lime box in front");
+        // A row too long for the screen: twenty more boxes, every group open. Each open
+        // group's header stays at the left edge until the next group's pushes it off.
+        String[] colours = {"white", "light_gray", "gray", "black", "brown", "yellow", "lime", "pink", "magenta", "blue"};
+        for (int i = 0; i < 20; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:" + colours[i % 10] + "_shulker_box");
+        ctx.runOnClient(mc -> Settings.setKeepGroupsOpen(true));
+        ctx.waitTicks(10);
+        int last = ctx.computeOnClient(mc -> Tabs.row().size()) - 1;
+        for (int i : new int[] {12, 22, last - 2, last}) {
+            TabId id = ctx.computeOnClient(mc -> Tabs.row().get(i).id());
+            pick(id);
+            ctx.waitTicks(10);
+            ctx.takeScreenshot("screens-overflow-tab-" + i);
+        }
     }
 
     /**

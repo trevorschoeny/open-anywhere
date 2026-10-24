@@ -127,6 +127,7 @@ final class ClientPanels {
                         .selectedWhen(() -> Tabs.selected().equals(tabId))
                         .onClick(() -> Tabs.pick(tabId)))
                 .expandedWhen(() -> Tabs.expanded(group))
+                .stickyHeader()
                 .on(SCREENS)
                 .order(order)
                 .declare();
