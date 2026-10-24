@@ -54,7 +54,7 @@ final class TabWheel {
         if (groups.stream().mapToInt(List::size).sum() < 2) return false;
         // Over the container, the wheel is the container's only while it has a scrollbar:
         // the list's own, or a shown grid's.
-        boolean scrollable = ContainerRegion.scrolls(screen) || SlotScroll.anyScrolling();
+        boolean scrollable = ContainerRegion.scrolls(screen);
         Reference list = ContainerRegion.CONTAINERS.box(screen);
         if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
                 && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;

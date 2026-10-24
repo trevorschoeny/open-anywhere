@@ -17,6 +17,7 @@ import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.slotkit.api.item.ItemRef;
+import com.trevlar.slotkit.api.slot.SlotElement;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
@@ -76,7 +77,6 @@ final class ClientPanels {
     private static boolean worldDouble;
 
     static void register() {
-        SlotScroll.register();
         TabWheel.register();
         tabs();
         bundle();
@@ -255,14 +255,18 @@ final class ClientPanels {
     /**
      * A bundle has no screen in vanilla: it opens on the host, vanilla's chest screen with no
      * rows, its slots a section of MenuKit's container list above the inventory, growing
-     * with the bundle and scrolling past what fits ({@link SlotScroll}).
+     * with the bundle and scrolling past what fits ({@link com.trevlar.menukit.api.element.SlotScroll}).
      */
     private static void bundle() {
         ContainerRegion.fitted(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
         ContainerRegion.section(BUNDLE_ID, ModeScope.BOTH)
                 .name(ClientPanels::bundleName)
                 .title(ClientPanels::bundleName)
-                .content(SlotScroll.of(Groups.bundleId(), Openable.BUNDLE.slots, true))
+                .content(com.trevlar.menukit.api.element.SlotScroll.builder().narrows()
+                        .liveCount(ClientPanels::bundleLiveCount)
+                        .cells(Openable.BUNDLE.slots, (i, x, y, shown) ->
+                                SlotElement.builder().slot(Groups.bundleId(), i).at(x, y).visibleWhen(shown).build())
+                        .build())
                 .on(ContainerScreen.class)
                 .visibleWhen(ClientPanels::onHost)
                 .declare();
@@ -270,6 +274,18 @@ final class ClientPanels {
 
     private static boolean onHost() {
         return Minecraft.getInstance().gui.screen() instanceof ContainerScreen screen && ContainerHost.is(screen.getMenu());
+    }
+
+    /**
+     * The open bundle's slot count, including its add slot: read before any menu exists (mod
+     * init builds this section's grid once, up front), so it goes through the bundle's own data
+     * rather than the slot group's live menu instance.
+     */
+    private static int bundleLiveCount() {
+        var player = Minecraft.getInstance().player;
+        var contents = player == null ? null : BundleView.contents(player);
+        if (contents == null) return 0;
+        return contents.size() + (BundleView.addSlot(contents) >= 0 ? 1 : 0);
     }
 
     private static Component bundleName() {
