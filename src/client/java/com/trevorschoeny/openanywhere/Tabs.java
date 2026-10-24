@@ -33,6 +33,7 @@ public final class Tabs {
 
     private static List<Tab> row = List.of();
     private static TabId shown = TabId.INVENTORY;
+    private static boolean frozen;
     // The tab just clicked, drawn selected until the server's answer comes.
     private static @Nullable TabId clicked;
 
@@ -40,6 +41,7 @@ public final class Tabs {
     static void receive(TabsS2C payload) {
         row = payload.row();
         shown = payload.shown();
+        frozen = payload.frozen();
         clicked = null;
     }
 
@@ -47,7 +49,13 @@ public final class Tabs {
     static void clear() {
         row = List.of();
         shown = TabId.INVENTORY;
+        frozen = false;
         clicked = null;
+    }
+
+    /** Whether the item in front is off its place (on the cursor): its screen's slots are locked and greyed. */
+    public static boolean frozen() {
+        return frozen && shownItem() != null;
     }
 
     /** Whether {@code screen} is one the row stands on: the inventory, a chest, a shulker box, the bundle's host. */
@@ -117,7 +125,7 @@ public final class Tabs {
 
     /** Whether {@code group}'s sub-tabs are out: it holds the selected tab, or every group stays open. */
     public static boolean expanded(Group group) {
-        return Settings.keepGroupsOpen() || groupOf(selected()) == group;
+        return Settings.tabs() == Settings.TabMode.EVERY_OPEN || groupOf(selected()) == group;
     }
 
     /** Whether the row has a world container tab. */
@@ -183,7 +191,7 @@ public final class Tabs {
         if (!showing()) return false;
         ItemPath path = pathOf(slot);
         if (path == null) return false;
-        if (Settings.everyBox()) return path.equals(shown.path());
+        if (Settings.tabs() != Settings.TabMode.HAND) return path.equals(shown.path());
         for (Tab tab : row) if (path.equals(tab.id().path())) return true;
         return false;
     }
@@ -195,11 +203,8 @@ public final class Tabs {
             return front == null ? ItemStack.EMPTY : front.item();
         }
 
-        @Override public boolean holds(Container container, int slot) {
-            Tab front = shownItem();
-            ItemPath path = front == null ? null : front.id().path();
-            return path != null && path.source() == ItemRef.Source.INVENTORY && container instanceof Inventory
-                    && path.slot() == slot;
+        @Override public boolean locked(Container container) {
+            return frozen() && !(container instanceof Inventory);
         }
     };
 }

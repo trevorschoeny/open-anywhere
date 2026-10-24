@@ -84,7 +84,8 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_bundle", this::bundleHalf);
             run("openanywhere:screens_nested", this::nested);
             run("openanywhere:screens_cursor", this::cursor);
-            run("openanywhere:screens_lock", this::lock);
+            run("openanywhere:screens_lock", this::handPickup);
+            run("openanywhere:screens_lock", this::everyPickup);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_no_flash", this::noFlash);
@@ -99,7 +100,7 @@ public class ScreenChecks implements FabricClientGameTest {
     private void run(String id, Runnable check) {
         station = scene.station(id);
         try {
-            ctx.runOnClient(mc -> Settings.reset());
+            ctx.runOnClient(mc -> { Settings.reset(); Settings.setTabs(Settings.TabMode.HAND); });
             scene.standAt(station, 30);
             for (String c : new String[] {"gamemode survival @p", "clear @p",
                     "item replace entity @p hotbar.0 with " + LIME,
@@ -116,7 +117,7 @@ public class ScreenChecks implements FabricClientGameTest {
             ctx.takeScreenshot("screens-" + id.substring(id.indexOf(':') + 1));
             ctx.runOnClient(mc -> { if (mc.player != null) mc.player.closeContainer(); });
             ctx.waitTicks(5);
-            ctx.runOnClient(mc -> Settings.reset());
+            ctx.runOnClient(mc -> { Settings.reset(); Settings.setTabs(Settings.TabMode.HAND); });
         }
     }
 
@@ -364,15 +365,57 @@ public class ScreenChecks implements FabricClientGameTest {
     }
 
     /** The box in front can't be lifted out from under its own screen. */
-    private void lock() {
+    /**
+     * Opened by hand, the box in front picked up from its own screen: its tab closes and the
+     * screen goes back to the inventory. Put down in another slot, it opens again there, in front.
+     */
+    private void handPickup() {
         openInventory();
         doubleClick(hotbar(0), "the lime box");
         expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
         click(hotbar(0), "the open lime box");
-        int carried = ctx.computeOnClient(mc -> screen(mc).getMenu().getCarried().getCount());
-        if (carried != 0) throw new AssertionError("the open box was picked up");
-        boolean there = scene.world().getServer().computeOnServer(s -> name(player(s).getInventory().getItem(0)).equals("lime_shulker_box"));
-        if (!there) throw new AssertionError("the open box left its slot");
+        expectScreen(InventoryScreen.class, "picking up the open box");
+        expectRow("", "picking up the open box");
+        click(slot(14), "an empty inventory slot");
+        expectScreen(ShulkerBoxScreen.class, "putting the box down");
+        expectRow("INVENTORY, lime_shulker_box", "putting the box down");
+        String front = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
+        if (!front.contains("slot=14")) throw new AssertionError("the box opened again at " + front + ", not where it was put down");
+        // A double-click on it, in front, closes it: back to the inventory, the box in its slot.
+        slowDoubleClick(slot(14), "the open lime box");
+        expectScreen(InventoryScreen.class, "double-clicking the open box");
+        expectRow("", "double-clicking the open box");
+        boolean there = scene.world().getServer().computeOnServer(s -> name(player(s).getInventory().getItem(14)).equals("lime_shulker_box"));
+        if (!there) throw new AssertionError("the box isn't back in its slot after the double-click");
+    }
+
+    /**
+     * Every box tabbed, the box in front picked up from its own screen: the screen stays, its
+     * slots greyed and locked, the emeralds still shown. Put down elsewhere, they work again,
+     * writing to the box where it now is. A double-click on it goes back to the inventory.
+     */
+    private void everyPickup() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(0), "the lime box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+        click(hotbar(0), "the open lime box");
+        ctx.waitTicks(3);
+        expectScreen(ShulkerBoxScreen.class, "picking up the open box");
+        String held = ctx.computeOnClient(mc -> Tabs.frozen() + " " + name(screen(mc).getMenu().getSlot(0).getItem()));
+        if (!held.equals("true emerald")) throw new AssertionError("with the box on the cursor its screen reads [" + held + "], not frozen with its emeralds");
+        click(slot(14), "an empty inventory slot");
+        ctx.waitTicks(3);
+        expectScreen(ShulkerBoxScreen.class, "putting the box down");
+        if (ctx.computeOnClient(mc -> Tabs.frozen())) throw new AssertionError("the box's slots stayed locked after putting it down");
+        shiftClick(s -> !(s.container instanceof Inventory) && s.getContainerSlot() == 0, "the emeralds");
+        int left = scene.world().getServer().computeOnServer(s -> count(player(s).getInventory().getItem(14), net.minecraft.world.item.Items.EMERALD));
+        if (left != 0) throw new AssertionError("the box where it was put down still holds " + left + " emeralds after taking them");
+        slowDoubleClick(slot(14), "the open lime box");
+        expectScreen(InventoryScreen.class, "double-clicking the box in front");
+        boolean there = scene.world().getServer().computeOnServer(s -> name(player(s).getInventory().getItem(14)).equals("lime_shulker_box"));
+        if (!there) throw new AssertionError("the box isn't back in its slot after the double-click");
     }
 
     /** Escape closes the screens and the chest behind them; opening it again starts fresh. */
@@ -390,7 +433,7 @@ public class ScreenChecks implements FabricClientGameTest {
 
     /** Every box gets a tab: all of them in reach, in order, the bundle inside the cyan box too; the wheel moves between them. */
     private void everyBox() {
-        ctx.runOnClient(mc -> Settings.setEveryBox(true));
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         ctx.waitTicks(3);
         // The inventory has its tabs every time it opens, not only once something moves.
         for (int i = 0; i < 2; i++) {
@@ -425,7 +468,7 @@ public class ScreenChecks implements FabricClientGameTest {
         // group's header stays at the left edge until the next group's pushes it off.
         String[] colours = {"white", "light_gray", "gray", "black", "brown", "yellow", "lime", "pink", "magenta", "blue"};
         for (int i = 0; i < 20; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:" + colours[i % 10] + "_shulker_box");
-        ctx.runOnClient(mc -> Settings.setKeepGroupsOpen(true));
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY_OPEN));
         ctx.waitTicks(10);
         int last = ctx.computeOnClient(mc -> Tabs.row().size()) - 1;
         TabId early = ctx.computeOnClient(mc -> Tabs.row().get(4).id());
@@ -480,7 +523,7 @@ public class ScreenChecks implements FabricClientGameTest {
         film(start, 900);
         ctx.runOnClient(mc -> mc.player.closeContainer());
         ctx.waitTicks(5);
-        ctx.runOnClient(mc -> Settings.setEveryBox(true));
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         openBlock();
         film(start, 700);
         List<TabId> ids = ctx.computeOnClient(mc -> {
@@ -678,6 +721,11 @@ public class ScreenChecks implements FabricClientGameTest {
     private void openInventory() {
         ctx.setScreen(() -> new InventoryScreen(Minecraft.getInstance().player));
         ctx.waitTicks(3);
+    }
+
+    /** The player's inventory slot {@code i} (0 to 8 the hotbar, 9 to 35 the rest). */
+    private static Predicate<Slot> slot(int i) {
+        return s -> s.container instanceof Inventory && s.getContainerSlot() == i && s.isActive();
     }
 
     private static Predicate<Slot> hotbar(int i) {

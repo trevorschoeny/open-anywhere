@@ -4,6 +4,7 @@
   "package": "com.trevorschoeny.openanywhere.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "CloseScreenMixin",
     "OpenMenuMixin"
   ],
   "injectors": {

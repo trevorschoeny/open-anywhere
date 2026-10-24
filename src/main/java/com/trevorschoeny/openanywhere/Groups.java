@@ -66,24 +66,22 @@ public final class Groups {
                 SlotSpec.at(GROUP, SlotGroupCategory.BUNDLE_STORAGE).count(Openable.BUNDLE.slots).shiftClickIn(true));
         bundleRules();
 
-        // The open item's own slot refuses every operation while its screen is up, from
-        // vanilla's clicks, keys and drops to any other mod's (SlotKit's slot lock): it can't
-        // be lifted out from under its own screen. Hoppers and dispensers don't ask; the open
-        // item's live check closes its screen if they move it. Both modes.
-        SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Shown.locked(ref.container(), ref.containerSlot()));
+        // The open item can be picked up from under its own screen. While it's off its place,
+        // its screen's slots refuse every operation, from vanilla's clicks, keys and drops to
+        // any other mod's (SlotKit's slot lock), and show it as it was. Both modes.
+        SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Shown.locked(ref.container()));
 
         QuickMoveRoutes.register(Groups::route);
     }
 
     /**
      * Adds the bundle's slots over {@code storage} to the host the player has open, sized to
-     * the bundle. False when the player's client can't show them.
+     * the bundle: its slots, or null when the player's client can't show them.
      */
-    static boolean addBundle(ServerPlayer player, Storage storage, BundleStorage contents) {
+    static OnDemandGroup.@Nullable Instance addBundle(ServerPlayer player, Storage storage, BundleStorage contents) {
         OnDemandGroup.Instance instance = bundle.add(player, storage);
-        if (instance == null) return false;
-        contents.shownIn(instance);
-        return true;
+        if (instance != null) contents.shownIn(instance);
+        return instance;
     }
 
     /**

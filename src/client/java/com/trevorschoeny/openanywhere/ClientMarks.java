@@ -73,7 +73,8 @@ public final class ClientMarks {
 
     public static void draw(GuiGraphicsExtractor graphics, Slot slot, @Nullable CreatedSlot created) {
         // With the animation on, an open box shows by its lid and a bundle by its open bag.
-        if (shownOpen(slot) && !Settings.animation()) {
+        // Grey, too, every slot of the item in front while it's on the cursor: locked till it's put down.
+        if (shownOpen(slot) && !Settings.animation() || Tabs.frozen() && !(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
             graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
         }
         if (created != null && !slot.hasItem() && isAddSlot(slot, created)) {

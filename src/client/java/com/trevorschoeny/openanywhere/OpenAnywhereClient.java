@@ -156,6 +156,6 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         if (!ClientPlayNetworking.canSend(PrefsC2S.TYPE)) return;
         int kinds = 0;
         for (Openable kind : Openable.values()) if (Settings.opens(kind)) kinds |= 1 << kind.ordinal();
-        ClientPlayNetworking.send(new PrefsC2S(Settings.everyBox(), kinds));
+        ClientPlayNetworking.send(new PrefsC2S(Settings.tabs() != Settings.TabMode.HAND, kinds));
     }
 }

@@ -50,6 +50,7 @@ public class ModeChecks implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext ctx) {
         this.ctx = ctx;
+        ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setTabs(com.trevorschoeny.openanywhere.Settings.TabMode.HAND));
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "modes")) {
             this.scene = scene;
             run("openanywhere:survival_shulker", this::survivalShulker);
@@ -181,11 +182,13 @@ public class ModeChecks implements FabricClientGameTest {
             clearCursor();
 
             ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.reset());
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setTabs(com.trevorschoeny.openanywhere.Settings.TabMode.HAND));
             ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setDoubleClick(false));
             doubleClick(hotbar(1), "ender chest, double-click off");
             expectServerSession(Openable.ENDER_CHEST, false);
         } finally {
             ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.reset());
+            ctx.runOnClient(mc -> com.trevorschoeny.openanywhere.Settings.setTabs(com.trevorschoeny.openanywhere.Settings.TabMode.HAND));
         }
     }
 

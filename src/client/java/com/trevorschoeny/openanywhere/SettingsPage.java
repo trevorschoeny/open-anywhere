@@ -9,6 +9,8 @@ import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.Checkbox;
 import com.trevlar.menukit.api.element.Divider;
 import com.trevlar.menukit.api.element.PanelElement;
+import com.trevlar.menukit.api.element.Radio;
+import com.trevlar.menukit.api.element.RadioGroup;
 import com.trevlar.menukit.api.element.TextLabel;
 import com.trevlar.menukit.api.element.TextRole;
 import com.trevorschoeny.keybindery.chord.ChordButton;
@@ -63,11 +65,19 @@ public final class SettingsPage {
                 checkbox(top + 94, "openanywhere.settings.double_click", Settings::doubleClick, Settings::setDoubleClick),
                 ChordButton.builder(OpenAnywhereClient.OPEN).at(0, top + 110)
                         .label(Component.translatable("openanywhere.settings.open_key")).build(),
-                checkbox(top + 134, "openanywhere.settings.every_box", Settings::everyBox, Settings::setEveryBox),
-                checkbox(top + 150, "openanywhere.settings.keep_groups_open", Settings::keepGroupsOpen, Settings::setKeepGroupsOpen),
-                checkbox(top + 166, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
-                checkbox(top + 182, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
+                TextLabel.builder().at(0, top + 134).text(Component.translatable("openanywhere.settings.tabs")).role(TextRole.BODY).build(),
+                tabs(top + 148, Settings.TabMode.HAND, "openanywhere.settings.tabs.hand"),
+                tabs(top + 164, Settings.TabMode.EVERY, "openanywhere.settings.tabs.every"),
+                tabs(top + 180, Settings.TabMode.EVERY_OPEN, "openanywhere.settings.tabs.every_open"),
+                checkbox(top + 200, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
+                checkbox(top + 216, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
         return page;
+    }
+
+    private static final RadioGroup<Settings.TabMode> TABS = RadioGroup.state(Settings::tabs, Settings::setTabs);
+
+    private static PanelElement tabs(int y, Settings.TabMode mode, String label) {
+        return Radio.builder(TABS, mode).at(0, y).label(Component.translatable(label)).build();
     }
 
     private static PanelElement kind(int y, Openable kind, String label) {

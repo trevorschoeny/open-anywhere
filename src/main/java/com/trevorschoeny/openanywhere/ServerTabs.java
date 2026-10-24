@@ -16,6 +16,7 @@ import com.trevlar.slotkit.api.item.ItemScope;
 import com.trevlar.slotkit.api.item.ItemSources;
 import com.trevlar.slotkit.api.item.LiveItem;
 import com.trevlar.slotkit.api.menu.MenuSwitch;
+import com.trevlar.slotkit.api.slot.OnDemandGroup;
 import com.trevlar.slotkit.api.storage.Storage;
 import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
 import com.trevorschoeny.openanywhere.api.OpenItems;
@@ -58,22 +59,51 @@ public final class ServerTabs {
 
     /**
      * An item the player opened by hand: where it sits, the top-level stack it's in (by
-     * identity), and what item that was, since a lift empties the stack in place.
+     * identity), and a copy of it as last seen there, to know it again once it moves.
      */
-    private record Mark(ItemPath path, ItemStack top, net.minecraft.world.item.Item item) {}
+    private record Mark(ItemPath path, ItemStack top, ItemStack seen) {}
 
     /**
-     * The item tab whose screen is in front: its menu, its tab, what it is, the live item
-     * (null for the ender chest, which is the player's own), and the top-level slot it's in.
+     * An item opened by hand, now on the cursor, its tab closed: it opens again where it's
+     * put down, and in front again if it was in front ({@code front}). Gone when it leaves the
+     * cursor any other way, or when the screens close.
      */
-    private record Front(AbstractContainerMenu menu, TabId id, Openable kind, @Nullable LiveItem live,
-                         Container top, int topSlot) {}
+    private record Lifted(ItemPath path, ItemStack item, boolean front) {}
 
-    /** A mark dropped because its item was lifted: where, what, and when, for a double-click's second click. */
-    private record Lifted(ItemPath path, ItemStack item, long tick) {}
+    /**
+     * The item tab whose screen is in front. It follows its item: moved, the screen stays
+     * and its slots now write to the item's new place; on the cursor with every box tabbed,
+     * the screen stays too, its slots locked and showing the item as it was ({@code frozen}).
+     */
+    private static final class Front {
+        final AbstractContainerMenu menu;
+        final Openable kind;
+        TabId id;
+        // The storage behind its slots, following the item; null for the ender chest, the player's own.
+        final @Nullable Anchor anchor;
+        // The top-level slot it's in, and the stack there (by identity).
+        Container top;
+        int topSlot;
+        ItemStack topStack;
+        // The item as last seen in place, to know it again on the cursor or elsewhere.
+        ItemStack seen;
+        // The container its own slots are in, which the lock closes while it's frozen.
+        @Nullable Container slots;
+        // The open bundle's slots, rebound when it moves.
+        OnDemandGroup.@Nullable Instance bundle;
+        boolean frozen;
 
-    /** How long after a lift a double-click's second click still counts as closing: vanilla's double-click window, and a little. */
-    private static final int LIFT_TICKS = 25;
+        Front(AbstractContainerMenu menu, Openable kind, ItemPath path, @Nullable Anchor anchor, Container top, ItemStack seen) {
+            this.menu = menu;
+            this.kind = kind;
+            this.id = TabId.item(path);
+            this.anchor = anchor;
+            this.top = top;
+            this.topSlot = path.slot();
+            this.topStack = top.getItem(path.slot());
+            this.seen = seen;
+        }
+    }
 
     private static final class State {
         PrefsC2S prefs = PrefsC2S.DEFAULT;
@@ -82,6 +112,7 @@ public final class ServerTabs {
         @Nullable Front front;
         List<Tab> sentRow = List.of();
         @Nullable TabId sentShown = TabId.INVENTORY;
+        boolean sentFrozen;
     }
 
     // Weak by player: a player who left takes their tabs with them. Synchronized: the slot
@@ -170,6 +201,9 @@ public final class ServerTabs {
         row.add(Tab.of(TabId.INVENTORY));
         if (world != null) row.add(Tab.of(TabId.WORLD));
         List<Item> items = st.prefs.everyBox() ? everything(player, world, st.prefs) : marked(player, world, st);
+        // The item in front, on the cursor, keeps its tab where it was.
+        Front f = st.front;
+        if (f != null && f.frozen && items.stream().noneMatch(i -> i.path().equals(f.id.path()))) items.add(new Item(f.id.path(), f.seen));
         items.sort(Comparator.comparing(Item::path, ORDER));
         // One ender chest tab, however many ender chests the player carries: the first one's.
         boolean ender = worldIsEnderChest(player, world);
@@ -183,21 +217,59 @@ public final class ServerTabs {
         return row;
     }
 
-    /** The items the player opened by hand, dropping each one no longer where it was. */
+    /**
+     * The items the player opened by hand. A mark whose item moved follows it there (a
+     * shift-click, a lift and put-down in one tick); one whose item is on the cursor closes
+     * and waits there ({@link Lifted}, {@link #settle}); any other is gone.
+     */
     private static List<Item> marked(ServerPlayer player, @Nullable AbstractContainerMenu world, State st) {
+        ItemStack carried = player.containerMenu.getCarried();
+        List<Mark> kept = new ArrayList<>();
+        for (Mark m : st.marks) {
+            if (stillThere(player, world, m)) {
+                kept.add(new Mark(m.path(), m.top(), at(player, world, m.path()).copy()));
+            } else if (m.path().depth() == 0 && ItemStack.matches(carried, m.seen())) {
+                if (st.lifted.stream().noneMatch(l -> l.path().equals(m.path()))) st.lifted.add(new Lifted(m.path(), m.seen(), false));
+            } else {
+                ItemPath to = find(player, world, m.seen(), null);
+                if (to != null && kept.stream().noneMatch(k -> k.path().equals(to)))
+                    kept.add(new Mark(to, topOf(player, world, to).getItem(to.slot()), m.seen()));
+            }
+        }
+        st.marks.clear();
+        st.marks.addAll(kept);
         List<Item> items = new ArrayList<>();
-        long now = player.level().getGameTime();
-        st.lifted.removeIf(l -> now - l.tick() > LIFT_TICKS);
-        st.marks.removeIf(m -> {
-            if (stillThere(player, world, m)) return false;
-            // Lifted onto the cursor, maybe by a double-click's first click: remembered
-            // briefly, so its second click closes it rather than opening it again.
-            if (m.path().depth() == 0 && player.containerMenu.getCarried().getItem() == m.item())
-                st.lifted.add(new Lifted(m.path(), player.containerMenu.getCarried().copy(), now));
-            return true;
-        });
-        for (Mark m : st.marks) items.add(new Item(m.path(), at(player, world, m.path()).copy()));
+        for (Mark m : st.marks) items.add(new Item(m.path(), m.seen()));
         return items;
+    }
+
+    /**
+     * Where {@code stack} is now, at the top level: {@code prefer} if it's there, else the
+     * first slot holding the same item in the inventory, the world container or the ender
+     * chest. Null when it's nowhere in reach.
+     * ponytail: an identical item elsewhere (two empty red boxes) answers just as well; the
+     * contents are the same, only the tab's place differs.
+     */
+    private static @Nullable ItemPath find(ServerPlayer player, @Nullable AbstractContainerMenu world, ItemStack stack, @Nullable ItemPath prefer) {
+        if (stack.isEmpty()) return null;
+        if (prefer != null) {
+            ItemStack there = at(player, world, prefer);
+            if (there != null && ItemStack.matches(there, stack)) return prefer;
+        }
+        for (int i = 0; i < 36; i++) {
+            if (ItemStack.matches(player.getInventory().getItem(i), stack)) return new ItemPath(ItemRef.Source.INVENTORY, i, List.of());
+        }
+        if (world != null && !worldIsEnderChest(player, world)) {
+            Container c = containerOf(world);
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                if (ItemStack.matches(c.getItem(i), stack)) return new ItemPath(ItemRef.Source.CONTAINER, i, List.of());
+            }
+        }
+        Container ender = player.getEnderChestInventory();
+        for (int i = 0; i < ender.getContainerSize(); i++) {
+            if (ItemStack.matches(ender.getItem(i), stack)) return new ItemPath(ItemRef.Source.ENDER_CHEST, i, List.of());
+        }
+        return null;
     }
 
     /** A mark holds while its top-level slot holds the same stack and an openable item is still at its place. */
@@ -244,7 +316,7 @@ public final class ServerTabs {
 
     /** Which tab's screen is in front. */
     private static TabId shown(ServerPlayer player, State st) {
-        if (st.front != null && st.front.menu() == player.containerMenu) return st.front.id();
+        if (st.front != null && st.front.menu == player.containerMenu) return st.front.id;
         AbstractContainerMenu world = world(player);
         if (world != null && world == player.containerMenu) return TabId.WORLD;
         return TabId.INVENTORY;
@@ -266,10 +338,12 @@ public final class ServerTabs {
         if (!ServerPlayNetworking.canSend(player, TabsS2C.TYPE)) return;
         List<Tab> row = row(player, st);
         TabId shown = shown(player, st);
-        if (shown.equals(st.sentShown) && sameRow(row, st.sentRow)) return;  // sentShown null: never sent
+        boolean frozen = st.front != null && st.front.frozen;
+        if (shown.equals(st.sentShown) && frozen == st.sentFrozen && sameRow(row, st.sentRow)) return;  // sentShown null: never sent
         st.sentRow = row;
         st.sentShown = shown;
-        ServerPlayNetworking.send(player, new TabsS2C(row, shown));
+        st.sentFrozen = frozen;
+        ServerPlayNetworking.send(player, new TabsS2C(row, shown, frozen));
     }
 
     private static boolean sameRow(List<Tab> a, List<Tab> b) {
@@ -285,9 +359,96 @@ public final class ServerTabs {
     static void tick(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             State st = state(player);
-            if (st.front != null && st.front.menu() != player.containerMenu) st.front = null;
+            if (st.front != null && st.front.menu != player.containerMenu) st.front = null;
+            if (!st.prefs.everyBox()) settle(player, st);
+            if (st.front != null) follow(player, st);
             sync(player, st);
         }
+    }
+
+    /**
+     * The item in front, kept up with. In place: its look is noted. On the cursor: with every
+     * box tabbed its screen stays, locked and showing it as it was; opened by hand, its tab
+     * closes and the screen goes back to its group's, to open again where it's put down
+     * ({@link #settle}). Moved: the screen follows it there. Gone: back to its group's screen.
+     */
+    private static void follow(ServerPlayer player, State st) {
+        Front f = st.front;
+        AbstractContainerMenu world = world(player);
+        ItemPath path = f.id.path();
+        boolean inPlace = f.anchor != null ? !f.anchor.live.isStale()
+                : f.top.getItem(f.topSlot) == f.topStack && at(player, world, path) != null;
+        if (inPlace) {
+            f.frozen = false;
+            f.seen = (f.anchor != null ? f.anchor.live.stack() : at(player, world, path)).copy();
+            if (f.anchor != null) f.anchor.seen(f.seen);
+            return;
+        }
+        if (ItemStack.matches(player.containerMenu.getCarried(), f.seen)) {
+            if (st.prefs.everyBox()) {
+                f.frozen = true;
+                return;
+            }
+            st.marks.removeIf(m -> m.path().equals(path));
+            st.lifted.add(new Lifted(path, f.seen.copy(), true));
+            goHome(player, st, path);
+            return;
+        }
+        ItemPath to = find(player, world, f.seen, null);
+        if (to == null || !reanchor(player, st, f, to)) goHome(player, st, path);
+    }
+
+    /** The item in front moved to {@code to}: its screen's slots now write there. False when it can't be followed. */
+    private static boolean reanchor(ServerPlayer player, State st, Front f, ItemPath to) {
+        AbstractContainerMenu world = world(player);
+        Container top = topOf(player, world, to);
+        if (top == null) return false;
+        if (f.anchor != null) {
+            LiveItem live = to.source() == ItemRef.Source.CONTAINER ? ItemSources.live(top, to) : ItemSources.live(player, to);
+            if (live == null) return false;
+            if (f.kind == Openable.SHULKER) {
+                f.anchor.rebind(live, live.storage(new ShulkerStorage(live.stack(), f.anchor.size())));
+            } else {
+                BundleStorage contents = new BundleStorage(live.stack());
+                f.anchor.rebind(live, live.storage(contents));
+                if (f.bundle != null) contents.shownIn(f.bundle);
+            }
+        }
+        ItemPath from = f.id.path();
+        ItemStack topStack = top.getItem(to.slot());
+        st.marks.replaceAll(m -> m.path().equals(from) ? new Mark(to, topStack, m.seen()) : m);
+        f.id = TabId.item(to);
+        f.top = top;
+        f.topSlot = to.slot();
+        f.topStack = topStack;
+        f.frozen = false;
+        player.containerMenu.broadcastChanges();
+        return true;
+    }
+
+    /**
+     * Opened by hand, then lifted: put down anywhere in reach, it opens again there, and comes
+     * back in front if it was in front. Leaving the cursor any other way, it stays closed.
+     */
+    private static void settle(ServerPlayer player, State st) {
+        if (st.lifted.isEmpty()) return;
+        ItemStack carried = player.containerMenu.getCarried();
+        AbstractContainerMenu world = world(player);
+        for (Lifted l : List.copyOf(st.lifted)) {
+            if (ItemStack.matches(carried, l.item())) continue;
+            st.lifted.remove(l);
+            ItemPath to = find(player, world, l.item(), l.path());
+            Container top = to == null ? null : topOf(player, world, to);
+            if (top == null) continue;
+            if (st.marks.stream().noneMatch(m -> m.path().equals(to))) st.marks.add(new Mark(to, top.getItem(to.slot()), l.item()));
+            if (l.front()) pick(player, TabId.item(to));
+        }
+    }
+
+    /** The player closed the screens: whatever they carried went back or dropped, and nothing waits to reopen. */
+    public static void closed(ServerPlayer player) {
+        State st = STATES.get(player);
+        if (st != null) st.lifted.clear();
     }
 
     // What the player does
@@ -335,6 +496,23 @@ public final class ServerTabs {
      */
     static void open(ServerPlayer player, int menuSlot, boolean fromCursor) {
         AbstractContainerMenu menu = player.containerMenu;
+        State st = state(player);
+        // The second click of a double-click on an item opened by hand: its first click lifted
+        // it, which closed its tab (and left its screen, if it was in front, so the slot
+        // number may be another screen's). It goes back where it was and stays closed.
+        if (fromCursor && !st.prefs.everyBox()) {
+            ItemStack carried = menu.getCarried();
+            for (Lifted l : List.copyOf(st.lifted)) {
+                Container top = topOf(player, world(player), l.path());
+                if (top == null || !ItemStack.matches(carried, l.item()) || !top.getItem(l.path().slot()).isEmpty()) continue;
+                top.setItem(l.path().slot(), carried);
+                menu.setCarried(ItemStack.EMPTY);
+                st.lifted.remove(l);
+                menu.broadcastChanges();
+                sync(player, st);
+                return;
+            }
+        }
         if (menuSlot < 0 || menuSlot >= menu.slots.size()) return;
         if (fromCursor) {
             ItemStack carried = menu.getCarried();
@@ -347,7 +525,6 @@ public final class ServerTabs {
         }
         if (!menu.getCarried().isEmpty()) return;
 
-        State st = state(player);
         AbstractContainerMenu world = world(player);
         Slot slot = menu.getSlot(menuSlot);
         ItemPath path = pathOf(player, st, world, slot);
@@ -361,25 +538,24 @@ public final class ServerTabs {
         if (kind == Openable.ENDER_CHEST && worldIsEnderChest(player, world)) return;
 
         if (st.prefs.everyBox()) {
-            pick(player, tabFor(player, st, path, kind));
-            return;
-        }
-        // The second click of a double-click on an item that had a tab: its first click lifted
-        // it, which closed its tab. Put back, it stays closed.
-        if (fromCursor && st.lifted.removeIf(l -> l.path().equals(path) && ItemStack.matches(l.item(), stack))) {
+            // Every box has a tab: a double-click shows it, and on the one in front, closes it,
+            // back to its group's screen.
+            TabId tab = tabFor(player, st, path, kind);
+            if (tab.equals(shown(player, st))) goHome(player, st, path);
+            else pick(player, tab);
             sync(player, st);
             return;
         }
         Mark mark = markFor(st, player, world, path, kind);
         if (mark != null) {
             st.marks.remove(mark);
-            if (st.front != null && st.front.id().equals(TabId.item(mark.path()))) leave(player, world);
+            if (st.front != null && st.front.id.equals(TabId.item(mark.path()))) goHome(player, st, mark.path());
             sync(player, st);
             return;
         }
         Container top = topOf(player, world, path);
         if (top == null) return;
-        st.marks.add(new Mark(path, top.getItem(path.slot()), top.getItem(path.slot()).getItem()));
+        st.marks.add(new Mark(path, top.getItem(path.slot()), stack.copy()));
         pick(player, TabId.item(path));
     }
 
@@ -388,14 +564,33 @@ public final class ServerTabs {
         State st = state(player);
         if (id.path() == null) return;
         st.marks.removeIf(m -> m.path().equals(id.path()));
-        if (st.front != null && st.front.id().equals(id)) leave(player, world(player));
+        if (st.front != null && st.front.id.equals(id)) goHome(player, st, id.path());
         sync(player, st);
     }
 
-    /** Off the item in front: back to the world container, or to the inventory without one. */
-    private static void leave(ServerPlayer player, @Nullable AbstractContainerMenu world) {
-        if (world != null) MenuSwitch.back(player);
-        else MenuSwitch.openInventory(player);
+    /**
+     * Off the item in front, to its group's own screen: the inventory for what's in the
+     * inventory, the world container for what's in it, the ender chest for what's in the
+     * ender chest. The inventory when that screen isn't there.
+     */
+    private static void goHome(ServerPlayer player, State st, @Nullable ItemPath path) {
+        AbstractContainerMenu world = world(player);
+        st.front = null;
+        ItemRef.Source source = path == null ? ItemRef.Source.INVENTORY : path.source();
+        if (source == ItemRef.Source.CONTAINER && world != null
+                || source == ItemRef.Source.ENDER_CHEST && worldIsEnderChest(player, world)) {
+            MenuSwitch.back(player);
+            return;
+        }
+        if (source == ItemRef.Source.ENDER_CHEST) {
+            for (Tab tab : row(player, st)) {
+                if (tab.id().path() != null && Openable.of(tab.item()) == Openable.ENDER_CHEST) {
+                    openItem(player, st, tab.id().path());
+                    return;
+                }
+            }
+        }
+        MenuSwitch.openInventory(player);
     }
 
     /** The row's tab for the item at {@code path}: the ender chest has one tab, wherever it was double-clicked. */
@@ -434,14 +629,14 @@ public final class ServerTabs {
             return new ItemPath(source, slot.getContainerSlot(), List.of());
         }
         Front front = st.front;
-        if (front == null || front.menu() != menu || front.id().path() == null) return null;
-        return switch (front.kind()) {
+        if (front == null || front.menu != menu || front.id.path() == null) return null;
+        return switch (front.kind) {
             case ENDER_CHEST -> slot.container == player.getEnderChestInventory()
                     ? new ItemPath(ItemRef.Source.ENDER_CHEST, slot.getContainerSlot(), List.of()) : null;
-            case SHULKER -> slot.container instanceof StorageContainerAdapter ? childOf(front.id().path(), slot.getContainerSlot()) : null;
+            case SHULKER -> slot.container instanceof StorageContainerAdapter ? childOf(front.id.path(), slot.getContainerSlot()) : null;
             case BUNDLE -> {
                 int index = Groups.bundleIndex(slot);
-                yield index < 0 ? null : childOf(front.id().path(), index);
+                yield index < 0 ? null : childOf(front.id.path(), index);
             }
         };
     }
@@ -465,7 +660,8 @@ public final class ServerTabs {
             // is these same 27 slots.
             MenuProvider ender = new SimpleMenuProvider((id, inventory, p) -> ours(ChestMenu.threeRows(id, inventory, player.getEnderChestInventory())),
                     Component.translatable("container.enderchest"));
-            show(player, st, ender, path, kind, null, top);
+            Front f = show(player, st, ender, path, kind, null, top, item.copy());
+            if (f != null) f.slots = player.getEnderChestInventory();
             return;
         }
         if (openByAnother(player, top, path)) return;
@@ -473,27 +669,31 @@ public final class ServerTabs {
         if (live == null) return;
         Component title = live.stack().getHoverName();
         if (kind == Openable.SHULKER) {
-            Storage storage = live.storage(new ShulkerStorage(live.stack(), OpenItems.boxSizeOf(live.stack())));
-            Container box = new BoxContainer(storage, live);
-            show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(new ShulkerBoxMenu(id, inventory, box)), title),
-                    path, kind, live, top);
+            int size = OpenItems.boxSizeOf(live.stack());
+            Anchor anchor = new Anchor(live, live.storage(new ShulkerStorage(live.stack(), size)), size,
+                    seen -> new ShulkerStorage(seen, size));
+            BoxContainer box = new BoxContainer(player, anchor);
+            Front f = show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(new ShulkerBoxMenu(id, inventory, box)), title),
+                    path, kind, anchor, top, live.stack().copy());
+            if (f != null) f.slots = box;
             return;
         }
         BundleStorage contents = new BundleStorage(live.stack());
-        Storage storage = live.storage(contents);
+        Anchor anchor = new Anchor(live, live.storage(contents), Openable.BUNDLE.slots, BundleStorage::new);
         Container validity = new SimpleContainer(0) {
-            @Override public boolean stillValid(Player p) { return !live.isStale(); }
+            @Override public boolean stillValid(Player p) { return stillOpen(player, anchor); }
         };
-        if (show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(ContainerHost.create(id, inventory, validity)), title),
-                path, kind, live, top)) {
-            Groups.addBundle(player, storage, contents);
-            player.containerMenu.broadcastChanges();
-        }
+        Front f = show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(ContainerHost.create(id, inventory, validity)), title),
+                path, kind, anchor, top, live.stack().copy());
+        if (f == null) return;
+        f.bundle = Groups.addBundle(player, anchor, contents);
+        if (f.bundle != null && !f.bundle.slots().isEmpty()) f.slots = f.bundle.slots().getFirst().container;
+        player.containerMenu.broadcastChanges();
     }
 
-    /** Switches to {@code provider}'s screen as item tab {@code path}. Whether it opened. */
-    private static boolean show(ServerPlayer player, State st, MenuProvider provider, ItemPath path, Openable kind,
-                                @Nullable LiveItem live, Container top) {
+    /** Switches to {@code provider}'s screen as item tab {@code path}: the front it now is, or null when it didn't open. */
+    private static @Nullable Front show(ServerPlayer player, State st, MenuProvider provider, ItemPath path, Openable kind,
+                                        @Nullable Anchor anchor, Container top, ItemStack seen) {
         OptionalInt opened;
         switching = true;
         try {
@@ -501,9 +701,63 @@ public final class ServerTabs {
         } finally {
             switching = false;
         }
-        if (opened.isEmpty()) return false;
-        st.front = new Front(player.containerMenu, TabId.item(path), kind, live, top, path.slot());
-        return true;
+        if (opened.isEmpty()) return null;
+        st.front = new Front(player.containerMenu, kind, path, anchor, top, seen);
+        return st.front;
+    }
+
+    /**
+     * Whether the item behind {@code anchor} still has its screen: in place, on the cursor,
+     * or moved within reach (the tick then follows it). Vanilla closes the screen when not.
+     */
+    private static boolean stillOpen(ServerPlayer player, Anchor anchor) {
+        if (!anchor.live.isStale()) return true;
+        if (ItemStack.matches(player.containerMenu.getCarried(), anchor.seen)) return true;
+        return find(player, world(player), anchor.seen, null) != null;
+    }
+
+    /**
+     * The storage behind an opened item's slots, following the item: its live storage while
+     * it's in place, rebound when it moves ({@link #reanchor}); between, and while it's on
+     * the cursor, the item as last seen, for showing only (its slots are locked then).
+     */
+    private static final class Anchor implements Storage {
+        LiveItem live;
+        private Storage over;
+        private final int size;
+        private final java.util.function.Function<ItemStack, Storage> look;
+        ItemStack seen;
+        private @Nullable Storage asSeen;
+
+        Anchor(LiveItem live, Storage over, int size, java.util.function.Function<ItemStack, Storage> look) {
+            this.live = live;
+            this.over = over;
+            this.size = size;
+            this.look = look;
+            this.seen = live.stack().copy();
+        }
+
+        void rebind(LiveItem live, Storage over) {
+            this.live = live;
+            this.over = over;
+            seen(live.stack().copy());
+        }
+
+        void seen(ItemStack seen) {
+            this.seen = seen;
+            asSeen = null;
+        }
+
+        private Storage now() {
+            if (!live.isStale()) return over;
+            if (asSeen == null) asSeen = look.apply(seen.copy());
+            return asSeen;
+        }
+
+        @Override public ItemStack getStack(int i) { return now().getStack(i); }
+        @Override public void setStack(int i, ItemStack stack) { now().setStack(i, stack); }
+        @Override public int size() { return size; }
+        @Override public void markDirty() { now().markDirty(); }
     }
 
     /**
@@ -512,16 +766,18 @@ public final class ServerTabs {
      * box item for other mods ({@link OpenItems.Box}).
      */
     private static final class BoxContainer extends StorageContainerAdapter implements OpenItems.Box {
-        private final LiveItem live;
+        private final ServerPlayer player;
+        private final Anchor anchor;
 
-        BoxContainer(Storage storage, LiveItem live) {
-            super(storage);
-            this.live = live;
+        BoxContainer(ServerPlayer player, Anchor anchor) {
+            super(anchor);
+            this.player = player;
+            this.anchor = anchor;
         }
 
-        @Override public boolean stillValid(Player player) { return !live.isStale(); }
+        @Override public boolean stillValid(Player p) { return stillOpen(player, anchor); }
 
-        @Override public ItemStack stack() { return live.stack(); }
+        @Override public ItemStack stack() { return anchor.live.isStale() ? anchor.seen : anchor.live.stack(); }
     }
 
     private static <M extends AbstractContainerMenu> M ours(M menu) {
@@ -534,8 +790,8 @@ public final class ServerTabs {
         synchronized (STATES) {
             for (Map.Entry<ServerPlayer, State> e : STATES.entrySet()) {
                 Front f = e.getValue().front;
-                if (e.getKey() != player && f != null && f.menu() == e.getKey().containerMenu && f.top() == top
-                        && path.equals(f.id().path())) return true;
+                if (e.getKey() != player && f != null && f.menu == e.getKey().containerMenu && f.top == top
+                        && path.equals(f.id.path())) return true;
             }
         }
         return false;
@@ -543,27 +799,33 @@ public final class ServerTabs {
 
     // What the other classes ask
 
-    /** The item {@code player} has in front, the live stack itself; empty for none. */
+    /** The item {@code player} has in front, the live stack itself (as last seen while it's off its place); empty for none. */
     static ItemStack frontItem(ServerPlayer player) {
         State st = STATES.get(player);
         Front f = st == null ? null : st.front;
-        if (f == null || f.menu() != player.containerMenu) return ItemStack.EMPTY;
-        return f.live() != null ? f.live().stack() : f.top().getItem(f.topSlot());
+        if (f == null || f.menu != player.containerMenu) return ItemStack.EMPTY;
+        if (f.anchor != null) return f.anchor.live.isStale() ? f.anchor.seen : f.anchor.live.stack();
+        return f.top.getItem(f.topSlot);
     }
 
     /** Which kind {@code player} has in front, or null. */
     static @Nullable Openable frontKind(ServerPlayer player) {
         State st = STATES.get(player);
         Front f = st == null ? null : st.front;
-        return f == null || f.menu() != player.containerMenu ? null : f.kind();
+        return f == null || f.menu != player.containerMenu ? null : f.kind;
     }
 
-    /** Whether some player has, in front, the item {@code container}'s slot {@code slot} holds (or holds it inside). */
-    static boolean holds(Container container, int slot) {
+    /**
+     * Whether {@code container} holds the slots of an item someone has in front while it's
+     * off its place (on the cursor, or just moved): they take nothing and give nothing then.
+     */
+    static boolean locked(Container container) {
         synchronized (STATES) {
             for (Map.Entry<ServerPlayer, State> e : STATES.entrySet()) {
                 Front f = e.getValue().front;
-                if (f != null && f.menu() == e.getKey().containerMenu && f.top() == container && f.topSlot() == slot) return true;
+                if (f == null || f.slots != container || f.menu != e.getKey().containerMenu) continue;
+                if (f.frozen || f.anchor != null && f.anchor.live.isStale() || f.anchor == null && f.top.getItem(f.topSlot) != f.topStack)
+                    return true;
             }
         }
         return false;

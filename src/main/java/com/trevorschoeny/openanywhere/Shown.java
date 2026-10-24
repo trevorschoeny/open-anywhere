@@ -16,17 +16,17 @@ public final class Shown {
 
     private Shown() {}
 
-    /** What the client knows: the item tab in front, and the slot holding it. */
+    /** What the client knows: the item tab in front, and whether its slots are locked. */
     public interface ClientView {
         /** The item in front as the row last showed it, or empty. */
         ItemStack item();
-        /** Whether {@code container}'s slot {@code slot} holds the item in front. */
-        boolean holds(Container container, int slot);
+        /** Whether {@code container} holds the slots of the item in front while it's off its place. */
+        boolean locked(Container container);
     }
 
     private static volatile ClientView client = new ClientView() {
         @Override public ItemStack item() { return ItemStack.EMPTY; }
-        @Override public boolean holds(Container container, int slot) { return false; }
+        @Override public boolean locked(Container container) { return false; }
     };
 
     /** The client sets its view at init. */
@@ -42,11 +42,12 @@ public final class Shown {
     }
 
     /**
-     * True when {@code container}'s slot {@code slot} holds an item whose screen someone has in
-     * front. The slot lock asks this for every operation, so it is a short scan. Containers
-     * are per side, so both views can be asked.
+     * True when {@code container} holds the slots of an item whose screen someone has in front
+     * while the item is off its place (on the cursor): they're locked then. The slot lock asks
+     * this for every operation, so it is a short scan. Containers are per side, so both views
+     * can be asked.
      */
-    static boolean locked(Container container, int slot) {
-        return ServerTabs.holds(container, slot) || client.holds(container, slot);
+    static boolean locked(Container container) {
+        return ServerTabs.locked(container) || client.locked(container);
     }
 }

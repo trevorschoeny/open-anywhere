@@ -300,7 +300,7 @@ final class ClientPanels {
                     return new ScreenOrigin(frame.leftPos() + frame.imageWidth() - CLOSE_SIZE / 2 - 1, frame.topPos() - CLOSE_SIZE / 2);
                 })))
                 .build()
-                .visibleWhen(() -> Tabs.showing() && Tabs.shownItem() != null && !Settings.everyBox());
+                .visibleWhen(() -> Tabs.showing() && Tabs.shownItem() != null && Settings.tabs() == Settings.TabMode.HAND);
         new AnchorPanelAdapter(close);
     }
 

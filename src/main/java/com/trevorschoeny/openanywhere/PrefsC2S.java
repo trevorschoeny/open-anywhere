@@ -24,8 +24,8 @@ public record PrefsC2S(boolean everyBox, int kinds) implements CustomPacketPaylo
         return (kinds & (1 << kind.ordinal())) != 0;
     }
 
-    /** What a player who sent nothing gets: every kind, tabs only for what they open. */
-    public static final PrefsC2S DEFAULT = new PrefsC2S(false, (1 << Openable.values().length) - 1);
+    /** What a player who sent nothing gets: every kind, a tab for every box. */
+    public static final PrefsC2S DEFAULT = new PrefsC2S(true, (1 << Openable.values().length) - 1);
 
     @Override
     public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {

@@ -38,6 +38,9 @@ public final class DoubleClick {
 
     // The first click worth pairing: its slot (-1: none), when, where the mouse was, and
     // the slot's place on screen, where the lifted item is drawn meanwhile.
+    // The slot is named by its place in the player's inventory where it's one of those, so a
+    // second click still pairs after the first one changed the screen (a box lifted from
+    // under its own screen goes back to the inventory's), else by its index on the menu.
     private static int lastSlot = -1;
     private static long lastClick;
     private static double firstMouseX, firstMouseY;
@@ -68,16 +71,17 @@ public final class DoubleClick {
         if (!Settings.doubleClick()) return false;
         int target = creative ? OpenAnywhereClient.realIndex(player, hovered) : hovered.index;
         if (target < 0) return false;
+        int place = hovered.container instanceof net.minecraft.world.entity.player.Inventory ? 1000 + hovered.getContainerSlot() : target;
         if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || event.hasShiftDown()) {
             lastSlot = -1;
             return false;
         }
         long now = Util.getMillis();
-        boolean second = target == lastSlot && now - lastClick < WINDOW_MS
+        boolean second = place == lastSlot && now - lastClick < WINDOW_MS
                 && event.x() == firstMouseX && event.y() == firstMouseY;
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
-            lastSlot = OpenAnywhereClient.opensOrIsOpen(player, hovered) && carried.isEmpty() ? target : -1;
+            lastSlot = OpenAnywhereClient.opensOrIsOpen(player, hovered) && carried.isEmpty() ? place : -1;
             lastClick = now;
             firstMouseX = event.x();
             firstMouseY = event.y();
