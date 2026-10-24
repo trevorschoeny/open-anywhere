@@ -962,11 +962,11 @@ public class ScreenChecks implements FabricClientGameTest {
         double[] at = ctx.computeOnClient(mc -> {
             var l = com.trevlar.menukit.inject.ContainerTabRows.lineForChecks(edge);
             if (l == null) throw new AssertionError("no tab row on " + mc.gui.screen());
-            int aw = com.trevlar.menukit.inject.ContainerTabRows.ARROW_WIDTH;
+            int aw = com.trevlar.menukit.inject.TabRowLayout.ARROW_WIDTH;
             double x = right ? l.x() + l.width() - aw / 2.0 : l.x() + aw / 2.0;
             double y = l.rowTop() + l.height() / 2.0;
             int hit = com.trevlar.menukit.inject.ContainerTabRows.hitForChecks(edge, x, y);
-            int want = right ? com.trevlar.menukit.inject.ContainerTabRows.FORWARD : com.trevlar.menukit.inject.ContainerTabRows.BACK;
+            int want = right ? com.trevlar.menukit.inject.TabRowLayout.FORWARD : com.trevlar.menukit.inject.TabRowLayout.BACK;
             if (hit != want) throw new AssertionError("the " + (right ? "forward" : "back") + " arrow isn't at " + x + "," + y + " (hit " + hit + ")");
             var w = mc.getWindow();
             double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
