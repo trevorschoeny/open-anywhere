@@ -81,7 +81,7 @@ public final class ServerTabs {
         final List<Lifted> lifted = new ArrayList<>();
         @Nullable Front front;
         List<Tab> sentRow = List.of();
-        TabId sentShown = TabId.INVENTORY;
+        @Nullable TabId sentShown = TabId.INVENTORY;
     }
 
     // Weak by player: a player who left takes their tabs with them. Synchronized: the slot
@@ -266,7 +266,7 @@ public final class ServerTabs {
         if (!ServerPlayNetworking.canSend(player, TabsS2C.TYPE)) return;
         List<Tab> row = row(player, st);
         TabId shown = shown(player, st);
-        if (shown.equals(st.sentShown) && sameRow(row, st.sentRow)) return;
+        if (shown.equals(st.sentShown) && sameRow(row, st.sentRow)) return;  // sentShown null: never sent
         st.sentRow = row;
         st.sentShown = shown;
         ServerPlayNetworking.send(player, new TabsS2C(row, shown));
@@ -302,6 +302,10 @@ public final class ServerTabs {
         State st = state(player);
         st.marks.clear();
         st.front = null;
+        // The client dropped its row with the screens: the next tick sends it whole again,
+        // so the next screen has its tabs from its first frame, changed or not.
+        st.sentRow = List.of();
+        st.sentShown = null;
     }
 
     /** A tab click: its screen comes up, if the tab is on the player's row. */

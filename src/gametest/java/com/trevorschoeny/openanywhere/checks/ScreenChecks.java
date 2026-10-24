@@ -392,6 +392,14 @@ public class ScreenChecks implements FabricClientGameTest {
     private void everyBox() {
         ctx.runOnClient(mc -> Settings.setEveryBox(true));
         ctx.waitTicks(3);
+        // The inventory has its tabs every time it opens, not only once something moves.
+        for (int i = 0; i < 2; i++) {
+            openInventory();
+            int tabs = ctx.computeOnClient(mc -> Tabs.row().size());
+            if (tabs < 2) throw new AssertionError("the inventory opened (time " + (i + 1) + ") with no tabs");
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+        }
         openBlock();
         expectRow("INVENTORY, WORLD, lime_shulker_box, ender_chest, bundle, red_shulker_box, orange_shulker_box, cyan_shulker_box, bundle, green_shulker_box",
                 "the chest opened with every box tabbed");
