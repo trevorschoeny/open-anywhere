@@ -201,12 +201,14 @@ final class ClientPanels {
      * {@code [0, 0, 0]}. Facing front only its face shows, so it grows to keep its size.
      */
     /**
-     * The head's light: straight from the viewer, both of the shader's lights. Every side of
-     * the head that shows is then lit in full, face, hair and side alike, so it reads as
-     * brightly turned as it does facing front. A light along the face alone lights only the
-     * face, which is already in full light; the hair stays dim.
+     * The head's light, a little under full: one light from the front and a little above, so
+     * the face reads at nine tenths of its colour, and one from the right, which lights the
+     * face when the head is turned and leaves the face-on view alone.
      */
-    private static final org.joml.Vector3fc HEAD_LIGHT = new org.joml.Vector3f(0, 0, 1);
+    private static final ItemTurn.Light HEAD_LIGHT = new ItemTurn.Light(
+            new org.joml.Vector3f(0, -0.67f, 1).normalize(), new org.joml.Vector3f(1, 0, 0));
+    /** A thin dark line round the face once it faces front, so it stands off the tab's grey. */
+    private static final int FACE_BORDER = 0x70000000;
 
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
@@ -219,6 +221,19 @@ final class ClientPanels {
         // leaves a head dim.
         ItemTurn.draw(-30f * t, -45f * t, HEAD_LIGHT, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
+        // The face, facing front, covers item pixels 4 to 12 across and 5 to 13.4 down. Its
+        // border fades in over the end of the turn, when the head is square to the viewer.
+        float in = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
+        if (in > 0) {
+            float cx = x + w / 2f, cy = y + h / 2f;
+            int l = Math.round(cx - 4 * scale), r = Math.round(cx + 4 * scale);
+            int top = Math.round(cy - 3 * scale), bottom = Math.round(cy + 5.4f * scale);
+            int color = Math.round((FACE_BORDER >>> 24) * in) << 24;
+            g.fill(l - 1, top - 1, r + 1, top, color);
+            g.fill(l - 1, bottom, r + 1, bottom + 1, color);
+            g.fill(l - 1, top, l, bottom, color);
+            g.fill(r, top, r + 1, bottom, color);
+        }
     }
 
     /** The inventory tab's icon: the player's own head. */

@@ -710,7 +710,10 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.takeScreenshot("screens-double-chest-icon-large");
         headShot = true;
         ctx.waitTicks(3);
-        ctx.takeScreenshot("screens-head-light");
+        ctx.takeScreenshot("screens-head-rest");
+        pick(TabId.INVENTORY);
+        ctx.waitTicks(10);
+        ctx.takeScreenshot("screens-head-front");
         headShot = false;
         bigIcon = false;
     }
@@ -719,23 +722,16 @@ public class ScreenChecks implements FabricClientGameTest {
     private static volatile boolean bigIcon;
     private static volatile boolean headShot;
 
-    /** The head icon large, at rest under several lights, then facing front: a look at its light. */
+    /** The Inventory tab's head drawn large, as the tab draws it, at rest and facing front. */
     private static void drawHeads(net.minecraft.client.gui.GuiGraphicsExtractor g) {
-        g.fill(0, 0, 400, 60, 0xFFC6C6C6);
-        var head = new ItemStack(Items.PLAYER_HEAD);
-        float[][] lights = {{0, 0, 0}, {1, 1, 1}, {1, 0.5f, 1}, {0.5f, 0.5f, 1}, {0, 0, 1}};
-        for (int k = 0; k < 6; k++) {
-            g.pose().pushMatrix();
-            g.pose().translate(4 + k * 56, 4);
-            g.pose().scale(3f, 3f);
-            if (k < 5) {
-                // The first under vanilla's light, for comparison.
-                var l = k == 0 ? null : new org.joml.Vector3f(lights[k][0], lights[k][1], lights[k][2]).normalize();
-                com.trevorschoeny.openanywhere.ItemTurn.draw(0, 0, l, () -> g.item(head, 0, 0));
-            } else {
-                com.trevorschoeny.openanywhere.ItemTurn.draw(-30, -45, new org.joml.Vector3f(0, 0, 1), () -> g.item(head, 0, 0));
-            }
-            g.pose().popMatrix();
+        g.fill(0, 0, 200, 90, 0xFFC6C6C6);
+        try {
+            var draw = Class.forName("com.trevorschoeny.openanywhere.ClientPanels").getDeclaredMethod("drawHead",
+                    net.minecraft.client.gui.GuiGraphicsExtractor.class, int.class, int.class, int.class, int.class);
+            draw.setAccessible(true);
+            draw.invoke(null, g, 4, 4, 64, 64);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
         }
     }
 

@@ -42,15 +42,22 @@ public final class ItemTurn {
     // The turn in force for items drawn now, in whole degrees; all 0 outside draw().
     private static int pitch, yaw;
     // The light items drawn now are lit by, or null for vanilla's.
-    private static @Nullable Vector3fc light;
+    private static @Nullable Light light;
+
+    /**
+     * A light of an item's own: the shader's two lights, each shining along its direction in
+     * the GUI's item space (+z toward the viewer, -y up). A face takes 0.4 of its colour,
+     * plus 0.6 for each light by how square it faces that light, up to its full colour.
+     */
+    public record Light(Vector3fc first, Vector3fc second) {}
 
     /** The items drawn turned, each with its own light, until the GUI has drawn them. */
-    private static final Map<ItemStackRenderState, Vector3fc> LIT = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<ItemStackRenderState, Light> LIT = Collections.synchronizedMap(new WeakHashMap<>());
     /** One light buffer per direction, made on first use. */
-    private static final Map<Vector3fc, GpuBufferSlice> BUFFERS = new HashMap<>();
+    private static final Map<Light, GpuBufferSlice> BUFFERS = new HashMap<>();
 
     /** What sets one angle's atlas entry apart from another's. */
-    private record Identity(int pitch, int yaw, @Nullable Vector3fc light) {}
+    private record Identity(int pitch, int yaw, @Nullable Light light) {}
 
     /** Runs {@code draw}, every item it draws turned by {@code pitch} and {@code yaw} degrees. */
     public static void draw(float pitch, float yaw, Runnable draw) {
@@ -58,12 +65,12 @@ public final class ItemTurn {
     }
 
     /**
-     * As {@link #draw(float, float, Runnable)}, lit by one light shining along {@code light}
-     * (in the GUI's item space: +z toward the viewer) rather than vanilla's GUI light, which
-     * falls from the upper left and leaves a face turned to the viewer dim. Null: vanilla's.
+     * As {@link #draw(float, float, Runnable)}, lit by {@code light} rather than vanilla's GUI
+     * light, which falls from the upper left and leaves a face turned to the viewer dim.
+     * Null: vanilla's.
      */
-    public static void draw(float pitch, float yaw, @Nullable Vector3fc light, Runnable draw) {
-        Vector3fc l = ItemTurn.light;
+    public static void draw(float pitch, float yaw, @Nullable Light light, Runnable draw) {
+        Light l = ItemTurn.light;
         int p = ItemTurn.pitch, y = ItemTurn.yaw;
         ItemTurn.light = light;
         ItemTurn.pitch = Math.round(pitch);
@@ -95,14 +102,14 @@ public final class ItemTurn {
 
     /**
      * The GUI is about to light {@code item} ({@code ItemLightMixin}): with its own light when
-     * it has one, both of the shader's lights along it. False: vanilla lights it.
+     * it has one. False: vanilla lights it.
      */
     public static boolean light(@Nullable ItemStackRenderState item) {
-        Vector3fc l = item == null ? null : LIT.get(item);
+        Light l = item == null ? null : LIT.get(item);
         if (l == null) return false;
         RenderSystem.setShaderLights(BUFFERS.computeIfAbsent(l, dir -> {
             try (MemoryStack stack = MemoryStack.stackPush()) {
-                ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE).putVec3(dir).putVec3(dir).get();
+                ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE).putVec3(dir.first()).putVec3(dir.second()).get();
                 // Lighting's own usage for its buffer: a uniform, written once.
                 return RenderSystem.getDevice().createBuffer(() -> "Open Anywhere item light", 136, data).slice();
             }
