@@ -32,6 +32,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -80,6 +81,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_order", this::order);
             run("openanywhere:screens_ender", this::ender);
             run("openanywhere:screens_bundle", this::bundle);
+            run("openanywhere:screens_bundle", this::bundleHalf);
             run("openanywhere:screens_nested", this::nested);
             run("openanywhere:screens_cursor", this::cursor);
             run("openanywhere:screens_lock", this::lock);
@@ -263,6 +265,68 @@ public class ScreenChecks implements FabricClientGameTest {
             return String.join(", ", shown);
         });
         if (!slots.equals("4 stone, 2 granite, +")) throw new AssertionError("the bundle's slots show [" + slots + "], not [4 stone, 2 granite, +]");
+    }
+
+    /**
+     * Half a stack out of a bundle and back, at a hand's pace and faster: right-click takes
+     * half, a click on its slot puts it back, the add slot adds it, a right-click puts one.
+     * After each, the client shows what the server has and no item has doubled or gone.
+     */
+    private void bundleHalf() {
+        openInventory();
+        doubleClick(hotbar(2), "the bundle");
+        expectScreen(ContainerScreen.class, "double-click on the bundle");
+        Predicate<Slot> stone = s -> Groups.bundleIndex(s) == 0, granite = s -> Groups.bundleIndex(s) == 1, add = s -> Groups.bundleIndex(s) == 2;
+        rightClick(stone, "the stone");
+        expectBundle("[2 stone, 2 granite, +] cursor 2 stone", "taking half the stone");
+        click(stone, "the stone");
+        expectBundle("[4 stone, 2 granite, +] cursor -", "putting the half back on its slot");
+        rightClick(stone, "the stone");
+        click(add, "the add slot");
+        expectBundle("[4 stone, 2 granite, +] cursor -", "putting the half in the add slot");
+        rightClick(granite, "the granite");
+        rightClick(granite, "the granite");
+        expectBundle("[4 stone, 2 granite, +] cursor -", "taking one granite and putting one back");
+        // A hand's pace: the next click before the server's answer.
+        for (int i = 0; i < 3; i++) {
+            pressNow(stone, InputConstants.MOUSE_BUTTON_RIGHT, "the stone");
+            pressNow(stone, InputConstants.MOUSE_BUTTON_LEFT, "the stone");
+            pressNow(granite, InputConstants.MOUSE_BUTTON_RIGHT, "the granite");
+            pressNow(add, InputConstants.MOUSE_BUTTON_LEFT, "the add slot");
+        }
+        ctx.waitTicks(10);
+        expectBundle("[4 stone, 2 granite, +] cursor -", "fast clicks");
+    }
+
+    /** The open bundle shows {@code expected}, on the client and the server alike, with 4 stone and 2 granite in all. */
+    private void expectBundle(String expected, String after) {
+        ctx.waitTicks(5);
+        String client = ctx.computeOnClient(mc -> slotsOf(mc.player.containerMenu));
+        String server = scene.world().getServer().computeOnServer(sv -> {
+            ServerPlayer p = player(sv);
+            int stone = 0, granite = 0;
+            List<ItemStack> all = new ArrayList<>(p.getInventory().getNonEquipmentItems());
+            all.add(p.containerMenu.getCarried());
+            BundleContents in = p.getInventory().getItem(2).get(DataComponents.BUNDLE_CONTENTS);
+            if (in != null) for (ItemStack i : (Iterable<ItemStack>) in.itemCopies()::iterator) all.add(i);
+            for (ItemStack i : all) {
+                if (i.is(net.minecraft.world.item.Items.STONE)) stone += i.getCount();
+                if (i.is(net.minecraft.world.item.Items.GRANITE)) granite += i.getCount();
+            }
+            return slotsOf(p.containerMenu) + (stone == 4 && granite == 2 ? "" : " with " + stone + " stone, " + granite + " granite in all");
+        });
+        if (!client.equals(server)) throw new AssertionError("after " + after + " the client shows " + client + ", the server has " + server);
+        if (!server.equals(expected)) throw new AssertionError("after " + after + " the bundle is " + server + ", not " + expected);
+    }
+
+    private static String slotsOf(AbstractContainerMenu menu) {
+        List<String> shown = new ArrayList<>();
+        for (Slot s : menu.slots) {
+            if (Groups.bundleIndex(s) >= 0 && (s.isActive() || !s.getItem().isEmpty()))
+                shown.add((s.isActive() ? "" : "(hidden)") + (s.getItem().isEmpty() ? "+" : s.getItem().getCount() + " " + name(s.getItem())));
+        }
+        ItemStack c = menu.getCarried();
+        return "[" + String.join(", ", shown) + "] cursor " + (c.isEmpty() ? "-" : c.getCount() + " " + name(c));
     }
 
     /** A bundle inside a box in a chest opens as its own tab, and taking from it takes from the bundle in the box. */
@@ -601,6 +665,22 @@ public class ScreenChecks implements FabricClientGameTest {
     private void click(Predicate<Slot> p, String what) {
         hover(p, what);
         ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
+    }
+
+    /** One press and release on {@code p}'s slot, two ticks before the next: faster than the server answers. */
+    private void pressNow(Predicate<Slot> p, int button, String what) {
+        hover(p, what);
+        ctx.runOnClient(mc -> {
+            var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+            for (int action : new int[] {1, 0})
+                mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(button, 0), action);
+        });
+    }
+
+    private void rightClick(Predicate<Slot> p, String what) {
+        hover(p, what);
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_RIGHT);
         ctx.waitTicks(3);
     }
 

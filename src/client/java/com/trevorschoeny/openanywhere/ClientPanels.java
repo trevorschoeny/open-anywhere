@@ -1,12 +1,10 @@
 package com.trevorschoeny.openanywhere;
 
-import java.util.List;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.element.Transition;
-import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.ContainerTabs;
@@ -25,7 +23,6 @@ import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 import org.jspecify.annotations.Nullable;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -243,21 +240,10 @@ final class ClientPanels {
         return tab == null ? ItemStack.EMPTY : tab.item();
     }
 
-    /**
-     * An item tab's tooltip: its own name, as the inventory shows it ("Red Shulker Box", or
-     * the name the player gave it), then where it sits, in grey: "In Inventory", "In Large
-     * Chest" (the world container, by its title), "In Ender Chest", or the item it's inside.
-     */
+    /** An item tab's tooltip: its own name, as the inventory shows it ("Red Shulker Box", or the name the player gave it). */
     private static Component tooltip(TabId id) {
         Tab tab = Tabs.tab(id);
-        if (tab == null || id.path() == null) return Component.empty();
-        Component where = tab.in().orElseGet(() -> switch (id.path().source()) {
-            case INVENTORY -> Component.translatable("container.inventory");
-            case CONTAINER -> worldTitle();
-            case ENDER_CHEST -> Component.translatable("container.enderchest");
-        });
-        return MKTooltip.joinLines(List.of(tab.item().getHoverName(),
-                Component.translatable("openanywhere.tab.in", where).withStyle(ChatFormatting.GRAY)));
+        return tab == null ? Component.empty() : tab.item().getHoverName();
     }
 
     /**

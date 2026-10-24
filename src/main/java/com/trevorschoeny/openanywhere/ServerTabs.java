@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -161,8 +160,8 @@ public final class ServerTabs {
 
     // The row
 
-    /** One item on the row: where it sits, a copy of it, and the name of the item it's in, if any. */
-    private record Item(ItemPath path, ItemStack stack, Optional<Component> in) {}
+    /** One item on the row: where it sits, and a copy of it. */
+    private record Item(ItemPath path, ItemStack stack) {}
 
     /** The player's row, in order: the inventory, the world container, then the items. */
     private static List<Tab> row(ServerPlayer player, State st) {
@@ -179,7 +178,7 @@ public final class ServerTabs {
                 if (ender) continue;
                 ender = true;
             }
-            row.add(new Tab(TabId.item(item.path()), item.stack(), item.in()));
+            row.add(new Tab(TabId.item(item.path()), item.stack()));
         }
         return row;
     }
@@ -197,7 +196,7 @@ public final class ServerTabs {
                 st.lifted.add(new Lifted(m.path(), player.containerMenu.getCarried().copy(), now));
             return true;
         });
-        for (Mark m : st.marks) items.add(new Item(m.path(), at(player, world, m.path()).copy(), parentName(player, world, m.path())));
+        for (Mark m : st.marks) items.add(new Item(m.path(), at(player, world, m.path()).copy()));
         return items;
     }
 
@@ -229,15 +228,8 @@ public final class ServerTabs {
             }
         }
         List<Item> items = new ArrayList<>();
-        for (ItemSources.Found f : found) items.add(new Item(f.path(), f.stack(), parentName(player, world, f.path())));
+        for (ItemSources.Found f : found) items.add(new Item(f.path(), f.stack()));
         return items;
-    }
-
-    /** The name of the item {@code path}'s item is inside, for its tooltip; empty for a top-level item. */
-    private static Optional<Component> parentName(ServerPlayer player, @Nullable AbstractContainerMenu world, ItemPath path) {
-        if (path.depth() == 0) return Optional.empty();
-        ItemStack parent = at(player, world, parentOf(path));
-        return parent == null ? Optional.empty() : Optional.of(parent.getHoverName());
     }
 
     private static ItemPath parentOf(ItemPath path) {

@@ -90,7 +90,8 @@ public final class Groups {
      * Each slot's rule in an open bundle, following a bundle in hand:
      * <ul>
      *   <li>The add slot takes as much as vanilla's 64-weight rule allows.</li>
-     *   <li>A filled slot never grows: more of the same goes in through the add slot.</li>
+     *   <li>A filled slot takes more of its own item, as much as the 64-weight rule allows,
+     *       so half a stack taken out goes back where it came from.</li>
      *   <li>A filled slot swaps with a different item on the cursor, when that item fits
      *       the bundle once the slot's stack is out.</li>
      * </ul>
@@ -103,7 +104,8 @@ public final class Groups {
                     BundleContents contents = BundleView.contents(ctx.actingPlayer());
                     if (contents == null) return false;
                     if (index == BundleView.addSlot(contents)) return BundleView.fit(contents, stack) > 0;
-                    if (index >= contents.size() || BundleView.sameItem(contents, index, stack)) return false;
+                    if (index >= contents.size()) return false;
+                    if (BundleView.sameItem(contents, index, stack)) return BundleView.fit(contents, stack) > 0;
                     return BundleView.fitWithout(contents, index, stack) >= stack.getCount();
                 }
                 @Override public boolean mayPickup(Player player, GatingContext ctx) {
@@ -113,8 +115,9 @@ public final class Groups {
                     BundleContents contents = BundleView.contents(GatingContext.current().actingPlayer());
                     if (contents == null) return vanillaMax;
                     if (index >= contents.size()) return Math.min(vanillaMax, BundleView.fit(contents, stack));
-                    // Asked about the slot's own stack (a merge): it stays as it is.
-                    if (BundleView.sameItem(contents, index, stack)) return Math.min(vanillaMax, stack.getCount());
+                    // Asked about the slot's own item (a merge): what it holds, plus the room left for that item.
+                    if (BundleView.sameItem(contents, index, stack))
+                        return Math.min(vanillaMax, contents.items().get(index).count() + BundleView.fit(contents, stack.copyWithCount(vanillaMax)));
                     // Asked about a different stack (a swap): what fits in its place.
                     return Math.min(vanillaMax, BundleView.fitWithout(contents, index, stack));
                 }
