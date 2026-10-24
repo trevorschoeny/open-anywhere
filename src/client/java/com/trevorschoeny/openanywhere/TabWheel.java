@@ -14,7 +14,8 @@ import net.minecraft.resources.Identifier;
 
 /**
  * The wheel moves between tabs, one tab a notch, up to the left and down to the right,
- * anywhere on the screen. Over the container, while it has a scrollbar
+ * anywhere on the screen. Down runs through a group's sub-tabs and on to the next group's
+ * header; up runs back to the header and into the group before, at its last sub-tab. Over the container, while it has a scrollbar
  * (the list's own, or a slot grid's), the wheel stays the container's. And only a turn nobody else used:
  * it runs after the screen and every other mod's scroll handler (Mouse Tweaks, a bundle's
  * own wheel), and before MenuKit's list scroll, which comes last of all.
@@ -40,18 +41,40 @@ final class TabWheel {
     /** One turn of the wheel at {@code (x, y)}: the next or previous tab, unless over the list. Whether it was used. */
     private static boolean turn(Screen screen, double x, double y, double amount) {
         if (amount == 0 || !Settings.wheel()) return false;
-        List<TabId> row = new java.util.ArrayList<>();
-        for (Tab tab : Tabs.row()) row.add(tab.id());
-        if (row.size() < 2) return false;
+        // The row as groups: each header, then its sub-tabs.
+        List<List<TabId>> groups = new java.util.ArrayList<>();
+        for (Tabs.Group g : Tabs.Group.values()) {
+            TabId header = Tabs.header(g);
+            if (header == null) continue;
+            List<TabId> group = new java.util.ArrayList<>();
+            group.add(header);
+            group.addAll(Tabs.children(g));
+            groups.add(group);
+        }
+        if (groups.stream().mapToInt(List::size).sum() < 2) return false;
         // Over the container, the wheel is the container's only while it has a scrollbar:
         // the list's own, or a shown grid's.
         boolean scrollable = ContainerRegion.scrolls(screen) || SlotScroll.anyScrolling();
         Reference list = ContainerRegion.CONTAINERS.box(screen);
         if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
                 && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;
-        int at = row.indexOf(Tabs.selected());
-        int next = Math.max(0, Math.min(row.size() - 1, at + (amount < 0 ? 1 : -1)));
-        if (next != at) Tabs.pick(row.get(next));
+        TabId at = Tabs.selected();
+        int g = 0, i = 0;
+        for (int gi = 0; gi < groups.size(); gi++) {
+            int ci = groups.get(gi).indexOf(at);
+            if (ci >= 0) { g = gi; i = ci; break; }
+        }
+        // Down goes along: through the group's sub-tabs, then to the next group's header.
+        // Up goes back: to the header, then into the group before at its last sub-tab.
+        TabId next = null;
+        if (amount < 0) {
+            if (i + 1 < groups.get(g).size()) next = groups.get(g).get(i + 1);
+            else if (g + 1 < groups.size()) next = groups.get(g + 1).getFirst();
+        } else {
+            if (i > 0) next = groups.get(g).get(i - 1);
+            else if (g > 0) next = groups.get(g - 1).getLast();
+        }
+        if (next != null) Tabs.pick(next);
         return true;
     }
 }

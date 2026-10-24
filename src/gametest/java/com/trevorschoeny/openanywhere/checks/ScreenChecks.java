@@ -197,6 +197,28 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(ContainerScreen.class, "the Chest tab");
         doubleClick(hotbar(0), "the lime box");
         expectRow("INVENTORY, WORLD, lime_shulker_box, red_shulker_box, orange_shulker_box", "three boxes opened out of order");
+        // Groups: the lime box is the inventory's, the red and orange the chest's; only the
+        // group holding the tab in front is open.
+        String groups = ctx.computeOnClient(mc -> names(Tabs.children(Tabs.Group.INVENTORY)) + " | " + names(Tabs.children(Tabs.Group.WORLD))
+                + " | open " + Tabs.expanded(Tabs.Group.INVENTORY) + " " + Tabs.expanded(Tabs.Group.WORLD));
+        if (!groups.equals("lime_shulker_box | red_shulker_box, orange_shulker_box | open true false"))
+            throw new AssertionError("the groups read [" + groups + "]");
+        // The wheel: down from the inventory's last sub-tab is the chest's header; up from
+        // there is back into the inventory group at its last sub-tab.
+        ctx.getInput().setCursorPos(2, 2);
+        ctx.getInput().scroll(-1);
+        ctx.waitTicks(5);
+        expectSelected(TabId.WORLD, "the wheel down from the lime box");
+        ctx.getInput().scroll(1);
+        ctx.waitTicks(5);
+        String back = ctx.computeOnClient(mc -> name(Tabs.tab(Tabs.selected()).item()));
+        if (!back.equals("lime_shulker_box")) throw new AssertionError("the wheel up from the chest's header went to " + back + ", not the lime box");
+    }
+
+    private static String names(List<TabId> ids) {
+        List<String> names = new ArrayList<>();
+        for (TabId id : ids) names.add(name(Tabs.tab(id).item()));
+        return String.join(", ", names);
     }
 
     /** The ender chest opens on vanilla's own ender chest screen over the player's own ender chest. */

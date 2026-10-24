@@ -17,7 +17,7 @@ import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * The player's settings, the one place they live:
- * {@code config/openanywhere/settings.json}, all on by default but every box getting a tab. Changed from the Open
+ * {@code config/openanywhere/settings.json}, all on by default but every box getting a tab and keeping every group open. Changed from the Open
  * Anywhere tab in Inventory Plus's settings menu when IP is installed; without it, the file
  * or the defaults apply. Every setter saves.
  *
@@ -39,6 +39,7 @@ public final class Settings {
     private static boolean wheel = true;
     private static boolean animation = true;
     private static boolean everyBox = false;
+    private static boolean keepGroupsOpen = false;
 
     /** Whether {@code kind} opens at all. Turning one off leaves any already open until closed. */
     public static boolean opens(Openable kind) { return OPENS.getOrDefault(kind, true); }
@@ -50,12 +51,15 @@ public final class Settings {
     public static boolean animation() { return animation; }
     /** Whether every box, bundle and ender chest in reach gets a tab, or only the ones opened by hand. Off by default. */
     public static boolean everyBox() { return everyBox; }
+    /** Whether every tab group stays open, not only the one holding the tab in front. Off by default. */
+    public static boolean keepGroupsOpen() { return keepGroupsOpen; }
 
     public static void setOpens(Openable kind, boolean on) { OPENS.put(kind, on); save(); }
     public static void setDoubleClick(boolean on) { doubleClick = on; save(); }
     public static void setWheel(boolean on) { wheel = on; save(); }
     public static void setAnimation(boolean on) { animation = on; save(); }
     public static void setEveryBox(boolean on) { everyBox = on; save(); }
+    public static void setKeepGroupsOpen(boolean on) { keepGroupsOpen = on; save(); }
 
     /** Everything back to on, and saves: Reset to Defaults and Inventory Plus's Reset everything. */
     public static void reset() {
@@ -64,6 +68,7 @@ public final class Settings {
         wheel = true;
         animation = true;
         everyBox = false;
+        keepGroupsOpen = false;
         save();
     }
 
@@ -87,6 +92,7 @@ public final class Settings {
             if (root.has("wheel_switches_tabs")) wheel = root.get("wheel_switches_tabs").getAsBoolean();
             if (root.has("open_animation")) animation = root.get("open_animation").getAsBoolean();
             if (root.has("every_box_tab")) everyBox = root.get("every_box_tab").getAsBoolean();
+            if (root.has("keep_groups_open")) keepGroupsOpen = root.get("keep_groups_open").getAsBoolean();
         } catch (IOException | RuntimeException ex) {
             LOG.error("[openanywhere] couldn't read {}; using the defaults", path, ex);
         }
@@ -102,6 +108,7 @@ public final class Settings {
         root.addProperty("wheel_switches_tabs", wheel);
         root.addProperty("open_animation", animation);
         root.addProperty("every_box_tab", everyBox);
+        root.addProperty("keep_groups_open", keepGroupsOpen);
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, new GsonBuilder().setPrettyPrinting().create().toJson(root));

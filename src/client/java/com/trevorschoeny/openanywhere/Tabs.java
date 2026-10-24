@@ -72,6 +72,54 @@ public final class Tabs {
         return ids;
     }
 
+    /**
+     * The row's groups: the inventory, the world container and the ender chest, each a header
+     * tab with the items it holds as sub-tabs. An item's group is its top-level container's,
+     * however deep it sits: a bundle in a box in the chest is the chest's.
+     */
+    public enum Group { INVENTORY, WORLD, ENDER_CHEST }
+
+    /** The ender chest's tab, the ender chest group's header, or null with no ender chest in reach. */
+    static @Nullable TabId enderHeader() {
+        for (Tab tab : row()) if (tab.id().type() == TabId.Type.ITEM && Openable.of(tab.item()) == Openable.ENDER_CHEST) return tab.id();
+        return null;
+    }
+
+    /** {@code group}'s header tab, or null while it isn't on the row. */
+    public static @Nullable TabId header(Group group) {
+        return switch (group) {
+            case INVENTORY -> showing() ? TabId.INVENTORY : null;
+            case WORLD -> hasWorld() ? TabId.WORLD : null;
+            case ENDER_CHEST -> enderHeader();
+        };
+    }
+
+    /** The group {@code id} is in, as its header or a sub-tab. */
+    public static Group groupOf(TabId id) {
+        if (id.type() == TabId.Type.INVENTORY) return Group.INVENTORY;
+        if (id.type() == TabId.Type.WORLD || id.path() == null) return Group.WORLD;
+        if (id.equals(enderHeader())) return Group.ENDER_CHEST;
+        return switch (id.path().source()) {
+            case INVENTORY -> Group.INVENTORY;
+            case CONTAINER -> Group.WORLD;
+            // At a placed ender chest the world container is the ender chest, and its items are its.
+            case ENDER_CHEST -> enderHeader() != null ? Group.ENDER_CHEST : Group.WORLD;
+        };
+    }
+
+    /** {@code group}'s sub-tabs, in the row's order: MenuKit's keys for them. */
+    public static List<TabId> children(Group group) {
+        List<TabId> ids = new ArrayList<>();
+        TabId ender = enderHeader();
+        for (TabId id : items()) if (!id.equals(ender) && groupOf(id) == group) ids.add(id);
+        return ids;
+    }
+
+    /** Whether {@code group}'s sub-tabs are out: it holds the selected tab, or every group stays open. */
+    public static boolean expanded(Group group) {
+        return Settings.keepGroupsOpen() || groupOf(selected()) == group;
+    }
+
     /** Whether the row has a world container tab. */
     static boolean hasWorld() {
         for (Tab tab : row()) if (tab.id().equals(TabId.WORLD)) return true;
@@ -79,7 +127,7 @@ public final class Tabs {
     }
 
     /** {@code id}'s tab on the row, or null. */
-    static @Nullable Tab tab(TabId id) {
+    public static @Nullable Tab tab(TabId id) {
         for (Tab tab : row) if (tab.id().equals(id)) return tab;
         return null;
     }

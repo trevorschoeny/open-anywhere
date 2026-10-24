@@ -64,8 +64,9 @@ public final class SettingsPage {
                 ChordButton.builder(OpenAnywhereClient.OPEN).at(0, top + 110)
                         .label(Component.translatable("openanywhere.settings.open_key")).build(),
                 checkbox(top + 134, "openanywhere.settings.every_box", Settings::everyBox, Settings::setEveryBox),
-                checkbox(top + 150, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
-                checkbox(top + 166, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
+                checkbox(top + 150, "openanywhere.settings.keep_groups_open", Settings::keepGroupsOpen, Settings::setKeepGroupsOpen),
+                checkbox(top + 166, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
+                checkbox(top + 182, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
         return page;
     }
 

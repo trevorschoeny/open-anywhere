@@ -43,12 +43,12 @@ public final class ClientMarks {
      * A quarter second, as a placed shulker box takes to open. The property slows it for a
      * frame-by-frame capture, whose screenshots each take longer than the whole animation.
      */
-    private static final Transition OPENING = Transition.of(Integer.getInteger("openanywhere.openMillis", 250), Easing.EASE_OUT);
+    static final Transition OPENING = Transition.of(Integer.getInteger("openanywhere.openMillis", 250), Easing.EASE_OUT);
     /**
      * The lid opening, the box shrinking as it goes and sitting a little lower, so the open
      * lid stays inside the slot.
      */
-    private static final ItemAnimation OPEN = ItemAnimation.OPEN_LID
+    static final ItemAnimation OPEN = ItemAnimation.OPEN_LID
             .posed(t -> new ItemAnimation.Pose(1f - 0.3f * t, 0f, 2f * t));
 
     /**
@@ -90,6 +90,11 @@ public final class ClientMarks {
      */
     public static ItemStack drawnAs(Slot slot, ItemStack stack) {
         if (Openable.of(stack) != Openable.BUNDLE || !shownOpen(slot)) return stack;
+        return openBundle(stack);
+    }
+
+    /** {@code bundle} with vanilla's open-bag art for its colour. */
+    static ItemStack openBundle(ItemStack stack) {
         String path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
         ItemStack drawn = stack.copy();
         drawn.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + "_open"));

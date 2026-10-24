@@ -10,6 +10,7 @@
   "openanywhere.settings.double_click": "Double-click to open",
   "openanywhere.settings.open_key": "Open key (hold and click)",
   "openanywhere.settings.every_box": "Every box gets a tab",
+  "openanywhere.settings.keep_groups_open": "Keep every tab group open",
   "openanywhere.settings.wheel": "Scroll to switch tabs",
   "openanywhere.settings.animation": "Animate opened boxes",
   "key.openanywhere.open_settings": "Open Settings"

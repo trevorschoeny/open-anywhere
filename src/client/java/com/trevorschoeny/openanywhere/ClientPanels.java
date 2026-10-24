@@ -3,6 +3,8 @@ package com.trevorschoeny.openanywhere;
 import java.util.List;
 
 import com.trevlar.menukit.api.element.Button;
+import com.trevlar.menukit.api.element.Easing;
+import com.trevlar.menukit.api.element.Transition;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
@@ -24,6 +26,7 @@ import org.jspecify.annotations.Nullable;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
@@ -39,9 +42,9 @@ import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.block.Block;
 
 /**
- * What this mod adds to the screens: the tab row (the inventory, the world container, then
- * each opened item, through MenuKit's {@link ContainerTabs}), the bundle's slots on its
- * host, and the close button for the item in front.
+ * What this mod adds to the screens: the tab row (three groups, the inventory, the world
+ * container and the ender chest, through MenuKit's {@link ContainerTabs}), the bundle's
+ * slots on its host, and the close button for the item in front.
  */
 final class ClientPanels {
 
@@ -56,12 +59,12 @@ final class ClientPanels {
 
     static final String INVENTORY_TAB = OpenAnywhere.MOD_ID + ":inventory";
     static final String WORLD_TAB = OpenAnywhere.MOD_ID + ":world";
-    static final String ITEM_TABS = OpenAnywhere.MOD_ID + ":items";
+    static final String ENDER_TAB = OpenAnywhere.MOD_ID + ":ender_chest";
     /** The open bundle's section on its host. */
     static final String BUNDLE_ID = OpenAnywhere.MOD_ID + ":bundle";
 
-    /** The inventory first, then the world container, then the items, in the server's order. */
-    private static final int INVENTORY_ORDER = 0, WORLD_ORDER = 100, ITEMS_ORDER = 200;
+    /** The groups in order: the inventory, the world container, the ender chest. */
+    private static final int INVENTORY_ORDER = 0, WORLD_ORDER = 100, ENDER_ORDER = 200;
 
     /** The screens the row stands on: the inventory, a chest (and the bundle's host), a shulker box. */
     @SuppressWarnings("unchecked")
@@ -87,34 +90,88 @@ final class ClientPanels {
         com.trevorschoeny.openanywhere.api.ShownItem.declare();
     }
 
+    /**
+     * The row, as three groups: the inventory, the world container and the ender chest, each
+     * a header with the items it holds as smaller sub-tabs that slide out from under it while
+     * the group holds the tab in front (or always, with every group kept open). A header shows
+     * its own screen when clicked. MenuKit draws the row and the slide; the icons are ours.
+     */
     private static void tabs() {
-        ContainerTabs.tab(INVENTORY_TAB, ModeScope.BOTH)
-                .icon(ClientPanels::playerHead)
-                .tooltip(() -> Component.translatable("container.inventory"))
+        group(Tabs.Group.INVENTORY, INVENTORY_TAB, INVENTORY_ORDER, ClientPanels::drawHead,
+                () -> Component.translatable("container.inventory"));
+        group(Tabs.Group.WORLD, WORLD_TAB, WORLD_ORDER,
+                (g, x, y, w, h) -> drawOpening(g, worldIcon(), Tabs.Group.WORLD, Tabs.groupOf(Tabs.selected()) == Tabs.Group.WORLD, x, y, w),
+                ClientPanels::worldTitle);
+        group(Tabs.Group.ENDER_CHEST, ENDER_TAB, ENDER_ORDER,
+                (g, x, y, w, h) -> {
+                    TabId ender = Tabs.enderHeader();
+                    if (ender != null) drawOpening(g, item(ender), Tabs.Group.ENDER_CHEST,
+                            Tabs.groupOf(Tabs.selected()) == Tabs.Group.ENDER_CHEST, x, y, w);
+                },
+                () -> Component.translatable("container.enderchest"));
+    }
+
+    /** One group: its header, which shows its own screen, and its items as sub-tabs. */
+    private static void group(Tabs.Group group, String id, int order, ContainerTabs.Icon headerIcon,
+                              java.util.function.Supplier<Component> headerTooltip) {
+        ContainerTabs.keyed(id, ModeScope.BOTH, () -> Tabs.children(group))
+                .header(h -> h
+                        .icon(headerIcon)
+                        .tooltip(headerTooltip)
+                        .visibleWhen(() -> Tabs.header(group) != null)
+                        .selectedWhen(() -> {
+                            TabId header = Tabs.header(group);
+                            return header != null && header.equals(Tabs.selected());
+                        })
+                        .onClick(() -> {
+                            TabId header = Tabs.header(group);
+                            if (header != null) Tabs.pick(header);
+                        }))
+                .tab((tabId, tab) -> tab
+                        .icon((g, x, y, w, h) -> drawOpening(g, item(tabId), tabId, Tabs.selected().equals(tabId), x, y, w))
+                        .tooltip(() -> tooltip(tabId))
+                        .selectedWhen(() -> Tabs.selected().equals(tabId))
+                        .onClick(() -> Tabs.pick(tabId)))
+                .expandedWhen(() -> Tabs.expanded(group))
                 .on(SCREENS)
-                .order(INVENTORY_ORDER)
-                .visibleWhen(Tabs::showing)
-                .selectedWhen(() -> Tabs.selected().equals(TabId.INVENTORY))
-                .onClick(() -> Tabs.pick(TabId.INVENTORY))
+                .order(order)
                 .declare();
-        ContainerTabs.tab(WORLD_TAB, ModeScope.BOTH)
-                .icon(ClientPanels::worldIcon)
-                .tooltip(ClientPanels::worldTitle)
-                .on(SCREENS)
-                .order(WORLD_ORDER)
-                .visibleWhen(Tabs::hasWorld)
-                .selectedWhen(() -> Tabs.selected().equals(TabId.WORLD))
-                .onClick(() -> Tabs.pick(TabId.WORLD))
-                .declare();
-        ContainerTabs.keyed(ITEM_TABS, ModeScope.BOTH, Tabs::items)
-                .tab((id, tab) -> tab
-                        .icon(() -> item(id))
-                        .tooltip(() -> tooltip(id))
-                        .selectedWhen(() -> Tabs.selected().equals(id))
-                        .onClick(() -> Tabs.pick(id)))
-                .on(SCREENS)
-                .order(ITEMS_ORDER)
-                .declare();
+    }
+
+    /**
+     * {@code stack} in an icon box {@code size} wide: a box or chest opening while
+     * {@code open} (the slot's own open animation, keyed by {@code key}), a bundle drawn open,
+     * anything else as it is.
+     */
+    private static void drawOpening(GuiGraphicsExtractor g, ItemStack stack, Object key, boolean open, int x, int y, int size) {
+        if (stack.isEmpty()) return;
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        g.pose().scale(size / 16f, size / 16f);
+        if (Openable.of(stack) == Openable.BUNDLE) g.item(open ? ClientMarks.openBundle(stack) : stack, 0, 0);
+        else ClientMarks.OPEN.draw(g, stack, 0, 0, ClientMarks.OPENING.toward(key, open && Settings.animation()));
+        g.pose().popMatrix();
+    }
+
+    /** How long the head takes to turn, and how much larger it grows facing front, where only its face shows. */
+    private static final Transition HEAD_TURN = Transition.of(250, Easing.EASE_OUT);
+    private static final float HEAD_GROWTH = 0.35f;
+
+    /**
+     * The Inventory header's icon: the player's own head, turning to face front while the
+     * inventory group holds the tab in front and back to vanilla's three-quarter view when
+     * not. A head's GUI view is turned {@code [30, 45, 0]}; it faces the viewer at
+     * {@code [0, 0, 0]}. Facing front only its face shows, so it grows to keep its size.
+     */
+    private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
+        float scale = w / 16f * (1f + HEAD_GROWTH * t);
+        g.pose().pushMatrix();
+        g.pose().translate(x + w / 2f, y + h / 2f);
+        g.pose().scale(scale, scale);
+        g.pose().translate(-8, -8);
+        ItemTurn.draw(-30f * t, -45f * t, () -> g.item(playerHead(), 0, 0));
+        g.pose().popMatrix();
     }
 
     /** The inventory tab's icon: the player's own head. */
