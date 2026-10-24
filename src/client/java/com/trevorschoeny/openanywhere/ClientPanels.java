@@ -207,8 +207,8 @@ final class ClientPanels {
      */
     private static final ItemTurn.Light HEAD_LIGHT = new ItemTurn.Light(
             new org.joml.Vector3f(0, -0.67f, 1).normalize(), new org.joml.Vector3f(1, 0, 0));
-    /** A thin dark line round the face once it faces front, so it stands off the tab's grey. */
-    private static final int FACE_BORDER = 0x70000000;
+    /** A faint shadow down and right of the face once it faces front, so it stands off the tab's grey. */
+    private static final int FACE_SHADOW = 0x40000000;
 
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
@@ -222,17 +222,16 @@ final class ClientPanels {
         ItemTurn.draw(-30f * t, -45f * t, HEAD_LIGHT, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
         // The face, facing front, covers item pixels 4 to 12 across and 5 to 13.4 down. Its
-        // border fades in over the end of the turn, when the head is square to the viewer.
+        // shadow, a pixel down and right, fades in over the end of the turn, when the head is
+        // square to the viewer. Drawn after the head, so only where the face doesn't cover it.
         float in = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
         if (in > 0) {
             float cx = x + w / 2f, cy = y + h / 2f;
             int l = Math.round(cx - 4 * scale), r = Math.round(cx + 4 * scale);
             int top = Math.round(cy - 3 * scale), bottom = Math.round(cy + 5.4f * scale);
-            int color = Math.round((FACE_BORDER >>> 24) * in) << 24;
-            g.fill(l - 1, top - 1, r + 1, top, color);
-            g.fill(l - 1, bottom, r + 1, bottom + 1, color);
-            g.fill(l - 1, top, l, bottom, color);
-            g.fill(r, top, r + 1, bottom, color);
+            int color = Math.round((FACE_SHADOW >>> 24) * in) << 24;
+            g.fill(l + 1, bottom, r + 1, bottom + 1, color);
+            g.fill(r, top + 1, r + 1, bottom, color);
         }
     }
 
