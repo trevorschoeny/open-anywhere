@@ -43,6 +43,9 @@ public final class DoubleClick {
     // under its own screen goes back to the inventory's), else by its index on the menu.
     private static int lastSlot = -1;
     private static long lastClick;
+    // The screen the first click was on: one put in its place since may sit lower or higher
+    // (MenuKit makes room for a tab row in a short window), moving the slot from under the cursor.
+    private static @Nullable Screen firstScreen;
     private static double firstMouseX, firstMouseY;
     private static int heldX, heldY;
 
@@ -77,14 +80,27 @@ public final class DoubleClick {
             return false;
         }
         long now = Util.getMillis();
-        boolean second = place == lastSlot && now - lastClick < WINDOW_MS
-                // The same pixel, not the same fraction of one: a screen opened in place of
-                // another between the clicks puts the cursor back where it was, to the pixel.
+        // On a screen put in place of the first one, the second click goes to the first one's
+        // slot, wherever it now sits: it's still a double-click on the item the player clicked.
+        // The same pixel, not the same fraction of one: a screen opened in place of another
+        // between the clicks puts the cursor back where it was, to the pixel.
+        boolean still = now - lastClick < WINDOW_MS
                 && Math.floor(event.x()) == Math.floor(firstMouseX) && Math.floor(event.y()) == Math.floor(firstMouseY);
+        boolean swapped = still && screen != firstScreen && lastSlot >= 1000;
+        if (swapped && !creative) {
+            Slot first = inventorySlot(screen, lastSlot - 1000);
+            if (first != null) {
+                hovered = first;
+                target = first.index;
+                place = lastSlot;
+            }
+        }
+        boolean second = still && place == lastSlot;
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
             lastSlot = OpenAnywhereClient.opensOrIsOpen(player, hovered) && carried.isEmpty() ? place : -1;
             lastClick = now;
+            firstScreen = screen;
             firstMouseX = event.x();
             firstMouseY = event.y();
             ScreenAccessor edge = (ScreenAccessor) screen;
@@ -118,6 +134,15 @@ public final class DoubleClick {
             return true;
         }
         return false;
+    }
+
+    /** The slot on {@code screen} that shows the player's inventory slot {@code index}, or null. */
+    private static @Nullable Slot inventorySlot(Screen screen, int index) {
+        if (!(screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs)) return null;
+        for (Slot s : acs.getMenu().slots) {
+            if (s.container instanceof net.minecraft.world.entity.player.Inventory && s.getContainerSlot() == index) return s;
+        }
+        return null;
     }
 
     /** An item a double-click opens: one box or bundle, or any stack of ender chests. */

@@ -98,6 +98,9 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_cursor", this::cursor);
             run("openanywhere:screens_lock", this::handPickup);
             run("openanywhere:screens_lock", this::everyPickup);
+            run("openanywhere:screens_lock", this::lockedWhileCarried);
+            run("openanywhere:screens_lock", this::twins);
+            run("openanywhere:screens_lock", this::takenAway);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_no_flash", this::noFlash);
@@ -506,14 +509,11 @@ public class ScreenChecks implements FabricClientGameTest {
         String front = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
         if (!front.contains("slot=14")) throw new AssertionError("the box opened again at " + front + ", not where it was put down");
         // A double-click on it, in front, closes it: back to the inventory, the box in its slot.
-        // The bundle open too, so the row stays and the screen doesn't move under the cursor
-        // (a short window moves the frame down to make room for a row).
-        doubleClick(hotbar(2), "the bundle");
-        pick(tabOf("lime_shulker_box"));
-        expectScreen(ShulkerBoxScreen.class, "the lime box's tab");
+        // Its first click takes the row's last tab, and this short window's frame moves up as
+        // the row goes, out from under the cursor: the second click still counts.
         slowDoubleClick(slot(14), "the open lime box");
         expectScreen(InventoryScreen.class, "double-clicking the open box");
-        expectRow("INVENTORY, bundle", "double-clicking the open box");
+        expectRow("", "double-clicking the open box");
         boolean there = scene.world().getServer().computeOnServer(s -> name(player(s).getInventory().getItem(14)).equals("lime_shulker_box"));
         if (!there) throw new AssertionError("the box isn't back in its slot after the double-click");
     }
@@ -871,6 +871,78 @@ public class ScreenChecks implements FabricClientGameTest {
     private void openInventory() {
         ctx.setScreen(() -> new InventoryScreen(Minecraft.getInstance().player));
         ctx.waitTicks(3);
+    }
+
+    /**
+     * Every box tabbed, the box in front on the cursor: nothing comes out of or goes into its
+     * locked slots, by click, shift-click, a number key or Q. Put down, it holds what it held.
+     */
+    private void lockedWhileCarried() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(0), "the lime box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+        click(hotbar(0), "the open lime box");
+        ctx.waitTicks(3);
+        Predicate<Slot> emeralds = s -> !(s.container instanceof Inventory) && s.getContainerSlot() == 0;
+        shiftClick(emeralds, "the emeralds in the carried box");
+        hover(emeralds, "the emeralds in the carried box");
+        ctx.getInput().pressKey(InputConstants.KEY_Q);
+        ctx.getInput().pressKey(InputConstants.KEY_5);
+        ctx.waitTicks(3);
+        click(emeralds, "the emeralds in the carried box");
+        shiftClick(slot(9), "the dirt");
+        ctx.waitTicks(5);
+        click(slot(14), "an empty slot");
+        ctx.waitTicks(5);
+        String got = scene.world().getServer().computeOnServer(sv -> {
+            ServerPlayer p = player(sv);
+            int inBox = count(p.getInventory().getItem(14), Items.EMERALD), loose = 0, dirt = 0;
+            for (int i = 0; i < 36; i++) {
+                if (p.getInventory().getItem(i).is(Items.EMERALD)) loose += p.getInventory().getItem(i).getCount();
+                if (p.getInventory().getItem(i).is(Items.DIRT)) dirt += p.getInventory().getItem(i).getCount();
+            }
+            int dropped = 0;
+            for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, p.getBoundingBox().inflate(8)))
+                if (e.getItem().is(Items.EMERALD)) dropped += e.getItem().getCount();
+            return inBox + " in the box, " + loose + " loose, " + dropped + " dropped, " + dirt + " dirt, cursor " + name(p.containerMenu.getCarried());
+        });
+        if (!got.equals("3 in the box, 0 loose, 0 dropped, 64 dirt, cursor air"))
+            throw new AssertionError("after trying to move things through the carried box's slots: " + got);
+    }
+
+    /**
+     * Every box tabbed, two identical boxes: the one in front, moved, is followed to where it
+     * went, not mistaken for its twin that stayed put.
+     */
+    private void twins() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        command("item replace entity @p inventory.0 with " + LIME);
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(slot(9), "the second lime box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the second lime box");
+        click(slot(9), "the open lime box");
+        click(slot(20), "an empty slot");
+        ctx.waitTicks(5);
+        String front = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
+        if (!front.contains("slot=20,")) throw new AssertionError("the moved box's screen follows " + front + ", not slot 20 where it went");
+    }
+
+    /**
+     * Every box tabbed, the box in front taken away by something else (a command here, a
+     * hopper or another mod in play): its screen goes back to the inventory.
+     */
+    private void takenAway() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(0), "the lime box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+        command("item replace entity @p hotbar.0 with minecraft:air");
+        ctx.waitTicks(5);
+        expectScreen(InventoryScreen.class, "the open box taken away");
     }
 
     /** The player's inventory slot {@code i} (0 to 8 the hotbar, 9 to 35 the rest). */

@@ -113,6 +113,8 @@ public final class ServerTabs {
         List<Tab> sentRow = List.of();
         @Nullable TabId sentShown = TabId.INVENTORY;
         boolean sentFrozen;
+        // Each top-level container's slots as last tick ended, by identity ({@link #find}).
+        final Map<Container, ItemStack[]> before = new java.util.IdentityHashMap<>();
     }
 
     // Weak by player: a player who left takes their tabs with them. Synchronized: the slot
@@ -244,11 +246,11 @@ public final class ServerTabs {
     }
 
     /**
-     * Where {@code stack} is now, at the top level: {@code prefer} if it's there, else the
-     * first slot holding the same item in the inventory, the world container or the ender
-     * chest. Null when it's nowhere in reach.
-     * ponytail: an identical item elsewhere (two empty red boxes) answers just as well; the
-     * contents are the same, only the tab's place differs.
+     * Where {@code stack} is now, at the top level: {@code prefer} if it's there, else a slot
+     * holding the same item in the inventory, the world container or the ender chest. Null
+     * when it's nowhere in reach. Of two identical items (two empty red boxes), the one that
+     * just arrived is it: its slot changed since last tick ({@link State#before}), the other's
+     * didn't.
      */
     private static @Nullable ItemPath find(ServerPlayer player, @Nullable AbstractContainerMenu world, ItemStack stack, @Nullable ItemPath prefer) {
         if (stack.isEmpty()) return null;
@@ -256,20 +258,44 @@ public final class ServerTabs {
             ItemStack there = at(player, world, prefer);
             if (there != null && ItemStack.matches(there, stack)) return prefer;
         }
-        for (int i = 0; i < 36; i++) {
-            if (ItemStack.matches(player.getInventory().getItem(i), stack)) return new ItemPath(ItemRef.Source.INVENTORY, i, List.of());
-        }
-        if (world != null && !worldIsEnderChest(player, world)) {
-            Container c = containerOf(world);
-            for (int i = 0; i < c.getContainerSize(); i++) {
-                if (ItemStack.matches(c.getItem(i), stack)) return new ItemPath(ItemRef.Source.CONTAINER, i, List.of());
+        State st = state(player);
+        ItemPath first = null;
+        for (Map.Entry<ItemRef.Source, Container> top : tops(player, world).entrySet()) {
+            Container c = top.getValue();
+            ItemStack[] before = st.before.get(c);
+            for (int i = 0; i < topSize(c); i++) {
+                ItemStack here = c.getItem(i);
+                if (!ItemStack.matches(here, stack)) continue;
+                ItemPath path = new ItemPath(top.getKey(), i, List.of());
+                if (before == null || i >= before.length || before[i] != here) return path;
+                if (first == null) first = path;
             }
         }
-        Container ender = player.getEnderChestInventory();
-        for (int i = 0; i < ender.getContainerSize(); i++) {
-            if (ItemStack.matches(ender.getItem(i), stack)) return new ItemPath(ItemRef.Source.ENDER_CHEST, i, List.of());
+        return first;
+    }
+
+    /** The top-level containers in reach, in the row's order: the inventory, the world container, the ender chest. */
+    private static Map<ItemRef.Source, Container> tops(ServerPlayer player, @Nullable AbstractContainerMenu world) {
+        Map<ItemRef.Source, Container> tops = new java.util.EnumMap<>(ItemRef.Source.class);
+        tops.put(ItemRef.Source.INVENTORY, player.getInventory());
+        if (world != null && !worldIsEnderChest(player, world)) tops.put(ItemRef.Source.CONTAINER, containerOf(world));
+        tops.put(ItemRef.Source.ENDER_CHEST, player.getEnderChestInventory());
+        return tops;
+    }
+
+    /** How many of {@code c}'s slots hold items: the inventory's 36, not its armor and offhand. */
+    private static int topSize(Container c) {
+        return c instanceof net.minecraft.world.entity.player.Inventory ? 36 : c.getContainerSize();
+    }
+
+    /** Notes what's in every top-level slot in reach, by identity, for telling a moved item from its twin next tick. */
+    private static void remember(ServerPlayer player, State st) {
+        st.before.clear();
+        for (Container c : tops(player, world(player)).values()) {
+            ItemStack[] now = new ItemStack[topSize(c)];
+            for (int i = 0; i < now.length; i++) now[i] = c.getItem(i);
+            st.before.put(c, now);
         }
-        return null;
     }
 
     /** A mark holds while its top-level slot holds the same stack and an openable item is still at its place. */
@@ -363,6 +389,7 @@ public final class ServerTabs {
             if (!st.prefs.everyBox()) settle(player, st);
             if (st.front != null) follow(player, st);
             sync(player, st);
+            remember(player, st);
         }
     }
 
@@ -706,14 +733,14 @@ public final class ServerTabs {
         return st.front;
     }
 
-    /**
-     * Whether the item behind {@code anchor} still has its screen: in place, on the cursor,
-     * or moved within reach (the tick then follows it). Vanilla closes the screen when not.
-     */
+    /** Whether the item behind {@code anchor} still has its screen. Vanilla closes the screen when not. */
     private static boolean stillOpen(ServerPlayer player, Anchor anchor) {
         if (!anchor.live.isStale()) return true;
-        if (ItemStack.matches(player.containerMenu.getCarried(), anchor.seen)) return true;
-        return find(player, world(player), anchor.seen, null) != null;
+        // Off its place, its screen stays while it's the front: the tick follows the item or
+        // goes back to its group's screen ({@link #follow}), rather than vanilla closing every
+        // screen. Its slots are locked meanwhile ({@link #locked}).
+        State st = STATES.get(player);
+        return st != null && st.front != null && st.front.anchor == anchor;
     }
 
     /**
