@@ -4,6 +4,10 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.trevorschoeny.keybindery.api.KeybinderyAPI;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
+import com.trevlar.menukit.api.panel.ModeScope;
+import com.trevlar.menukit.api.panel.ScreenFrames;
+import com.trevlar.menukit.api.panel.ScreenMatcher;
+
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -88,6 +92,9 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         ClientMarks.register();
         // The host is vanilla's chest menu, so it gets vanilla's chest screen.
         MenuScreens.register(ContainerHost.TYPE, ContainerScreen::new);
+        // Our tab row sits on top of a vanilla chest frame, which is what makes it too
+        // tall on a short window. Scroll it there instead of letting it overflow.
+        ScreenFrames.scrollsWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
 
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
