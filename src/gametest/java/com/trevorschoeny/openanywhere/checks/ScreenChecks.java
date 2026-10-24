@@ -723,10 +723,10 @@ public class ScreenChecks implements FabricClientGameTest {
     private static void drawHeads(net.minecraft.client.gui.GuiGraphicsExtractor g) {
         g.fill(0, 0, 300, 76, 0xFFC6C6C6);
         var head = new ItemStack(Items.PLAYER_HEAD);
-        float[][] turns = {{0, 0}, {-30, -45}};
+        float[][] turns = {{0, 0}, {-4, -6}, {-8, -12}, {-12, -18}};
         for (int k = 0; k < 4; k++) {
-            float[] t = turns[k % 2];
-            boolean flat = k >= 2;
+            float[] t = turns[k];
+            boolean flat = true;
             g.pose().pushMatrix();
             g.pose().translate(6 + k * 74, 6);
             g.pose().scale(4f, 4f);

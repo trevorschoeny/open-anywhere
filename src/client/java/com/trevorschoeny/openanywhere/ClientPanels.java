@@ -196,7 +196,7 @@ final class ClientPanels {
 
     /**
      * The Inventory header's icon: the player's own head, turning to face front while the
-     * inventory group holds the tab in front and back to vanilla's three-quarter view when
+     * inventory group holds the tab in front and back to a little short of vanilla's three-quarter view when
      * not. A head's GUI view is turned {@code [30, 45, 0]}; it faces the viewer at
      * {@code [0, 0, 0]}. Facing front only its face shows, so it grows to keep its size.
      */
@@ -207,8 +207,10 @@ final class ClientPanels {
         g.pose().translate(x + w / 2f, y + h / 2f);
         g.pose().scale(scale, scale);
         g.pose().translate(-8, -8);
-        // Lit flat, so the face turned to the front reads in full rather than in vanilla's dim 3D light.
-        ItemTurn.draw(-30f * t, -45f * t, true, () -> g.item(playerHead(), 0, 0));
+        // Lit flat, so the face turned to the front reads in full rather than in vanilla's dim 3D
+        // light. At rest it sits a little round toward the viewer from vanilla's three-quarter
+        // view, which lights it a little more: no light can go brighter than flat.
+        ItemTurn.draw(-8f - 22f * t, -12f - 33f * t, true, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
     }
 
