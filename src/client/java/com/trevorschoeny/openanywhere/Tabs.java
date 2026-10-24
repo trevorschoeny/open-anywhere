@@ -51,6 +51,7 @@ public final class Tabs {
         shown = TabId.INVENTORY;
         frozen = false;
         clicked = null;
+        DoubleClick.reset();
     }
 
     /** Whether the item in front is off its place (on the cursor): its screen's slots are locked and greyed. */

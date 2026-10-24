@@ -35,5 +35,9 @@ public final class OpenAnywhere implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(PrefsC2S.TYPE, (payload, context) -> ServerTabs.prefs(context.player(), payload));
         ServerPlayNetworking.registerGlobalReceiver(DoneC2S.TYPE, (payload, context) -> ServerTabs.done(context.player()));
         ServerTickEvents.END_SERVER_TICK.register(ServerTabs::tick);
+        // What ServerTabs keeps per player goes when they leave or the server stops; settings outlive a death.
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ServerTabs.left(handler.player));
+        net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents.COPY_FROM.register((from, to, alive) -> ServerTabs.respawned(from, to));
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(server -> ServerTabs.stopped());
     }
 }

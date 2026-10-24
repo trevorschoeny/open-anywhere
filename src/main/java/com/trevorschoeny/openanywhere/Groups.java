@@ -69,7 +69,7 @@ public final class Groups {
         // The open item can be picked up from under its own screen. While it's off its place,
         // its screen's slots refuse every operation, from vanilla's clicks, keys and drops to
         // any other mod's (SlotKit's slot lock), and show it as it was. Both modes.
-        SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Shown.locked(ref.container()));
+        SlotOperations.veto(ModeScope.BOTH, (ref, operation) -> Shown.locked(ref.container(), ref.player()));
 
         QuickMoveRoutes.register(Groups::route);
     }

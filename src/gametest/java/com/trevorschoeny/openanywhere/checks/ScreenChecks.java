@@ -78,8 +78,6 @@ public class ScreenChecks implements FabricClientGameTest {
         this.ctx = ctx;
         ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->
                 net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((sc, g, mx, my, delta) -> {
-                    if (bigIcon) drawWorldIcon(g);
-                    if (headShot) drawHeads(g);
                     if (recording) LAYOUTS.add(sc.getClass().getSimpleName() + " " + layout());
                     if (recording) FRAMES.add(describe(sc) + "|" + Tabs.selected().type() + (Tabs.expanded(Tabs.Group.WORLD) ? "+" : ""));
                 })));
@@ -101,6 +99,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::lockedWhileCarried);
             run("openanywhere:screens_lock", this::twins);
             run("openanywhere:screens_lock", this::takenAway);
+            run("openanywhere:screens_box_edits", this::walkedAway);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_no_flash", this::noFlash);
@@ -704,46 +703,6 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.waitTicks(3);
         ctx.takeScreenshot("screens-double-chest-tab");
         ctx.runOnClient(mc -> { mc.options.guiScale().set(scale); mc.resizeGui(); });
-        // The same icon drawn large beside the screen, for a close look.
-        bigIcon = true;
-        ctx.waitTicks(3);
-        ctx.takeScreenshot("screens-double-chest-icon-large");
-        headShot = true;
-        ctx.waitTicks(3);
-        ctx.takeScreenshot("screens-head-rest");
-        pick(TabId.INVENTORY);
-        ctx.waitTicks(10);
-        ctx.takeScreenshot("screens-head-front");
-        headShot = false;
-        bigIcon = false;
-    }
-
-    // While set, the world tab's icon is drawn 96 px wide at the screen's top left.
-    private static volatile boolean bigIcon;
-    private static volatile boolean headShot;
-
-    /** The Inventory tab's head drawn large, as the tab draws it, at rest and facing front. */
-    private static void drawHeads(net.minecraft.client.gui.GuiGraphicsExtractor g) {
-        g.fill(0, 0, 200, 90, 0xFFC6C6C6);
-        try {
-            var draw = Class.forName("com.trevorschoeny.openanywhere.ClientPanels").getDeclaredMethod("drawHead",
-                    net.minecraft.client.gui.GuiGraphicsExtractor.class, int.class, int.class, int.class, int.class);
-            draw.setAccessible(true);
-            draw.invoke(null, g, 4, 4, 64, 64);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static void drawWorldIcon(net.minecraft.client.gui.GuiGraphicsExtractor g) {
-        try {
-            var draw = Class.forName("com.trevorschoeny.openanywhere.ClientPanels").getDeclaredMethod("drawWorld",
-                    net.minecraft.client.gui.GuiGraphicsExtractor.class, int.class, int.class, int.class, int.class);
-            draw.setAccessible(true);
-            draw.invoke(null, g, 4, 4, 96, 96);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
     }
 
     /** The row's tab for the item named {@code name}. */
@@ -943,6 +902,23 @@ public class ScreenChecks implements FabricClientGameTest {
         command("item replace entity @p hotbar.0 with minecraft:air");
         ctx.waitTicks(5);
         expectScreen(InventoryScreen.class, "the open box taken away");
+    }
+
+    /**
+     * A box from a chest in front, and the player walks out of the chest's reach: the chest
+     * closes, and the box's screen goes with it, back to the inventory. Nothing written to
+     * the box from then on.
+     */
+    private void walkedAway() {
+        openBlock();
+        doubleClick(containerSlot(4), "the purple box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the purple box");
+        BlockPos chest = block();
+        scene.world().getServer().runOnServer(s -> player(s).teleportTo(chest.getX() + 7.5, chest.getY(), chest.getZ() + 7.5));
+        ctx.waitTicks(10);
+        expectScreen(InventoryScreen.class, "walking out of the chest's reach");
+        String box = ctx.computeOnClient(mc -> String.valueOf(Tabs.shownItem()));
+        if (!box.equals("null")) throw new AssertionError("a box tab is still in front after walking away: " + box);
     }
 
     /** The player's inventory slot {@code i} (0 to 8 the hotbar, 9 to 35 the rest). */

@@ -48,11 +48,12 @@ public final class ItemTurn {
      * A light of an item's own: the shader's two lights, each shining along its direction in
      * the GUI's item space (+z toward the viewer, -y up). A face takes 0.4 of its colour,
      * plus 0.6 for each light by how square it faces that light, up to its full colour.
+     * Meant to be a constant: each light gets a GPU buffer of its own, kept for the game's life.
      */
     public record Light(Vector3fc first, Vector3fc second) {}
 
-    /** The items drawn turned, each with its own light, until the GUI has drawn them. */
-    private static final Map<ItemStackRenderState, Light> LIT = Collections.synchronizedMap(new WeakHashMap<>());
+    /** The items drawn turned, each with its own light, until the GUI has drawn them. Render thread only. */
+    private static final Map<ItemStackRenderState, Light> LIT = new WeakHashMap<>();
     /** One light buffer per direction, made on first use. */
     private static final Map<Light, GpuBufferSlice> BUFFERS = new HashMap<>();
 
@@ -110,8 +111,9 @@ public final class ItemTurn {
         RenderSystem.setShaderLights(BUFFERS.computeIfAbsent(l, dir -> {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE).putVec3(dir.first()).putVec3(dir.second()).get();
-                // Lighting's own usage for its buffer: a uniform, written once.
-                return RenderSystem.getDevice().createBuffer(() -> "Open Anywhere item light", 136, data).slice();
+                // Lighting's own usage for its buffer.
+                int usage = com.mojang.renderpearl.api.buffers.GpuBuffer.USAGE_UNIFORM | com.mojang.renderpearl.api.buffers.GpuBuffer.USAGE_COPY_DST;
+                return RenderSystem.getDevice().createBuffer(() -> "Open Anywhere item light", usage, data).slice();
             }
         }));
         return true;

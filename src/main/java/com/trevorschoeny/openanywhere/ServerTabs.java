@@ -271,7 +271,8 @@ public final class ServerTabs {
                 if (first == null) first = path;
             }
         }
-        return first;
+        // An identical item that didn't move isn't the one that did, but any ender chest is the ender chest.
+        return Openable.of(stack) == Openable.ENDER_CHEST ? first : null;
     }
 
     /** The top-level containers in reach, in the row's order: the inventory, the world container, the ender chest. */
@@ -403,8 +404,14 @@ public final class ServerTabs {
         Front f = st.front;
         AbstractContainerMenu world = world(player);
         ItemPath path = f.id.path();
-        boolean inPlace = f.anchor != null ? !f.anchor.live.isStale()
-                : f.top.getItem(f.topSlot) == f.topStack && at(player, world, path) != null;
+        // In a world container that's gone (walked away from, through a portal): its screen
+        // goes, though the chest's slot still holds the item. Its writes would reach a chest
+        // the player is no longer at, one that may already be saved and unloaded.
+        if (!reachable(player, f)) {
+            goHome(player, st, path);
+            return;
+        }
+        boolean inPlace = !offPlace(f) && (f.anchor != null || at(player, world, path) != null);
         if (inPlace) {
             f.frozen = false;
             f.seen = (f.anchor != null ? f.anchor.live.stack() : at(player, world, path)).copy();
@@ -429,7 +436,7 @@ public final class ServerTabs {
     private static boolean reanchor(ServerPlayer player, State st, Front f, ItemPath to) {
         AbstractContainerMenu world = world(player);
         Container top = topOf(player, world, to);
-        if (top == null) return false;
+        if (top == null || openByAnother(player, top, to)) return false;
         if (f.anchor != null) {
             LiveItem live = to.source() == ItemRef.Source.CONTAINER ? ItemSources.live(top, to) : ItemSources.live(player, to);
             if (live == null) return false;
@@ -470,6 +477,35 @@ public final class ServerTabs {
             if (st.marks.stream().noneMatch(m -> m.path().equals(to))) st.marks.add(new Mark(to, top.getItem(to.slot()), l.item()));
             if (l.front()) pick(player, TabId.item(to));
         }
+    }
+
+    /** Whether the top-level container {@code f}'s item is in is still in reach: the world container, while it's still open. */
+    private static boolean reachable(ServerPlayer player, Front f) {
+        if (f.id.path() == null || f.id.path().source() != ItemRef.Source.CONTAINER) return true;
+        AbstractContainerMenu world = world(player);
+        return world != null && containerOf(world) == f.top;
+    }
+
+    /** Whether {@code f}'s item has left its place: moved, taken, or on the cursor. */
+    private static boolean offPlace(Front f) {
+        return f.anchor != null ? f.anchor.live.isStale() : f.top.getItem(f.topSlot) != f.topStack;
+    }
+
+    /** The player left: their state goes with them (the map's values reach the player, so it never forgets them on its own). */
+    static void left(ServerPlayer player) {
+        STATES.remove(player);
+    }
+
+    /** A respawned player is a new one: their settings carry over, nothing else. */
+    static void respawned(ServerPlayer from, ServerPlayer to) {
+        State old = STATES.remove(from);
+        if (old != null) state(to).prefs = old.prefs;
+    }
+
+    /** The server stopped: nothing of it is kept, in singleplayer least of all. */
+    static void stopped() {
+        STATES.clear();
+        OURS.clear();
     }
 
     /** The player closed the screens: whatever they carried went back or dropped, and nothing waits to reopen. */
@@ -533,6 +569,7 @@ public final class ServerTabs {
                 Container top = topOf(player, world(player), l.path());
                 if (top == null || !ItemStack.matches(carried, l.item()) || !top.getItem(l.path().slot()).isEmpty()) continue;
                 top.setItem(l.path().slot(), carried);
+                top.setChanged();
                 menu.setCarried(ItemStack.EMPTY);
                 st.lifted.remove(l);
                 menu.broadcastChanges();
@@ -541,6 +578,8 @@ public final class ServerTabs {
             }
         }
         if (menuSlot < 0 || menuSlot >= menu.slots.size()) return;
+        // The front's slots while it's off its place: their paths are stale until the tick follows it.
+        if (locked(menu.getSlot(menuSlot).container)) return;
         if (fromCursor) {
             ItemStack carried = menu.getCarried();
             Slot back = menu.getSlot(menuSlot);
@@ -814,11 +853,14 @@ public final class ServerTabs {
 
     /** Whether another player has the item at {@code path} in {@code top} on screen. */
     private static boolean openByAnother(ServerPlayer player, Container top, ItemPath path) {
+        // By the top-level stack itself: two players at one large chest each have their own
+        // container over the same two chests.
+        ItemStack stack = top.getItem(path.slot());
         synchronized (STATES) {
             for (Map.Entry<ServerPlayer, State> e : STATES.entrySet()) {
                 Front f = e.getValue().front;
-                if (e.getKey() != player && f != null && f.menu == e.getKey().containerMenu && f.top == top
-                        && path.equals(f.id.path())) return true;
+                if (e.getKey() != player && f != null && f.menu == e.getKey().containerMenu && f.topStack == stack
+                        && f.id.path() != null && path.inside().equals(f.id.path().inside())) return true;
             }
         }
         return false;
@@ -851,8 +893,7 @@ public final class ServerTabs {
             for (Map.Entry<ServerPlayer, State> e : STATES.entrySet()) {
                 Front f = e.getValue().front;
                 if (f == null || f.slots != container || f.menu != e.getKey().containerMenu) continue;
-                if (f.frozen || f.anchor != null && f.anchor.live.isStale() || f.anchor == null && f.top.getItem(f.topSlot) != f.topStack)
-                    return true;
+                if (f.frozen || offPlace(f) || !reachable(e.getKey(), f)) return true;
             }
         }
         return false;

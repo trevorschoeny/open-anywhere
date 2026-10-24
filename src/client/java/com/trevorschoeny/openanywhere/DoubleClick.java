@@ -46,6 +46,12 @@ public final class DoubleClick {
     // The screen the first click was on: one put in its place since may sit lower or higher
     // (MenuKit makes room for a tab row in a short window), moving the slot from under the cursor.
     private static @Nullable Screen firstScreen;
+
+    /** Back in the world: nothing pairs across it, and the last screen isn't kept. */
+    static void reset() {
+        lastSlot = -1;
+        firstScreen = null;
+    }
     private static double firstMouseX, firstMouseY;
     private static int heldX, heldY;
 
@@ -87,15 +93,18 @@ public final class DoubleClick {
         boolean still = now - lastClick < WINDOW_MS
                 && Math.floor(event.x()) == Math.floor(firstMouseX) && Math.floor(event.y()) == Math.floor(firstMouseY);
         boolean swapped = still && screen != firstScreen && lastSlot >= 1000;
+        boolean remapped = false;
         if (swapped && !creative) {
             Slot first = inventorySlot(screen, lastSlot - 1000);
             if (first != null) {
                 hovered = first;
                 target = first.index;
                 place = lastSlot;
+                remapped = true;
             }
         }
-        boolean second = still && place == lastSlot;
+        // On another screen, only an inventory slot pairs: a menu index means another slot there.
+        boolean second = still && place == lastSlot && (screen == firstScreen || remapped);
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
             lastSlot = OpenAnywhereClient.opensOrIsOpen(player, hovered) && carried.isEmpty() ? place : -1;

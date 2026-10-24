@@ -42,12 +42,13 @@ public final class Shown {
     }
 
     /**
-     * True when {@code container} holds the slots of an item whose screen someone has in front
-     * while the item is off its place (on the cursor): they're locked then. The slot lock asks
-     * this for every operation, so it is a short scan. Containers are per side, so both views
-     * can be asked.
+     * True when {@code container} holds the slots of an item whose screen {@code player}'s side
+     * has in front while the item is off its place (on the cursor): they're locked then. The
+     * slot lock asks this for every operation, so it is a short scan. Each side answers for
+     * itself: on an integrated server the client's view must not lock the server's containers.
      */
-    static boolean locked(Container container) {
-        return ServerTabs.locked(container) || client.locked(container);
+    static boolean locked(Container container, @Nullable Player player) {
+        if (player != null && player.level().isClientSide()) return client.locked(container);
+        return ServerTabs.locked(container);
     }
 }
