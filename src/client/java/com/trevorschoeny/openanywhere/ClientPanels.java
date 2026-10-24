@@ -247,7 +247,9 @@ final class ClientPanels {
         g.pose().translate(cx, cy);
         g.pose().scale(scale, scale);
         g.pose().translate(-8, -8);
-        ItemTurn.draw(-30f * t, -45f * t, light, () -> g.item(playerHead(), 0, 0));
+        // To 29 degrees, not 30: square on, the head's bottom face stands exactly edge-on, and
+        // the GPU draws it as a sliver under the chin, coloured from the skin's next texels.
+        ItemTurn.draw(-29f * t, -45f * t, light, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
     }
 
