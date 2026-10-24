@@ -434,10 +434,20 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.takeScreenshot("screens-overflow-early");
         // Paged on past it: the inventory's header and the bundle in front stay at the left end.
         for (int k = 0; k < 3; k++) {
-            ctx.getInput().setCursorPos(588, 48);
+            pageArrow(true);
             ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
             ctx.waitTicks(10);
             ctx.takeScreenshot("screens-overflow-paged-" + k);
+        }
+        // From the far end, paged back: the open group's header and the tab in front stay at the right end.
+        TabId lastId = ctx.computeOnClient(mc -> Tabs.row().get(last).id());
+        pick(lastId);
+        ctx.waitTicks(10);
+        for (int k = 0; k < 3; k++) {
+            pageArrow(false);
+            ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+            ctx.waitTicks(10);
+            ctx.takeScreenshot("screens-overflow-back-" + k);
         }
         for (int i : new int[] {last}) {
             TabId id = ctx.computeOnClient(mc -> Tabs.row().get(i).id());
@@ -698,6 +708,19 @@ public class ScreenChecks implements FabricClientGameTest {
         hover(p, what);
         ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
         ctx.waitTicks(3);
+    }
+
+    /** The cursor on the tab row's paging arrow, right or left, just above the screen's frame. */
+    private void pageArrow(boolean right) {
+        double[] at = ctx.computeOnClient(mc -> {
+            ScreenAccessor edge = (ScreenAccessor) screen(mc);
+            var w = mc.getWindow();
+            double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
+            double x = right ? edge.openanywhere$leftPos() + edge.openanywhere$imageWidth() - 6 : edge.openanywhere$leftPos() + 5;
+            return new double[] {x * f, (edge.openanywhere$topPos() - 14) * f};
+        });
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
     }
 
     /** One press and release on {@code p}'s slot, two ticks before the next: faster than the server answers. */
