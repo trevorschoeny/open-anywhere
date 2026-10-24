@@ -78,7 +78,9 @@ public final class DoubleClick {
         }
         long now = Util.getMillis();
         boolean second = place == lastSlot && now - lastClick < WINDOW_MS
-                && event.x() == firstMouseX && event.y() == firstMouseY;
+                // The same pixel, not the same fraction of one: a screen opened in place of
+                // another between the clicks puts the cursor back where it was, to the pixel.
+                && Math.floor(event.x()) == Math.floor(firstMouseX) && Math.floor(event.y()) == Math.floor(firstMouseY);
         if (!second) {
             // A first click worth pairing: on an openable item, or an open one.
             lastSlot = OpenAnywhereClient.opensOrIsOpen(player, hovered) && carried.isEmpty() ? place : -1;

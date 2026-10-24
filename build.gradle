@@ -248,3 +248,12 @@ tasks.register('verifyKitRanges') {
     }
 }
 build.dependsOn verifyKitRanges
+// -Popenanywhere.ipn: Inventory Profiles Next in the launch, for ScreenChecks' IPN stations
+// (its sort on a box, a bundle, and the inventory under an open box). Never bundled.
+if (project.hasProperty('openanywhere.ipn')) {
+    dependencies {
+        localRuntime "maven.modrinth:inventory-profiles-next:fabric-26.3-2.3.8"
+        localRuntime "maven.modrinth:libipn:fabric-26.3-6.9.0"
+        localRuntime "maven.modrinth:fabric-language-kotlin:1.14.2+kotlin.2.4.21"
+    }
+}

@@ -63,6 +63,15 @@ public class ScreenChecks implements FabricClientGameTest {
     // Every frame drawn while recording: the screen, and how many of its container's slots show an item.
     private static volatile boolean recording;
     private static final List<String> FRAMES = java.util.Collections.synchronizedList(new ArrayList<>());
+    // The tab row's layout on every frame drawn while recording: each tab's x and width.
+    private static final List<String> LAYOUTS = java.util.Collections.synchronizedList(new ArrayList<>());
+
+    private static String layout() {
+        StringBuilder b = new StringBuilder();
+        for (var p : com.trevlar.menukit.inject.ContainerTabRows.placedForChecks(com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP))
+            b.append(p.x()).append('/').append(p.width()).append(p.clipLeft() > 0 ? "c" : "").append(' ');
+        return b.toString().trim();
+    }
 
     @Override
     public void runTest(ClientGameTestContext ctx) {
@@ -70,11 +79,13 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->
                 net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((sc, g, mx, my, delta) -> {
                     if (bigIcon) drawWorldIcon(g);
+                    if (recording) LAYOUTS.add(sc.getClass().getSimpleName() + " " + layout());
                     if (recording) FRAMES.add(describe(sc) + "|" + Tabs.selected().type() + (Tabs.expanded(Tabs.Group.WORLD) ? "+" : ""));
                 })));
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "screens")) {
             this.scene = scene;
             run("openanywhere:screens_chest_tabs", this::chestTabs);
+            run("openanywhere:screens_chest_tabs", this::openStill);
             run("openanywhere:screens_inventory_tab", this::inventoryTab);
             run("openanywhere:screens_box_edits", this::boxEdits);
             run("openanywhere:screens_from_inventory", this::fromInventory);
@@ -90,6 +101,12 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_no_flash", this::noFlash);
             run("openanywhere:screens_double_chest", this::doubleChest);
+            // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
+            if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
+                run("openanywhere:screens_lock", this::ipnBox);
+                run("openanywhere:screens_lock", this::ipnBundle);
+                run("openanywhere:screens_lock", this::ipnInventory);
+            }
             // With -Popenanywhere.walk: the tabs in use, frame by frame, for a WebP.
             if (Boolean.getBoolean("openanywhere.walk")) run("openanywhere:screens_every_box", this::walkthrough);
         }
@@ -127,6 +144,26 @@ public class ScreenChecks implements FabricClientGameTest {
      * A chest opens on its own tab beside the inventory's, in front from its first frame, its
      * group open; a box in it opens on vanilla's shulker box screen as a third.
      */
+    /**
+     * Every box tabbed, a chest opened with the inventory's group full of boxes: the row stands
+     * still from the chest's first frame, the chest's group open, nothing sliding in.
+     */
+    private void openStill() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        for (int i = 0; i < 6; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:red_shulker_box");
+        ctx.waitTicks(5);
+        LAYOUTS.clear();
+        recording = true;
+        openBlock();
+        ctx.waitTicks(10);
+        recording = false;
+        List<String> frames;
+        synchronized (LAYOUTS) { frames = new ArrayList<>(LAYOUTS); }
+        List<String> chest = frames.stream().filter(l -> l.startsWith("ContainerScreen")).toList();
+        if (chest.isEmpty()) throw new AssertionError("no frame of the chest was drawn");
+        if (chest.stream().distinct().count() > 1) throw new AssertionError("the row moved as the chest opened: " + chest.stream().distinct().toList());
+    }
+
     private void chestTabs() {
         FRAMES.clear();
         recording = true;
@@ -320,6 +357,92 @@ public class ScreenChecks implements FabricClientGameTest {
         if (!server.equals(expected)) throw new AssertionError("after " + after + " the bundle is " + server + ", not " + expected);
     }
 
+    // Inventory Profiles Next
+
+    private static final String MESSY = "minecraft:lime_shulker_box[container=[{slot:5,item:{id:\"minecraft:cobblestone\",count:10}},"
+            + "{slot:2,item:{id:\"minecraft:dirt\",count:3}},{slot:9,item:{id:\"minecraft:cobblestone\",count:20}},{slot:20,item:{id:\"minecraft:emerald\",count:1}}]]";
+
+    /** IPN's sort key over {@code p}'s slot. */
+    private void ipnSort(Predicate<Slot> p, String what) {
+        hover(p, what);
+        ctx.getInput().pressKey(InputConstants.KEY_R);
+        ctx.waitTicks(20);
+    }
+
+    /** IPN's sort on an open box: the box's contents sorted in the box, nothing lost or doubled. */
+    private void ipnBox() {
+        command("item replace entity @p hotbar.0 with " + MESSY);
+        openInventory();
+        doubleClick(hotbar(0), "the messy box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the messy box");
+        ipnSort(containerSlot(0), "the box's first slot");
+        ctx.takeScreenshot("screens-ipn-box");
+        String got = scene.world().getServer().computeOnServer(s -> {
+            ItemStack box = player(s).getInventory().getItem(0);
+            return count(box, Items.COBBLESTONE) + " " + count(box, Items.DIRT) + " " + count(box, Items.EMERALD)
+                    + " first=" + name(box.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyOne());
+        });
+        if (!got.startsWith("30 3 1") || got.endsWith("first=air")) throw new AssertionError("after IPN's sort the box holds [" + got + "], not 30 cobblestone, 3 dirt, 1 emerald sorted to the front");
+        expectScreen(ShulkerBoxScreen.class, "IPN's sort");
+    }
+
+    /** IPN's sort on an open bundle, and on the inventory under it: nothing lost or doubled. */
+    private void ipnBundle() {
+        openInventory();
+        doubleClick(hotbar(2), "the bundle");
+        expectScreen(ContainerScreen.class, "double-click on the bundle");
+        ipnSort(s -> Groups.bundleIndex(s) == 0, "the bundle's first slot");
+        ctx.takeScreenshot("screens-ipn-bundle");
+        expectBundleTotals("IPN's sort on the bundle");
+        ipnSort(slot(9), "the inventory");
+        expectBundleTotals("IPN's sort on the inventory under the bundle");
+    }
+
+    /** 4 stone and 2 granite in all, in the bundle, the inventory and the cursor. */
+    private void expectBundleTotals(String after) {
+        ctx.waitTicks(5);
+        String server = scene.world().getServer().computeOnServer(sv -> {
+            ServerPlayer p = player(sv);
+            int stone = 0, granite = 0;
+            List<ItemStack> all = new ArrayList<>(p.getInventory().getNonEquipmentItems());
+            all.add(p.containerMenu.getCarried());
+            for (ItemStack held : List.copyOf(all)) {
+                BundleContents in = held.get(DataComponents.BUNDLE_CONTENTS);
+                if (in != null) for (ItemStack i : (Iterable<ItemStack>) in.itemCopies()::iterator) all.add(i);
+            }
+            for (ItemStack i : all) {
+                if (i.is(Items.STONE)) stone += i.getCount();
+                if (i.is(Items.GRANITE)) granite += i.getCount();
+            }
+            return stone + " stone, " + granite + " granite";
+        });
+        if (!server.equals("4 stone, 2 granite")) throw new AssertionError("after " + after + " there are " + server + " in all, not 4 stone, 2 granite");
+    }
+
+    /**
+     * IPN's sort on the inventory under an open box, every box tabbed: the box moves with the
+     * sort, and its screen follows it, its contents intact.
+     */
+    private void ipnInventory() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        command("item replace entity @p inventory.20 with " + MESSY);
+        command("item replace entity @p inventory.3 with minecraft:stone 5");
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(slot(29), "the messy box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the messy box");
+        ipnSort(slot(9), "the inventory");
+        ctx.takeScreenshot("screens-ipn-inventory");
+        expectScreen(ShulkerBoxScreen.class, "IPN's sort on the inventory under the box");
+        String at = scene.world().getServer().computeOnServer(s -> {
+            var inv = player(s).getInventory();
+            for (int i = 0; i < 36; i++) if (count(inv.getItem(i), Items.COBBLESTONE) == 30) return i + " 30";
+            return "none";
+        });
+        String front = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
+        if (!at.endsWith(" 30") || !front.contains("slot=" + at.split(" ")[0] + ",")) throw new AssertionError("after IPN's sort the box is at [" + at + "] and the screen shows " + front);
+    }
+
     private static String slotsOf(AbstractContainerMenu menu) {
         List<String> shown = new ArrayList<>();
         for (Slot s : menu.slots) {
@@ -382,9 +505,14 @@ public class ScreenChecks implements FabricClientGameTest {
         String front = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
         if (!front.contains("slot=14")) throw new AssertionError("the box opened again at " + front + ", not where it was put down");
         // A double-click on it, in front, closes it: back to the inventory, the box in its slot.
+        // The bundle open too, so the row stays and the screen doesn't move under the cursor
+        // (a short window moves the frame down to make room for a row).
+        doubleClick(hotbar(2), "the bundle");
+        pick(tabOf("lime_shulker_box"));
+        expectScreen(ShulkerBoxScreen.class, "the lime box's tab");
         slowDoubleClick(slot(14), "the open lime box");
         expectScreen(InventoryScreen.class, "double-clicking the open box");
-        expectRow("", "double-clicking the open box");
+        expectRow("INVENTORY, bundle", "double-clicking the open box");
         boolean there = scene.world().getServer().computeOnServer(s -> name(player(s).getInventory().getItem(14)).equals("lime_shulker_box"));
         if (!there) throw new AssertionError("the box isn't back in its slot after the double-click");
     }
