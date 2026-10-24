@@ -719,18 +719,22 @@ public class ScreenChecks implements FabricClientGameTest {
     private static volatile boolean bigIcon;
     private static volatile boolean headShot;
 
-    /** The head icon large, side view and front view, vanilla's light then flat: a look at its light. */
+    /** The head icon large, at rest under several lights, then facing front: a look at its light. */
     private static void drawHeads(net.minecraft.client.gui.GuiGraphicsExtractor g) {
-        g.fill(0, 0, 300, 76, 0xFFC6C6C6);
+        g.fill(0, 0, 400, 60, 0xFFC6C6C6);
         var head = new ItemStack(Items.PLAYER_HEAD);
-        float[][] turns = {{0, 0}, {-4, -6}, {-8, -12}, {-12, -18}};
-        for (int k = 0; k < 4; k++) {
-            float[] t = turns[k];
-            boolean flat = true;
+        float[][] lights = {{0, 0, 0}, {1, 1, 1}, {1, 0.5f, 1}, {0.5f, 0.5f, 1}, {0, 0, 1}};
+        for (int k = 0; k < 6; k++) {
             g.pose().pushMatrix();
-            g.pose().translate(6 + k * 74, 6);
-            g.pose().scale(4f, 4f);
-            com.trevorschoeny.openanywhere.ItemTurn.draw(t[0], t[1], flat, () -> g.item(head, 0, 0));
+            g.pose().translate(4 + k * 56, 4);
+            g.pose().scale(3f, 3f);
+            if (k < 5) {
+                // The first under vanilla's light, for comparison.
+                var l = k == 0 ? null : new org.joml.Vector3f(lights[k][0], lights[k][1], lights[k][2]).normalize();
+                com.trevorschoeny.openanywhere.ItemTurn.draw(0, 0, l, () -> g.item(head, 0, 0));
+            } else {
+                com.trevorschoeny.openanywhere.ItemTurn.draw(-30, -45, new org.joml.Vector3f(0, 0, 1), () -> g.item(head, 0, 0));
+            }
             g.pose().popMatrix();
         }
     }

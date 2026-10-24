@@ -196,10 +196,18 @@ final class ClientPanels {
 
     /**
      * The Inventory header's icon: the player's own head, turning to face front while the
-     * inventory group holds the tab in front and back to a little short of vanilla's three-quarter view when
+     * inventory group holds the tab in front and back to vanilla's three-quarter view when
      * not. A head's GUI view is turned {@code [30, 45, 0]}; it faces the viewer at
      * {@code [0, 0, 0]}. Facing front only its face shows, so it grows to keep its size.
      */
+    /**
+     * The head's light: straight from the viewer, both of the shader's lights. Every side of
+     * the head that shows is then lit in full, face, hair and side alike, so it reads as
+     * brightly turned as it does facing front. A light along the face alone lights only the
+     * face, which is already in full light; the hair stays dim.
+     */
+    private static final org.joml.Vector3fc HEAD_LIGHT = new org.joml.Vector3f(0, 0, 1);
+
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
         float scale = w / 16f * (1f + HEAD_GROWTH * t);
@@ -207,10 +215,9 @@ final class ClientPanels {
         g.pose().translate(x + w / 2f, y + h / 2f);
         g.pose().scale(scale, scale);
         g.pose().translate(-8, -8);
-        // Lit flat, so the face turned to the front reads in full rather than in vanilla's dim 3D
-        // light. At rest it sits a little round toward the viewer from vanilla's three-quarter
-        // view, which lights it a little more: no light can go brighter than flat.
-        ItemTurn.draw(-8f - 22f * t, -12f - 33f * t, true, () -> g.item(playerHead(), 0, 0));
+        // Lit from the viewer rather than by vanilla's 3D light from the upper left, which
+        // leaves a head dim.
+        ItemTurn.draw(-30f * t, -45f * t, HEAD_LIGHT, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
     }
 

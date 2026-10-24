@@ -10,7 +10,9 @@
     "SlotMarksMixin",
     "ItemLayerAccessor",
     "ItemStateAccessor",
-    "ItemTurnMixin"
+    "ItemTurnMixin",
+    "ItemLightMixin",
+    "OversizedItemLightMixin"
   ],
   "injectors": {
     "defaultRequire": 1
