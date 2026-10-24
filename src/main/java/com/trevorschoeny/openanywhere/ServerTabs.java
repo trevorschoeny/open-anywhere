@@ -239,6 +239,17 @@ public final class ServerTabs {
         return TabId.INVENTORY;
     }
 
+    // Set while a tab switch opens its own screen: the switch sends the row once it's done.
+    private static boolean switching;
+
+    /**
+     * The player opened a screen ({@code ServerPlayer.openMenu}): the row goes with it, so the
+     * client draws the screen's first frame with its tab in front. A tab switch sends its own.
+     */
+    public static void opened(ServerPlayer player) {
+        if (!switching) sync(player, state(player));
+    }
+
     /** Sends the row when it or the tab in front changed. */
     private static void sync(ServerPlayer player, State st) {
         if (!ServerPlayNetworking.canSend(player, TabsS2C.TYPE)) return;
@@ -462,7 +473,13 @@ public final class ServerTabs {
     /** Switches to {@code provider}'s screen as item tab {@code path}. Whether it opened. */
     private static boolean show(ServerPlayer player, State st, MenuProvider provider, ItemPath path, Openable kind,
                                 @Nullable LiveItem live, Container top) {
-        OptionalInt opened = MenuSwitch.open(player, provider);
+        OptionalInt opened;
+        switching = true;
+        try {
+            opened = MenuSwitch.open(player, provider);
+        } finally {
+            switching = false;
+        }
         if (opened.isEmpty()) return false;
         st.front = new Front(player.containerMenu, TabId.item(path), kind, live, top, path.slot());
         return true;

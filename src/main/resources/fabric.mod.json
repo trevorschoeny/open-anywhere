@@ -15,6 +15,7 @@
   "license": "MIT",
   "environment": "*",
   "mixins": [
+    "openanywhere.mixins.json",
     {
       "config": "openanywhere.client.mixins.json",
       "environment": "client"

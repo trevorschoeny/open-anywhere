@@ -1,0 +1,35 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "minecraft:item/weathered_copper_chest",
+    "model": {
+      "type": "minecraft:chest",
+      "texture": "minecraft:copper_weathered",
+      "chest_type": "right"
+    },
+    "transformation": {
+      "translation": [
+        -0.1,
+        0.2,
+        0.2
+      ],
+      "left_rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        0.6,
+        0.6,
+        0.6
+      ],
+      "right_rotation": [
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  }
+}

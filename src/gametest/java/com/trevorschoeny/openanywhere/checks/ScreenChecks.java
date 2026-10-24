@@ -68,7 +68,8 @@ public class ScreenChecks implements FabricClientGameTest {
         this.ctx = ctx;
         ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->
                 net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((sc, g, mx, my, delta) -> {
-                    if (recording) FRAMES.add(describe(sc));
+                    if (bigIcon) drawWorldIcon(g);
+                    if (recording) FRAMES.add(describe(sc) + "|" + Tabs.selected().type() + (Tabs.expanded(Tabs.Group.WORLD) ? "+" : ""));
                 })));
         try (SceneWorld.Opened scene = SceneWorld.open(ctx, "open-anywhere", "screens")) {
             this.scene = scene;
@@ -85,6 +86,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_no_flash", this::noFlash);
+            run("openanywhere:screens_double_chest", this::doubleChest);
             // With -Popenanywhere.walk: the tabs in use, frame by frame, for a WebP.
             if (Boolean.getBoolean("openanywhere.walk")) run("openanywhere:screens_every_box", this::walkthrough);
         }
@@ -118,9 +120,21 @@ public class ScreenChecks implements FabricClientGameTest {
 
     // Stations
 
-    /** A chest opens on its own tab beside the inventory's; a box in it opens on vanilla's shulker box screen as a third. */
+    /**
+     * A chest opens on its own tab beside the inventory's, in front from its first frame, its
+     * group open; a box in it opens on vanilla's shulker box screen as a third.
+     */
     private void chestTabs() {
+        FRAMES.clear();
+        recording = true;
         openBlock();
+        recording = false;
+        List<String> opening;
+        synchronized (FRAMES) { opening = new ArrayList<>(FRAMES); }
+        for (String f : opening) {
+            if (f.startsWith("ContainerScreen") && !f.endsWith("|WORLD+"))
+                throw new AssertionError("a frame of the chest just opened had another tab in front: " + opening);
+        }
         expectRow("INVENTORY, WORLD", "the chest just opened");
         expectSelected(TabId.WORLD, "the chest just opened");
         doubleClick(containerSlot(4), "the purple box in the chest");
@@ -397,6 +411,40 @@ public class ScreenChecks implements FabricClientGameTest {
         switchAndWatch(() -> ctx.runOnClient(mc -> Tabs.pick(bundle)), "ContainerScreen", "the bundle's tab from the box");
     }
 
+    /** A large chest's tab: the world tab is there, and a close shot of its icon, two halves as one chest. */
+    private void doubleChest() {
+        openBlock();
+        expectRow("INVENTORY, WORLD", "the large chest opened");
+        int rows = ctx.computeOnClient(mc -> ((net.minecraft.world.inventory.ChestMenu) screen(mc).getMenu()).getRowCount());
+        if (rows != 6) throw new AssertionError("the large chest opened with " + rows + " rows, not 6");
+        ctx.waitTicks(10);
+        // At GUI scale 1, so the taller screen's tabs are on screen in this small window.
+        int scale = ctx.computeOnClient(mc -> mc.options.guiScale().get());
+        ctx.runOnClient(mc -> { mc.options.guiScale().set(1); mc.resizeGui(); });
+        ctx.waitTicks(3);
+        ctx.takeScreenshot("screens-double-chest-tab");
+        ctx.runOnClient(mc -> { mc.options.guiScale().set(scale); mc.resizeGui(); });
+        // The same icon drawn large beside the screen, for a close look.
+        bigIcon = true;
+        ctx.waitTicks(3);
+        ctx.takeScreenshot("screens-double-chest-icon-large");
+        bigIcon = false;
+    }
+
+    // While set, the world tab's icon is drawn 96 px wide at the screen's top left.
+    private static volatile boolean bigIcon;
+
+    private static void drawWorldIcon(net.minecraft.client.gui.GuiGraphicsExtractor g) {
+        try {
+            var draw = Class.forName("com.trevorschoeny.openanywhere.ClientPanels").getDeclaredMethod("drawWorld",
+                    net.minecraft.client.gui.GuiGraphicsExtractor.class, int.class, int.class, int.class, int.class);
+            draw.setAccessible(true);
+            draw.invoke(null, g, 4, 4, 96, 96);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     /** The row's tab for the item named {@code name}. */
     private TabId tabOf(String name) {
         return ctx.computeOnClient(mc -> {
@@ -414,10 +462,10 @@ public class ScreenChecks implements FabricClientGameTest {
         recording = false;
         List<String> frames;
         synchronized (FRAMES) { frames = new ArrayList<>(FRAMES); }
-        if (frames.stream().noneMatch(f -> f.startsWith(screen + ":") && !f.endsWith(":0")))
+        if (frames.stream().noneMatch(f -> f.startsWith(screen + ":") && !f.startsWith(screen + ":0|")))
             throw new AssertionError(what + ": " + screen + " never showed filled; frames " + frames);
         for (String f : frames) {
-            if (f.equals(screen + ":0")) throw new AssertionError(what + ": a frame drew " + screen + " empty (a flash); frames " + frames);
+            if (f.startsWith(screen + ":0|")) throw new AssertionError(what + ": a frame drew " + screen + " empty (a flash); frames " + frames);
         }
     }
 

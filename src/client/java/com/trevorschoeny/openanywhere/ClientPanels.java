@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.Easing;
+import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.element.Transition;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
@@ -75,6 +76,8 @@ final class ClientPanels {
     // Null until a world screen is seen: items can't be made before the game has bound them.
     private static @Nullable ItemStack worldIcon;
     private static Component worldTitle = Component.translatable("container.chest");
+    // Whether the world container is a double chest: its icon is the two halves together.
+    private static boolean worldDouble;
 
     static void register() {
         // The inventory and a shulker box both draw 166 tall, but the box's screen counts 167
@@ -100,7 +103,7 @@ final class ClientPanels {
         group(Tabs.Group.INVENTORY, INVENTORY_TAB, INVENTORY_ORDER, ClientPanels::drawHead,
                 () -> Component.translatable("container.inventory"));
         group(Tabs.Group.WORLD, WORLD_TAB, WORLD_ORDER,
-                (g, x, y, w, h) -> drawOpening(g, worldIcon(), Tabs.Group.WORLD, Tabs.groupOf(Tabs.selected()) == Tabs.Group.WORLD, x, y, w),
+                ClientPanels::drawWorld,
                 ClientPanels::worldTitle);
         group(Tabs.Group.ENDER_CHEST, ENDER_TAB, ENDER_ORDER,
                 (g, x, y, w, h) -> {
@@ -153,6 +156,37 @@ final class ClientPanels {
         g.pose().popMatrix();
     }
 
+    /**
+     * The world header's icon: the container's block, opening while the world group holds the
+     * tab in front. A double chest is its two halves together: vanilla's own half models
+     * ({@code assets/openanywhere/items/<chest>_left.json} and {@code _right}), each placed
+     * half a block to its side and the pair shrunk to fit, in the model's own transformation.
+     */
+    private static void drawWorld(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        ItemStack block = worldIcon();
+        boolean open = Tabs.groupOf(Tabs.selected()) == Tabs.Group.WORLD;
+        String path = BuiltInRegistries.ITEM.getKey(block.getItem()).getPath();
+        if (!worldDouble || !HALVES.contains(path)) {
+            drawOpening(g, block, Tabs.Group.WORLD, open, x, y, w);
+            return;
+        }
+        float t = ClientMarks.OPENING.toward(Tabs.Group.WORLD, open && Settings.animation());
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        g.pose().scale(w / 16f, w / 16f);
+        for (String side : new String[] {"_right", "_left"}) {
+            ItemStack half = block.copy();
+            half.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + side));
+            ItemAnimation.OPEN_LID.draw(g, half, 0, 0, t);
+        }
+        g.pose().popMatrix();
+    }
+
+    /** The chests that make double chests: each has its half models in this mod's assets. */
+    private static final java.util.Set<String> HALVES = java.util.Set.of("chest", "trapped_chest",
+            "copper_chest", "exposed_copper_chest", "weathered_copper_chest", "oxidized_copper_chest",
+            "waxed_copper_chest", "waxed_exposed_copper_chest", "waxed_weathered_copper_chest", "waxed_oxidized_copper_chest");
+
     /** How long the head takes to turn, and how much larger it grows facing front, where only its face shows. */
     private static final Transition HEAD_TURN = Transition.of(250, Easing.EASE_OUT);
     private static final float HEAD_GROWTH = 0.35f;
@@ -193,6 +227,7 @@ final class ClientPanels {
             Block block = source == null || source.block() == null ? null : BuiltInRegistries.BLOCK.getValue(source.block());
             worldIcon = block == null ? new ItemStack(Items.CHEST) : new ItemStack(block);
             worldTitle = screen.getTitle();
+            worldDouble = screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu chest && chest.getRowCount() == 6;
         }
         return worldIcon == null ? new ItemStack(Items.CHEST) : worldIcon;
     }
