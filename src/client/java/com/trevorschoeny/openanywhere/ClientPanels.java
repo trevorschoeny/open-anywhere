@@ -207,32 +207,33 @@ final class ClientPanels {
      */
     private static final ItemTurn.Light HEAD_LIGHT = new ItemTurn.Light(
             new org.joml.Vector3f(0, -0.67f, 1).normalize(), new org.joml.Vector3f(1, 0, 0));
-    /** A faint shadow down and right of the face once it faces front, so it stands off the tab's grey. */
-    private static final int FACE_SHADOW = 0x40000000;
+    /**
+     * The head's shadow once it faces front, so it stands off the tab's grey: the head again,
+     * a pixel down and right, under no light but the shader's ambient, which leaves it at two
+     * fifths of its colour. It follows the head's own outline, hair and all.
+     */
+    private static final ItemTurn.Light SHADOW_LIGHT = new ItemTurn.Light(
+            new org.joml.Vector3f(0, 0, -1), new org.joml.Vector3f(0, 0, -1));
 
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
         float scale = w / 16f * (1f + HEAD_GROWTH * t);
-        g.pose().pushMatrix();
-        g.pose().translate(x + w / 2f, y + h / 2f);
-        g.pose().scale(scale, scale);
-        g.pose().translate(-8, -8);
+        // The shadow slides out from under the head over the end of the turn, once it's square to the viewer.
+        float shadow = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
+        if (shadow > 0) drawHeadAt(g, x + w / 2f + shadow, y + h / 2f + shadow, scale, t, SHADOW_LIGHT);
         // Lit from the viewer rather than by vanilla's 3D light from the upper left, which
         // leaves a head dim.
-        ItemTurn.draw(-30f * t, -45f * t, HEAD_LIGHT, () -> g.item(playerHead(), 0, 0));
+        drawHeadAt(g, x + w / 2f, y + h / 2f, scale, t, HEAD_LIGHT);
+    }
+
+    /** The head centred on {@code (cx, cy)}, {@code scale} GUI pixels to its pixel, turned {@code t} of the way to the front. */
+    private static void drawHeadAt(GuiGraphicsExtractor g, float cx, float cy, float scale, float t, ItemTurn.Light light) {
+        g.pose().pushMatrix();
+        g.pose().translate(cx, cy);
+        g.pose().scale(scale, scale);
+        g.pose().translate(-8, -8);
+        ItemTurn.draw(-30f * t, -45f * t, light, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
-        // The face, facing front, covers item pixels 4 to 12 across and 5 to 13.4 down. Its
-        // shadow, a pixel down and right, fades in over the end of the turn, when the head is
-        // square to the viewer. Drawn after the head, so only where the face doesn't cover it.
-        float in = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
-        if (in > 0) {
-            float cx = x + w / 2f, cy = y + h / 2f;
-            int l = Math.round(cx - 4 * scale), r = Math.round(cx + 4 * scale);
-            int top = Math.round(cy - 3 * scale), bottom = Math.round(cy + 5.4f * scale);
-            int color = Math.round((FACE_SHADOW >>> 24) * in) << 24;
-            g.fill(l + 1, bottom, r + 1, bottom + 1, color);
-            g.fill(r, top + 1, r + 1, bottom, color);
-        }
     }
 
     /** The inventory tab's icon: the player's own head. */
