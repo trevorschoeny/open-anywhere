@@ -14,7 +14,6 @@ import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.Reference;
-import com.trevlar.menukit.api.panel.ScreenFrames;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.slotkit.api.item.ItemRef;
@@ -77,11 +76,6 @@ final class ClientPanels {
     private static boolean worldDouble;
 
     static void register() {
-        // The inventory and a shulker box both draw 166 tall, but the box's screen counts 167
-        // (a blank row under its art), so vanilla centres the inventory a pixel lower. The
-        // same blank row under the inventory's art puts the two frames, and their slots, in
-        // one place, so nothing moves as the tabs switch between them.
-        ScreenFrames.stretch(InventoryScreen.class, 166, 1);
         SlotScroll.register();
         TabWheel.register();
         tabs();
