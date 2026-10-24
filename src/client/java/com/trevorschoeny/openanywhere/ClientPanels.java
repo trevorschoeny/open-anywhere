@@ -155,6 +155,14 @@ final class ClientPanels {
      * One model, not two items: vanilla centres each item in its box, which would pull two
      * halves apart.
      */
+    /**
+     * The double chest's lid opening, kept centred as the single box's is ({@link ClientMarks#OPEN}):
+     * the open lid would make it a third taller, all of it upward, so it shrinks to its closed
+     * height and moves down to its closed centre. Measured on the drawn model, closed and open.
+     */
+    private static final ItemAnimation DOUBLE_OPEN = ItemAnimation.OPEN_LID
+            .posed(t -> new ItemAnimation.Pose(1f - 0.23f * t, 0f, 1.15f * t));
+
     private static void drawWorld(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         ItemStack block = worldIcon();
         boolean open = Tabs.groupOf(Tabs.selected()) == Tabs.Group.WORLD;
@@ -169,7 +177,7 @@ final class ClientPanels {
         g.pose().scale(w / 16f, w / 16f);
         ItemStack pair = block.copy();
         pair.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + "_double"));
-        ItemAnimation.OPEN_LID.draw(g, pair, 0, 0, t);
+        DOUBLE_OPEN.draw(g, pair, 0, 0, t);
         g.pose().popMatrix();
     }
 
