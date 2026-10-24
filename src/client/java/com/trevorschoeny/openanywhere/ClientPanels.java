@@ -207,7 +207,8 @@ final class ClientPanels {
         g.pose().translate(x + w / 2f, y + h / 2f);
         g.pose().scale(scale, scale);
         g.pose().translate(-8, -8);
-        ItemTurn.draw(-30f * t, -45f * t, () -> g.item(playerHead(), 0, 0));
+        // Lit flat, so the face turned to the front reads in full rather than in vanilla's dim 3D light.
+        ItemTurn.draw(-30f * t, -45f * t, true, () -> g.item(playerHead(), 0, 0));
         g.pose().popMatrix();
     }
 

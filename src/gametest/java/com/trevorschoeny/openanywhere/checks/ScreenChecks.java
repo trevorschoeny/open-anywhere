@@ -79,6 +79,7 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.runOnClient(mc -> net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) ->
                 net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((sc, g, mx, my, delta) -> {
                     if (bigIcon) drawWorldIcon(g);
+                    if (headShot) drawHeads(g);
                     if (recording) LAYOUTS.add(sc.getClass().getSimpleName() + " " + layout());
                     if (recording) FRAMES.add(describe(sc) + "|" + Tabs.selected().type() + (Tabs.expanded(Tabs.Group.WORLD) ? "+" : ""));
                 })));
@@ -707,11 +708,32 @@ public class ScreenChecks implements FabricClientGameTest {
         bigIcon = true;
         ctx.waitTicks(3);
         ctx.takeScreenshot("screens-double-chest-icon-large");
+        headShot = true;
+        ctx.waitTicks(3);
+        ctx.takeScreenshot("screens-head-light");
+        headShot = false;
         bigIcon = false;
     }
 
     // While set, the world tab's icon is drawn 96 px wide at the screen's top left.
     private static volatile boolean bigIcon;
+    private static volatile boolean headShot;
+
+    /** The head icon large, side view and front view, vanilla's light then flat: a look at its light. */
+    private static void drawHeads(net.minecraft.client.gui.GuiGraphicsExtractor g) {
+        g.fill(0, 0, 300, 76, 0xFFC6C6C6);
+        var head = new ItemStack(Items.PLAYER_HEAD);
+        float[][] turns = {{0, 0}, {-30, -45}};
+        for (int k = 0; k < 4; k++) {
+            float[] t = turns[k % 2];
+            boolean flat = k >= 2;
+            g.pose().pushMatrix();
+            g.pose().translate(6 + k * 74, 6);
+            g.pose().scale(4f, 4f);
+            com.trevorschoeny.openanywhere.ItemTurn.draw(t[0], t[1], flat, () -> g.item(head, 0, 0));
+            g.pose().popMatrix();
+        }
+    }
 
     private static void drawWorldIcon(net.minecraft.client.gui.GuiGraphicsExtractor g) {
         try {
