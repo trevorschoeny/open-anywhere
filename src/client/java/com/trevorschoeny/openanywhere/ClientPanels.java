@@ -158,9 +158,11 @@ final class ClientPanels {
 
     /**
      * The world header's icon: the container's block, opening while the world group holds the
-     * tab in front. A double chest is its two halves together: vanilla's own half models
-     * ({@code assets/openanywhere/items/<chest>_left.json} and {@code _right}), each placed
-     * half a block to its side and the pair shrunk to fit, in the model's own transformation.
+     * tab in front. A double chest is drawn as in the world: one item model
+     * ({@code assets/openanywhere/items/<chest>_double.json}) of vanilla's two half models with
+     * their own half textures, the left half a block to the right half's +x, shrunk to fit.
+     * One model, not two items: vanilla centres each item in its box, which would pull two
+     * halves apart.
      */
     private static void drawWorld(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         ItemStack block = worldIcon();
@@ -174,15 +176,13 @@ final class ClientPanels {
         g.pose().pushMatrix();
         g.pose().translate(x, y);
         g.pose().scale(w / 16f, w / 16f);
-        for (String side : new String[] {"_right", "_left"}) {
-            ItemStack half = block.copy();
-            half.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + side));
-            ItemAnimation.OPEN_LID.draw(g, half, 0, 0, t);
-        }
+        ItemStack pair = block.copy();
+        pair.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, path + "_double"));
+        ItemAnimation.OPEN_LID.draw(g, pair, 0, 0, t);
         g.pose().popMatrix();
     }
 
-    /** The chests that make double chests: each has its half models in this mod's assets. */
+    /** The chests that make double chests: each has its double model in this mod's assets. */
     private static final java.util.Set<String> HALVES = java.util.Set.of("chest", "trapped_chest",
             "copper_chest", "exposed_copper_chest", "weathered_copper_chest", "oxidized_copper_chest",
             "waxed_copper_chest", "waxed_exposed_copper_chest", "waxed_weathered_copper_chest", "waxed_oxidized_copper_chest");

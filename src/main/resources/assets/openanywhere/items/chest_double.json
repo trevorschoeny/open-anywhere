@@ -1,0 +1,73 @@
+{
+  "model": {
+    "type": "minecraft:composite",
+    "models": [
+      {
+        "type": "minecraft:special",
+        "base": "minecraft:item/chest",
+        "model": {
+          "type": "minecraft:chest",
+          "texture": "minecraft:normal_right",
+          "chest_type": "right"
+        },
+        "transformation": {
+          "translation": [
+            -0.1,
+            0.2,
+            0.2
+          ],
+          "left_rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.6,
+            0.6,
+            0.6
+          ],
+          "right_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "type": "minecraft:special",
+        "base": "minecraft:item/chest",
+        "model": {
+          "type": "minecraft:chest",
+          "texture": "minecraft:normal_left",
+          "chest_type": "left"
+        },
+        "transformation": {
+          "translation": [
+            0.5,
+            0.2,
+            0.2
+          ],
+          "left_rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.6,
+            0.6,
+            0.6
+          ],
+          "right_rotation": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    ]
+  }
+}

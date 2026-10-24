@@ -57,8 +57,11 @@ public final class ServerTabs {
 
     private ServerTabs() {}
 
-    /** An item the player opened by hand: where it sits, and the top-level stack it's in, by identity. */
-    private record Mark(ItemPath path, ItemStack top) {}
+    /**
+     * An item the player opened by hand: where it sits, the top-level stack it's in (by
+     * identity), and what item that was, since a lift empties the stack in place.
+     */
+    private record Mark(ItemPath path, ItemStack top, net.minecraft.world.item.Item item) {}
 
     /**
      * The item tab whose screen is in front: its menu, its tab, what it is, the live item
@@ -67,9 +70,16 @@ public final class ServerTabs {
     private record Front(AbstractContainerMenu menu, TabId id, Openable kind, @Nullable LiveItem live,
                          Container top, int topSlot) {}
 
+    /** A mark dropped because its item was lifted: where, what, and when, for a double-click's second click. */
+    private record Lifted(ItemPath path, ItemStack item, long tick) {}
+
+    /** How long after a lift a double-click's second click still counts as closing: vanilla's double-click window, and a little. */
+    private static final int LIFT_TICKS = 25;
+
     private static final class State {
         PrefsC2S prefs = PrefsC2S.DEFAULT;
         final List<Mark> marks = new ArrayList<>();
+        final List<Lifted> lifted = new ArrayList<>();
         @Nullable Front front;
         List<Tab> sentRow = List.of();
         TabId sentShown = TabId.INVENTORY;
@@ -177,7 +187,16 @@ public final class ServerTabs {
     /** The items the player opened by hand, dropping each one no longer where it was. */
     private static List<Item> marked(ServerPlayer player, @Nullable AbstractContainerMenu world, State st) {
         List<Item> items = new ArrayList<>();
-        st.marks.removeIf(m -> !stillThere(player, world, m));
+        long now = player.level().getGameTime();
+        st.lifted.removeIf(l -> now - l.tick() > LIFT_TICKS);
+        st.marks.removeIf(m -> {
+            if (stillThere(player, world, m)) return false;
+            // Lifted onto the cursor, maybe by a double-click's first click: remembered
+            // briefly, so its second click closes it rather than opening it again.
+            if (m.path().depth() == 0 && player.containerMenu.getCarried().getItem() == m.item())
+                st.lifted.add(new Lifted(m.path(), player.containerMenu.getCarried().copy(), now));
+            return true;
+        });
         for (Mark m : st.marks) items.add(new Item(m.path(), at(player, world, m.path()).copy(), parentName(player, world, m.path())));
         return items;
     }
@@ -349,6 +368,12 @@ public final class ServerTabs {
             pick(player, tabFor(player, st, path, kind));
             return;
         }
+        // The second click of a double-click on an item that had a tab: its first click lifted
+        // it, which closed its tab. Put back, it stays closed.
+        if (fromCursor && st.lifted.removeIf(l -> l.path().equals(path) && ItemStack.matches(l.item(), stack))) {
+            sync(player, st);
+            return;
+        }
         Mark mark = markFor(st, player, world, path, kind);
         if (mark != null) {
             st.marks.remove(mark);
@@ -358,7 +383,7 @@ public final class ServerTabs {
         }
         Container top = topOf(player, world, path);
         if (top == null) return;
-        st.marks.add(new Mark(path, top.getItem(path.slot())));
+        st.marks.add(new Mark(path, top.getItem(path.slot()), top.getItem(path.slot()).getItem()));
         pick(player, TabId.item(path));
     }
 

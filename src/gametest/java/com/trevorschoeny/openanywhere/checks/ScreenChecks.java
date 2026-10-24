@@ -196,7 +196,9 @@ public class ScreenChecks implements FabricClientGameTest {
         pick(TabId.INVENTORY);
         expectScreen(InventoryScreen.class, "the Inventory tab");
         expectRow("INVENTORY, lime_shulker_box", "back on the inventory");
-        doubleClick(hotbar(0), "the open lime box");
+        // At a hand's pace, ticks between the clicks: the first lifts the box, which closes its
+        // tab, and the second puts it back without opening it again.
+        slowDoubleClick(hotbar(0), "the open lime box");
         if (!ctx.computeOnClient(mc -> Tabs.row().isEmpty())) throw new AssertionError("the box's tab stayed after double-clicking it shut: " + rowNames());
     }
 
@@ -611,6 +613,20 @@ public class ScreenChecks implements FabricClientGameTest {
                 mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
         });
         ctx.waitTicks(8);
+    }
+
+    /** A double-click at a hand's pace: two left presses four ticks apart, the cursor still. */
+    private void slowDoubleClick(Predicate<Slot> p, String what) {
+        hover(p, what);
+        for (int i = 0; i < 2; i++) {
+            ctx.runOnClient(mc -> {
+                var mouse = (net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor) mc.mouseHandler;
+                for (int action : new int[] {1, 0})
+                    mouse.invokeOnButton(mc.getWindow().handle(), new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0), action);
+            });
+            ctx.waitTicks(4);
+        }
+        ctx.waitTicks(4);
     }
 
     /** A double-click with no wait after it. */
