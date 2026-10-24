@@ -710,14 +710,21 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.waitTicks(3);
     }
 
-    /** The cursor on the tab row's paging arrow, right or left, just above the screen's frame. */
+    /** The cursor on the tab row's paging arrow, right or left, where MenuKit draws it; fails if it isn't the arrow. */
     private void pageArrow(boolean right) {
+        var edge = com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP;
         double[] at = ctx.computeOnClient(mc -> {
-            ScreenAccessor edge = (ScreenAccessor) screen(mc);
+            var l = com.trevlar.menukit.inject.ContainerTabRows.lineForChecks(edge);
+            if (l == null) throw new AssertionError("no tab row on " + mc.gui.screen());
+            int aw = com.trevlar.menukit.inject.ContainerTabRows.ARROW_WIDTH;
+            double x = right ? l.x() + l.width() - aw / 2.0 : l.x() + aw / 2.0;
+            double y = l.rowTop() + l.height() / 2.0;
+            int hit = com.trevlar.menukit.inject.ContainerTabRows.hitForChecks(edge, x, y);
+            int want = right ? com.trevlar.menukit.inject.ContainerTabRows.FORWARD : com.trevlar.menukit.inject.ContainerTabRows.BACK;
+            if (hit != want) throw new AssertionError("the " + (right ? "forward" : "back") + " arrow isn't at " + x + "," + y + " (hit " + hit + ")");
             var w = mc.getWindow();
             double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
-            double x = right ? edge.openanywhere$leftPos() + edge.openanywhere$imageWidth() - 6 : edge.openanywhere$leftPos() + 5;
-            return new double[] {x * f, (edge.openanywhere$topPos() - 14) * f};
+            return new double[] {x * f, y * f};
         });
         ctx.getInput().setCursorPos(at[0], at[1]);
         ctx.waitTick();
