@@ -159,7 +159,7 @@ processResources {
 // Lead @ Trevlar Mods owns the publish.
 modrinth {
     token = System.getenv("MODRINTH_TOKEN")
-    projectId = ""
+    projectId = "yDK7jAzP"
     versionNumber = property('openanywhere_version')
     versionName = "Open Anywhere ${property('openanywhere_version')}"
     versionType = "release"
