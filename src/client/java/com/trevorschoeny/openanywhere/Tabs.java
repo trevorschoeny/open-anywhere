@@ -94,6 +94,16 @@ public final class Tabs {
         return null;
     }
 
+    /**
+     * Whether a group header's own item draws its lid open: its group is being browsed, or,
+     * opened by hand, it's held open by {@link #looksOpen} regardless of what's selected. Keeps
+     * the ender chest header's look in step with its slot's: a box held open by hand stays open
+     * on both even once you've clicked elsewhere.
+     */
+    static boolean open(TabId id) {
+        return Settings.tabs() == Settings.TabMode.HAND && tab(id) != null || groupOf(selected()) == groupOf(id);
+    }
+
     /** {@code group}'s header tab, or null while it isn't on the row. */
     public static @Nullable TabId header(Group group) {
         return switch (group) {

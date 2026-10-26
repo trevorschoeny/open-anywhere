@@ -99,8 +99,7 @@ final class ClientPanels {
         group(Tabs.Group.ENDER_CHEST, ENDER_TAB, ENDER_ORDER,
                 (g, x, y, w, h) -> {
                     TabId ender = Tabs.enderHeader();
-                    if (ender != null) drawOpening(g, item(ender), Tabs.Group.ENDER_CHEST,
-                            Tabs.groupOf(Tabs.selected()) == Tabs.Group.ENDER_CHEST, x, y, w);
+                    if (ender != null) drawOpening(g, item(ender), Tabs.Group.ENDER_CHEST, Tabs.open(ender), x, y, w);
                 },
                 () -> Component.translatable("container.enderchest"));
     }
