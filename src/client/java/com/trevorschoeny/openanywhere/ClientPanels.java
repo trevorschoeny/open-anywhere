@@ -1,28 +1,20 @@
 package com.trevorschoeny.openanywhere;
 
 
-import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.element.Transition;
-import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.ContainerTabs;
 import com.trevlar.menukit.api.panel.ModeScope;
-import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.panel.PanelPosition;
-import com.trevlar.menukit.api.panel.PanelStyle;
-import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
-import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.slotkit.api.item.ItemRef;
 import com.trevlar.slotkit.api.slot.SlotElement;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
 
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -52,8 +44,6 @@ final class ClientPanels {
      * An 11 px raised button around a 7 px black "x" (MenuKit insets an icon 2 px). A
      * text label can't be this small: MenuKit pads a label to about 17 px each way.
      */
-    private static final int CLOSE_SIZE = 11;
-    private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "close");
 
     static final String TABS = OpenAnywhere.MOD_ID + ":tabs";
     /** The open bundle's section on its host. */
@@ -75,7 +65,6 @@ final class ClientPanels {
         TabWheel.register();
         tabs();
         bundle();
-        closeButton();
         com.trevorschoeny.openanywhere.api.ShownItem.declare();
     }
 
@@ -313,33 +302,6 @@ final class ClientPanels {
     private static Component bundleName() {
         Tab front = Tabs.shownItem();
         return front == null ? Component.translatable("item.minecraft.bundle") : front.item().getHoverName();
-    }
-
-    /**
-     * The close button for the item in front: a raised button with a black "x", centred on
-     * the frame's top-right corner, so it sits over the frame's edge, never over a slot or a
-     * tab. Only for items opened by hand: with every box tabbed there's nothing to close.
-     */
-    private static void closeButton() {
-        Panel close = Panel.builder(OpenAnywhere.MOD_ID + ":close_shown")
-                .add(Button.builder()
-                        .icon(CLOSE_ICON)
-                        .size(CLOSE_SIZE, CLOSE_SIZE)
-                        .onClick(() -> {
-                            Tab front = Tabs.shownItem();
-                            if (front != null) ClientPlayNetworking.send(new CloseC2S(front.id()));
-                        })
-                        .build())
-                .style(PanelStyle.NONE)
-                .in(ModeScope.BOTH, Placement.around(com.trevorschoeny.openanywhere.api.ShownItem.SECTION, PanelPosition.pixel(() -> {
-                    Reference frame = frame(Minecraft.getInstance().gui.screen());
-                    // Off screen when there's no frame (hidden then anyway).
-                    if (frame == null) return new ScreenOrigin(-CLOSE_SIZE, -CLOSE_SIZE);
-                    return new ScreenOrigin(frame.leftPos() + frame.imageWidth() - CLOSE_SIZE / 2 - 1, frame.topPos() - CLOSE_SIZE / 2);
-                })))
-                .build()
-                .visibleWhen(() -> Tabs.showing() && Tabs.shownItem() != null && Settings.tabs() == Settings.TabMode.HAND);
-        new AnchorPanelAdapter(close);
     }
 
     /** The frame the item in front shows in: the host's container list, else the screen's own. */

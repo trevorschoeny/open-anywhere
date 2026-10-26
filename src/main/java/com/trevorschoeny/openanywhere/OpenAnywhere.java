@@ -22,7 +22,6 @@ public final class OpenAnywhere implements ModInitializer {
         ContainerHost.register();
 
         PayloadTypeRegistry.serverboundPlay().register(OpenC2S.TYPE, OpenC2S.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(CloseC2S.TYPE, CloseC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(PickC2S.TYPE, PickC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(PrefsC2S.TYPE, PrefsC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DoneC2S.TYPE, DoneC2S.CODEC);
@@ -30,7 +29,6 @@ public final class OpenAnywhere implements ModInitializer {
 
         ServerPlayNetworking.registerGlobalReceiver(OpenC2S.TYPE,
                 (payload, context) -> ServerTabs.open(context.player(), payload.menuSlot(), payload.fromCursor()));
-        ServerPlayNetworking.registerGlobalReceiver(CloseC2S.TYPE, (payload, context) -> ServerTabs.close(context.player(), payload.id()));
         ServerPlayNetworking.registerGlobalReceiver(PickC2S.TYPE, (payload, context) -> ServerTabs.pick(context.player(), payload.id()));
         ServerPlayNetworking.registerGlobalReceiver(PrefsC2S.TYPE, (payload, context) -> ServerTabs.prefs(context.player(), payload));
         ServerPlayNetworking.registerGlobalReceiver(DoneC2S.TYPE, (payload, context) -> ServerTabs.done(context.player()));

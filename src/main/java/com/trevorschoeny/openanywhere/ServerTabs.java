@@ -703,14 +703,6 @@ public final class ServerTabs {
         sync(player, st);
     }
 
-    /** The close button on item tab {@code id}: it closes, and its screen gives way if it's in front. */
-    static void close(ServerPlayer player, TabId id) {
-        State st = state(player);
-        if (id.path() == null) return;
-        if (st.front != null && st.front.id.equals(id)) goHome(player, st, id.path());
-        sync(player, st);
-    }
-
     /**
      * Off the item in front, to the container it sits in: the box around it, the ender chest,
      * the world container or the inventory, the nearest of those still in reach. The inventory
