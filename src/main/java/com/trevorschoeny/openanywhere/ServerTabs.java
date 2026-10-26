@@ -293,8 +293,9 @@ public final class ServerTabs {
     private static List<Top> tops(ServerPlayer player, @Nullable AbstractContainerMenu world) {
         List<Top> tops = new ArrayList<>();
         tops.add(new Top(ItemRef.Source.INVENTORY, null, player.getInventory()));
-        // ponytail: only the carried attachments holding something, found by a walk: an empty
-        // one has nothing to find or remember. A SlotKit list of carried ids if this walk shows up.
+        // Only the carried attachments holding something, found by a walk: an empty one has
+        // nothing to find or remember. If this walk shows up in profiling, ask SlotKit for a
+        // list of carried ids instead.
         Set<net.minecraft.resources.Identifier> carried = new java.util.LinkedHashSet<>();
         for (ItemSources.Found f : ItemSources.find(player, ItemScope.inventory().carried(true), s -> true))
             if (f.path().source() == ItemRef.Source.CARRIED) carried.add(f.path().attachment());
