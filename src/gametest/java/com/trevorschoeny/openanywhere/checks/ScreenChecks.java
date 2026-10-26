@@ -108,6 +108,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::lockedWhileCarried);
             run("openanywhere:screens_lock", this::twins);
             run("openanywhere:screens_lock", this::takenAway);
+            run("openanywhere:screens_lock", this::twoEnderChests);
             run("openanywhere:screens_box_edits", this::walkedAway);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
@@ -1127,6 +1128,22 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(InventoryScreen.class, "walking out of the chest's reach");
         String box = ctx.computeOnClient(mc -> String.valueOf(Tabs.shownItem()));
         if (!box.equals("null")) throw new AssertionError("a box tab is still in front after walking away: " + box);
+    }
+
+    /**
+     * Two ender chests carried, the one in front lifted and put down in another slot: its tab
+     * comes back selected on the row, though the other ender chest now comes first.
+     */
+    private void twoEnderChests() {
+        command("item replace entity @p hotbar.7 with minecraft:ender_chest");
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(1), "the first ender chest");
+        click(hotbar(1), "the open ender chest");
+        click(slot(20), "an empty slot");
+        ctx.waitTicks(5);
+        boolean onRow = ctx.computeOnClient(mc -> Tabs.tab(Tabs.selected()) != null && Tabs.selected().type() == TabId.Type.ITEM);
+        if (!onRow) throw new AssertionError("the moved ender chest's tab isn't on the row: " + rowNames() + ", selected " + ctx.computeOnClient(mc -> String.valueOf(Tabs.selected())));
     }
 
     /** The player's inventory slot {@code i} (0 to 8 the hotbar, 9 to 35 the rest). */

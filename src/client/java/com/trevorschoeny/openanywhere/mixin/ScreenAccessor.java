@@ -8,7 +8,7 @@ import net.minecraft.world.inventory.Slot;
 
 /**
  * A container screen's slot under the mouse (what a double-click or the Open key acts on)
- * and its frame (where a lifted item is drawn back in its slot, and the close button sits).
+ * and its frame (where a lifted item is drawn back in its slot).
  */
 @Mixin(AbstractContainerScreen.class)
 public interface ScreenAccessor {

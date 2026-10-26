@@ -33,8 +33,7 @@ import net.minecraft.world.level.block.Block;
 
 /**
  * What this mod adds to the screens: the tab row (a group per main tab, through MenuKit's
- * {@link ContainerTabs}), the bundle's slots on its host, and the close button for the item
- * in front.
+ * {@link ContainerTabs}) and the bundle's slots on its host.
  */
 final class ClientPanels {
 

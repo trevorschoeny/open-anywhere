@@ -283,7 +283,9 @@ public final class ServerTabs {
         Front f = st.front;
         List<TabId> line = line(r, f == null ? null : f.id);
         boolean every = st.prefs.everyBox();
-        TabId ender = r.ender() == null ? null : TabId.item(r.ender());
+        // An ender chest in front is the ender tab, whichever ender chest item it came to be.
+        TabId ender = f != null && f.kind == Openable.ENDER_CHEST && f.id.path() != null ? f.id
+                : r.ender() == null ? null : TabId.item(r.ender());
         if (every && r.pocket() && line.contains(ender)) st.pocketOpened = true;
 
         Set<TabId> open = new HashSet<>(line);
