@@ -109,7 +109,8 @@ public final class Tabs {
         if (id.type() == TabId.Type.WORLD || id.path() == null) return Group.WORLD;
         if (id.equals(enderHeader())) return Group.ENDER_CHEST;
         return switch (id.path().source()) {
-            case INVENTORY -> Group.INVENTORY;
+            // A carried attachment's slot (another mod's pocket) sits on the inventory screen.
+            case INVENTORY, CARRIED -> Group.INVENTORY;
             case CONTAINER -> Group.WORLD;
             // At a placed ender chest the world container is the ender chest, and its items are its.
             case ENDER_CHEST -> enderHeader() != null ? Group.ENDER_CHEST : Group.WORLD;
@@ -181,7 +182,7 @@ public final class Tabs {
         ItemPath path = front.id().path();
         List<Integer> inside = new ArrayList<>(path.inside());
         inside.add(index);
-        return new ItemPath(path.source(), path.slot(), inside);
+        return new ItemPath(path.source(), path.slot(), inside, path.attachment());
     }
 
     /**

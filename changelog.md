@@ -1,3 +1,11 @@
+## 1.1.0
+
+#### Added
+
+- Ender chests, shulker boxes and bundles in another mod's carried slot (such as Pocket Ender Chest's ender chest slot) open and get their tabs, like the ones in your inventory.
+
+Requires SlotKit 2.2.0 or newer.
+
 ## 1.0.0
 
 First release.

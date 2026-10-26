@@ -113,8 +113,9 @@ public final class ServerTabs {
         List<Tab> sentRow = List.of();
         @Nullable TabId sentShown = TabId.INVENTORY;
         boolean sentFrozen;
-        // Each top-level container's slots as last tick ended, by identity ({@link #find}).
-        final Map<Container, ItemStack[]> before = new java.util.IdentityHashMap<>();
+        // Each top-level container's slots as last tick ended, by identity ({@link #find}),
+        // keyed by its slot 0's path: a carried attachment's container is new each time.
+        final Map<ItemPath, ItemStack[]> before = new java.util.HashMap<>();
     }
 
     // Weak by player: a player who left takes their tabs with them. Synchronized: the slot
@@ -131,17 +132,20 @@ public final class ServerTabs {
 
     /**
      * Where an item sits decides its place on the row: the inventory's own slots first
-     * (hotbar first, then slot order), then the world container's, then what's inside
-     * those, a level at a time. The ender chest's contents are one level in, since the ender
+     * (hotbar first, then slot order), then carried attachments' (another mod's pocket or
+     * ender chest slot), then the world container's, then what's inside those, a level at a
+     * time. The ender chest's contents are one level in, since the ender
      * chest is a box itself.
      */
     static final Comparator<ItemPath> ORDER = Comparator
             .<ItemPath>comparingInt(p -> p.depth() + (p.source() == ItemRef.Source.ENDER_CHEST ? 1 : 0))
             .thenComparingInt(p -> switch (p.source()) {
                 case INVENTORY -> 0;
-                case CONTAINER -> 1;
-                case ENDER_CHEST -> 2;
+                case CARRIED -> 1;
+                case CONTAINER -> 2;
+                case ENDER_CHEST -> 3;
             })
+            .thenComparing(p -> String.valueOf(p.attachment()))
             .thenComparingInt(ItemPath::slot)
             .thenComparing(ItemPath::inside, (a, b) -> {
                 for (int i = 0; i < Math.min(a.size(), b.size()); i++) {
@@ -180,6 +184,8 @@ public final class ServerTabs {
             case INVENTORY -> player.getInventory();
             case ENDER_CHEST -> player.getEnderChestInventory();
             case CONTAINER -> world == null ? null : containerOf(world);
+            // A new container each call, over the same stacks: compare its stacks, never it.
+            case CARRIED -> ItemSources.containerOf(player, path);
         };
     }
 
@@ -260,13 +266,13 @@ public final class ServerTabs {
         }
         State st = state(player);
         ItemPath first = null;
-        for (Map.Entry<ItemRef.Source, Container> top : tops(player, world).entrySet()) {
-            Container c = top.getValue();
-            ItemStack[] before = st.before.get(c);
+        for (Top top : tops(player, world)) {
+            Container c = top.container();
+            ItemStack[] before = st.before.get(top.at(0));
             for (int i = 0; i < topSize(c); i++) {
                 ItemStack here = c.getItem(i);
                 if (!ItemStack.matches(here, stack)) continue;
-                ItemPath path = new ItemPath(top.getKey(), i, List.of());
+                ItemPath path = top.at(i);
                 if (before == null || i >= before.length || before[i] != here) return path;
                 if (first == null) first = path;
             }
@@ -275,12 +281,29 @@ public final class ServerTabs {
         return Openable.of(stack) == Openable.ENDER_CHEST ? first : null;
     }
 
-    /** The top-level containers in reach, in the row's order: the inventory, the world container, the ender chest. */
-    private static Map<ItemRef.Source, Container> tops(ServerPlayer player, @Nullable AbstractContainerMenu world) {
-        Map<ItemRef.Source, Container> tops = new java.util.EnumMap<>(ItemRef.Source.class);
-        tops.put(ItemRef.Source.INVENTORY, player.getInventory());
-        if (world != null && !worldIsEnderChest(player, world)) tops.put(ItemRef.Source.CONTAINER, containerOf(world));
-        tops.put(ItemRef.Source.ENDER_CHEST, player.getEnderChestInventory());
+    /** A top-level container in reach, and where its slots are: {@code at(i)} is its slot {@code i}'s path. */
+    private record Top(ItemRef.Source source, net.minecraft.resources.@Nullable Identifier attachment, Container container) {
+        ItemPath at(int slot) { return new ItemPath(source, slot, List.of(), attachment); }
+    }
+
+    /**
+     * The top-level containers in reach, in the row's order: the inventory, the carried
+     * attachments, the world container, the ender chest.
+     */
+    private static List<Top> tops(ServerPlayer player, @Nullable AbstractContainerMenu world) {
+        List<Top> tops = new ArrayList<>();
+        tops.add(new Top(ItemRef.Source.INVENTORY, null, player.getInventory()));
+        // ponytail: only the carried attachments holding something, found by a walk: an empty
+        // one has nothing to find or remember. A SlotKit list of carried ids if this walk shows up.
+        Set<net.minecraft.resources.Identifier> carried = new java.util.LinkedHashSet<>();
+        for (ItemSources.Found f : ItemSources.find(player, ItemScope.inventory().carried(true), s -> true))
+            if (f.path().source() == ItemRef.Source.CARRIED) carried.add(f.path().attachment());
+        for (var id : carried) {
+            ItemPath path = new ItemPath(ItemRef.Source.CARRIED, 0, List.of(), id);
+            tops.add(new Top(ItemRef.Source.CARRIED, id, ItemSources.containerOf(player, path)));
+        }
+        if (world != null && !worldIsEnderChest(player, world)) tops.add(new Top(ItemRef.Source.CONTAINER, null, containerOf(world)));
+        tops.add(new Top(ItemRef.Source.ENDER_CHEST, null, player.getEnderChestInventory()));
         return tops;
     }
 
@@ -292,10 +315,11 @@ public final class ServerTabs {
     /** Notes what's in every top-level slot in reach, by identity, for telling a moved item from its twin next tick. */
     private static void remember(ServerPlayer player, State st) {
         st.before.clear();
-        for (Container c : tops(player, world(player)).values()) {
+        for (Top top : tops(player, world(player))) {
+            Container c = top.container();
             ItemStack[] now = new ItemStack[topSize(c)];
             for (int i = 0; i < now.length; i++) now[i] = c.getItem(i);
-            st.before.put(c, now);
+            st.before.put(top.at(0), now);
         }
     }
 
@@ -315,7 +339,7 @@ public final class ServerTabs {
             Openable kind = Openable.of(s);
             return kind != null && prefs.opens(kind) && (kind != Openable.SHULKER || s.getCount() == 1);
         };
-        ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true);
+        ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true).carried(true);
         boolean worldEnder = worldIsEnderChest(player, world);
         List<ItemSources.Found> found = new ArrayList<>(ItemSources.find(player, scope, opens));
         if (world != null && !worldEnder) found.addAll(ItemSources.find(containerOf(world), scope, opens));
@@ -332,13 +356,13 @@ public final class ServerTabs {
     }
 
     private static ItemPath parentOf(ItemPath path) {
-        return new ItemPath(path.source(), path.slot(), path.inside().subList(0, path.depth() - 1));
+        return new ItemPath(path.source(), path.slot(), path.inside().subList(0, path.depth() - 1), path.attachment());
     }
 
     private static ItemPath childOf(ItemPath path, int index) {
         List<Integer> inside = new ArrayList<>(path.inside());
         inside.add(index);
-        return new ItemPath(path.source(), path.slot(), inside);
+        return new ItemPath(path.source(), path.slot(), inside, path.attachment());
     }
 
     /** Which tab's screen is in front. */
@@ -681,14 +705,15 @@ public final class ServerTabs {
     }
 
     /**
-     * Where the item in {@code slot} of the open menu sits: the inventory, the world
-     * container, the ender chest on screen, or inside the box or bundle on screen. Null for a
-     * slot holding none of these (armor, the crafting grid).
+     * Where the item in {@code slot} of the open menu sits: the inventory, a carried
+     * attachment, the ender chest, the world container, or inside the box or bundle on
+     * screen. Null for a slot holding none of these (armor, the crafting grid).
      */
     private static @Nullable ItemPath pathOf(ServerPlayer player, State st, @Nullable AbstractContainerMenu world, Slot slot) {
-        if (slot.container == player.getInventory()) {
-            return slot.getContainerSlot() < 36 ? new ItemPath(ItemRef.Source.INVENTORY, slot.getContainerSlot(), List.of()) : null;
-        }
+        // The player's own slots: the inventory's main 36, a carried attachment's, the ender chest's.
+        ItemPath own = ItemSources.pathOf(player, slot);
+        if (own != null) return own;
+        if (slot.container == player.getInventory()) return null;
         AbstractContainerMenu menu = player.containerMenu;
         if (world != null && menu == world && slot.container == containerOf(world)) {
             ItemRef.Source source = worldIsEnderChest(player, world) ? ItemRef.Source.ENDER_CHEST : ItemRef.Source.CONTAINER;

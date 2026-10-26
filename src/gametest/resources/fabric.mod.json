@@ -8,6 +8,14 @@
       "com.trevorschoeny.openanywhere.checks.ModeChecks",
       "com.trevorschoeny.openanywhere.checks.ScreenChecks",
       "com.trevorschoeny.openanywhere.checks.SettingsChecks"
+    ],
+    "main": [
+      "com.trevorschoeny.openanywhere.checks.CarriedSlot"
     ]
+  },
+  "custom": {
+    "slotkit": {
+      "bothSides": "required"
+    }
   }
 }

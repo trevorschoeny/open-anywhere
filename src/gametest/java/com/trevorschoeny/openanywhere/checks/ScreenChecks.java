@@ -7,9 +7,13 @@ import java.util.function.Predicate;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.trevlar.slotkit.api.item.ItemPath;
+import com.trevlar.slotkit.api.item.ItemRef;
+import com.trevlar.slotkit.api.item.ItemSources;
 import com.trevlar.slotkit.api.menu.MenuSwitch;
 import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
+import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
 import com.trevorschoeny.openanywhere.Settings;
 import com.trevorschoeny.openanywhere.Tab;
@@ -20,6 +24,7 @@ import com.trevorschoeny.openanywhere.api.ShownItem;
 import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -90,6 +95,10 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_from_inventory", this::fromInventory);
             run("openanywhere:screens_order", this::order);
             run("openanywhere:screens_ender", this::ender);
+            run("openanywhere:screens_ender", this::carriedEnder);
+            run("openanywhere:screens_ender", this::carriedEnderTabs);
+            run("openanywhere:screens_ender", this::carriedMoved);
+            run("openanywhere:screens_ender", this::carriedBox);
             run("openanywhere:screens_bundle", this::bundle);
             run("openanywhere:screens_bundle", this::bundleHalf);
             run("openanywhere:screens_nested", this::nested);
@@ -129,6 +138,7 @@ public class ScreenChecks implements FabricClientGameTest {
                     "item replace entity @p inventory.0 with minecraft:dirt 64",
                     "item replace entity @p enderchest.4 with minecraft:green_shulker_box[container=[{slot:0,item:{id:\"minecraft:cactus\",count:8}}]]"})
                 command(c);
+            pocket(ItemStack.EMPTY);
             ctx.waitTicks(3);
             check.run();
         } catch (AssertionError e) {
@@ -289,6 +299,105 @@ public class ScreenChecks implements FabricClientGameTest {
         if (!green) throw new AssertionError("the ender chest's screen doesn't show the green box in its slot 4");
         String title = ctx.computeOnClient(mc -> screen(mc).getTitle().getString());
         if (!title.equals("Ender Chest")) throw new AssertionError("the ender chest's screen is titled " + title);
+    }
+
+    // A carried attachment: another mod's slot for things the player carries ({@link CarriedSlot})
+
+    /** An ender chest in a carried slot opens the player's ender chest, and stays in front. */
+    private void carriedEnder() {
+        command("item replace entity @p hotbar.1 with minecraft:air");
+        pocket(new ItemStack(Items.ENDER_CHEST));
+        openInventory();
+        openPocket();
+        expectScreen(ContainerScreen.class, "a double-click on the ender chest in the carried slot");
+        String title = ctx.computeOnClient(mc -> screen(mc).getTitle().getString());
+        if (!title.equals("Ender Chest")) throw new AssertionError("the carried ender chest's screen is titled " + title);
+        expectShownFrom(ItemRef.Source.CARRIED, "the carried ender chest opened");
+        // Its slot's stack is the same object tick after tick, so it isn't taken for moved.
+        ctx.waitTicks(20);
+        expectScreen(ContainerScreen.class, "20 ticks with the carried ender chest in front");
+        expectShownFrom(ItemRef.Source.CARRIED, "20 ticks with the carried ender chest in front");
+    }
+
+    /** Every box tabbed: the carried ender chest has its tab after the inventory's, and the ender chest's group shows. */
+    private void carriedEnderTabs() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        command("item replace entity @p hotbar.1 with minecraft:air");
+        pocket(new ItemStack(Items.ENDER_CHEST));
+        openInventory();
+        expectRow("INVENTORY, lime_shulker_box, bundle, ender_chest, green_shulker_box", "an ender chest in the carried slot, every box tabbed");
+        boolean header = ctx.computeOnClient(mc -> Tabs.header(Tabs.Group.ENDER_CHEST) != null);
+        if (!header) throw new AssertionError("no ender chest group header with the ender chest in the carried slot");
+    }
+
+    /** Every box tabbed, the ender chest in front moved into the carried slot and back: its screen stays, following it. */
+    private void carriedMoved() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(1), "the ender chest");
+        expectScreen(ContainerScreen.class, "double-click on the ender chest");
+        scene.world().getServer().runOnServer(s -> {
+            Inventory inv = player(s).getInventory();
+            CarriedSlot.POCKET.bind(player(s)).setStack(0, inv.getItem(1));
+            inv.setItem(1, ItemStack.EMPTY);
+        });
+        ctx.waitTicks(5);
+        expectScreen(ContainerScreen.class, "the ender chest in front moved into the carried slot");
+        expectShownFrom(ItemRef.Source.CARRIED, "the ender chest in front moved into the carried slot");
+        scene.world().getServer().runOnServer(s -> {
+            var pocket = CarriedSlot.POCKET.bind(player(s));
+            player(s).getInventory().setItem(5, pocket.getStack(0));
+            pocket.setStack(0, ItemStack.EMPTY);
+        });
+        ctx.waitTicks(5);
+        expectScreen(ContainerScreen.class, "the ender chest in front moved back from the carried slot");
+        expectShownFrom(ItemRef.Source.INVENTORY, "the ender chest in front moved back from the carried slot");
+    }
+
+    /** A box in a carried slot opens, stays in front, and what's put in it is saved in the slot. */
+    private void carriedBox() {
+        scene.world().getServer().runOnServer(s -> {
+            Inventory inv = player(s).getInventory();
+            CarriedSlot.POCKET.bind(player(s)).setStack(0, inv.getItem(0));
+            inv.setItem(0, ItemStack.EMPTY);
+        });
+        ctx.waitTicks(3);
+        openInventory();
+        openPocket();
+        expectScreen(ShulkerBoxScreen.class, "a double-click on the box in the carried slot");
+        ctx.waitTicks(20);
+        expectScreen(ShulkerBoxScreen.class, "20 ticks with the carried box in front");
+        shiftClick(slot(9), "the dirt");
+        String got = scene.world().getServer().computeOnServer(s -> {
+            ItemStack box = CarriedSlot.POCKET.bind(player(s)).getStack(0);
+            return name(box) + " " + count(box, Items.EMERALD) + " emeralds " + count(box, Items.DIRT) + " dirt";
+        });
+        if (!got.equals("lime_shulker_box 3 emeralds 64 dirt")) throw new AssertionError("after shift-clicking dirt into the carried box, the slot holds " + got);
+    }
+
+    private void pocket(ItemStack stack) {
+        scene.world().getServer().runOnServer(s -> CarriedSlot.POCKET.bind(player(s)).setStack(0, stack));
+    }
+
+    /** The double-click's request on the carried slot, which has no place on screen in the checks. */
+    private void openPocket() {
+        int index = scene.world().getServer().computeOnServer(s -> {
+            ServerPlayer p = player(s);
+            for (Slot slot : p.containerMenu.slots) {
+                ItemPath path = ItemSources.pathOf(p, slot);
+                if (path != null && path.source() == ItemRef.Source.CARRIED) return slot.index;
+            }
+            return -1;
+        });
+        if (index < 0) throw new AssertionError("no carried slot on " + ctx.computeOnClient(mc -> mc.gui.screen()));
+        ctx.runOnClient(mc -> ClientPlayNetworking.send(new OpenC2S(index, false)));
+        ctx.waitTicks(8);
+    }
+
+    private void expectShownFrom(ItemRef.Source source, String after) {
+        String shown = ctx.computeOnClient(mc -> String.valueOf(Tabs.shown().path()));
+        if (!shown.startsWith("ItemPath[source=" + source + ",")) throw new AssertionError("after " + after + " the tab in front is " + shown);
     }
 
     /** A bundle opens on the host, one slot per stack plus the add slot. */
