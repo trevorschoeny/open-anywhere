@@ -95,6 +95,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         // Our tab row sits on top of a vanilla chest frame, which is what makes it too
         // tall on a short window. Scroll it there instead of letting it overflow.
         ScreenFrames.scrollsWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+        DoubleClick.register();
 
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
@@ -116,7 +117,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
                     ClientPlayNetworking.send(new OpenC2S(s instanceof CreativeModeInventoryScreen ? realIndex(client.player, hovered) : hovered.index, false));
                     return false; // instead of the click
                 }
-                return !DoubleClick.click(s, event, hovered, carried, client.player);
+                return true;
             });
         });
     }
