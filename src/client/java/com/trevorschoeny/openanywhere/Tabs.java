@@ -74,76 +74,54 @@ public final class Tabs {
         return showing() ? row : List.of();
     }
 
-    /** The item tabs, in order, while the row shows: MenuKit's keys for them. */
-    public static List<TabId> items() {
+    /** The main tabs, in the row's order, while it shows: MenuKit's group keys. */
+    public static List<TabId> mains() {
         List<TabId> ids = new ArrayList<>();
-        for (Tab tab : row()) if (tab.id().type() == TabId.Type.ITEM) ids.add(tab.id());
+        for (Tab tab : row()) if (!tab.sub()) ids.add(tab.id());
         return ids;
     }
 
-    /**
-     * The row's groups: the inventory, the world container and the ender chest, each a header
-     * tab with the items it holds as sub-tabs. An item's group is its top-level container's,
-     * however deep it sits: a bundle in a box in the chest is the chest's.
-     */
-    public enum Group { INVENTORY, WORLD, ENDER_CHEST }
-
-    /** The ender chest's tab, the ender chest group's header, or null with no ender chest in reach. */
-    static @Nullable TabId enderHeader() {
-        for (Tab tab : row()) if (tab.id().type() == TabId.Type.ITEM && Openable.of(tab.item()) == Openable.ENDER_CHEST) return tab.id();
-        return null;
-    }
-
-    /**
-     * Whether a group header's own item draws its lid open: its group is being browsed, or,
-     * opened by hand, it's held open by {@link #looksOpen} regardless of what's selected. Keeps
-     * the ender chest header's look in step with its slot's: a box held open by hand stays open
-     * on both even once you've clicked elsewhere.
-     */
-    static boolean open(TabId id) {
-        return Settings.tabs() == Settings.TabMode.HAND && tab(id) != null || groupOf(selected()) == groupOf(id);
-    }
-
-    /** {@code group}'s header tab, or null while it isn't on the row. */
-    public static @Nullable TabId header(Group group) {
-        return switch (group) {
-            case INVENTORY -> showing() ? TabId.INVENTORY : null;
-            case WORLD -> hasWorld() ? TabId.WORLD : null;
-            case ENDER_CHEST -> enderHeader();
-        };
-    }
-
-    /** The group {@code id} is in, as its header or a sub-tab. */
-    public static Group groupOf(TabId id) {
-        if (id.type() == TabId.Type.INVENTORY) return Group.INVENTORY;
-        if (id.type() == TabId.Type.WORLD || id.path() == null) return Group.WORLD;
-        if (id.equals(enderHeader())) return Group.ENDER_CHEST;
-        return switch (id.path().source()) {
-            // A carried attachment's slot (another mod's pocket) sits on the inventory screen.
-            case INVENTORY, CARRIED -> Group.INVENTORY;
-            case CONTAINER -> Group.WORLD;
-            // At a placed ender chest the world container is the ender chest, and its items are its.
-            case ENDER_CHEST -> enderHeader() != null ? Group.ENDER_CHEST : Group.WORLD;
-        };
-    }
-
-    /** {@code group}'s sub-tabs, in the row's order: MenuKit's keys for them. */
-    public static List<TabId> children(Group group) {
+    /** Main tab {@code main}'s sub-tabs (the closed boxes in it), in order: MenuKit's keys for them. */
+    public static List<TabId> subs(TabId main) {
         List<TabId> ids = new ArrayList<>();
-        TabId ender = enderHeader();
-        for (TabId id : items()) if (!id.equals(ender) && groupOf(id) == group) ids.add(id);
+        for (Tab tab : row()) if (tab.sub() && main.equals(tab.parent())) ids.add(tab.id());
         return ids;
     }
 
-    /** Whether {@code group}'s sub-tabs are out: it holds the selected tab, or every group stays open. */
-    public static boolean expanded(Group group) {
-        return Settings.tabs() == Settings.TabMode.EVERY_OPEN || groupOf(selected()) == group;
+    /** Whether {@code id} is a main tab on the row: an open container, its lid drawn up. */
+    public static boolean open(TabId id) {
+        Tab tab = tab(id);
+        return tab != null && !tab.sub();
     }
 
-    /** Whether the row has a world container tab. */
-    static boolean hasWorld() {
-        for (Tab tab : row()) if (tab.id().equals(TabId.WORLD)) return true;
+    /** Whether {@code id} is {@code container}, or sits in it, however deep. */
+    public static boolean holds(TabId container, TabId id) {
+        for (TabId at = id; at != null; ) {
+            if (at.equals(container)) return true;
+            Tab tab = tab(at);
+            at = tab == null ? null : tab.parent();
+        }
         return false;
+    }
+
+    /**
+     * Every tab in where-it-sits order, for the wheel: each container, then each tab inside
+     * it, open or not, by place ({@link ServerTabs#ORDER}), each followed by what's inside it.
+     * Unlike the drawn row it doesn't move a tab when it's selected, so the wheel walks a
+     * steady line.
+     */
+    static List<TabId> walk() {
+        List<TabId> out = new ArrayList<>();
+        for (Tab tab : row()) if (tab.parent() == null) walk(tab.id(), out);
+        return out;
+    }
+
+    private static void walk(TabId id, List<TabId> out) {
+        out.add(id);
+        List<TabId> inside = new ArrayList<>();
+        for (Tab tab : row()) if (id.equals(tab.parent())) inside.add(tab.id());
+        inside.sort(java.util.Comparator.comparing(TabId::path, ServerTabs.ORDER));
+        for (TabId c : inside) walk(c, out);
     }
 
     /** {@code id}'s tab on the row, or null. */
@@ -198,16 +176,13 @@ public final class Tabs {
     }
 
     /**
-     * Whether the item in {@code slot} shows open: it has a tab, or with every box tabbed,
-     * it's the one in front. Only while the row shows.
+     * Whether the item in {@code slot} shows open: it's a main tab on the row, the same rule
+     * as its tab's lid ({@link #open}). Only while the row shows.
      */
     public static boolean looksOpen(Slot slot) {
         if (!showing()) return false;
         ItemPath path = pathOf(slot);
-        if (path == null) return false;
-        if (Settings.tabs() != Settings.TabMode.HAND) return path.equals(shown.path());
-        for (Tab tab : row) if (path.equals(tab.id().path())) return true;
-        return false;
+        return path != null && open(TabId.item(path));
     }
 
     /** What the client knows of the item in front, for the code both sides run ({@link Shown}). */

@@ -68,9 +68,8 @@ public final class SettingsPage {
                 TextLabel.builder().at(0, top + 134).text(Component.translatable("openanywhere.settings.tabs")).role(TextRole.BODY).build(),
                 tabs(top + 148, Settings.TabMode.HAND, "openanywhere.settings.tabs.hand"),
                 tabs(top + 164, Settings.TabMode.EVERY, "openanywhere.settings.tabs.every"),
-                tabs(top + 180, Settings.TabMode.EVERY_OPEN, "openanywhere.settings.tabs.every_open"),
-                checkbox(top + 200, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
-                checkbox(top + 216, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
+                checkbox(top + 184, "openanywhere.settings.wheel", Settings::wheel, Settings::setWheel),
+                checkbox(top + 200, "openanywhere.settings.animation", Settings::animation, Settings::setAnimation)));
         return page;
     }
 

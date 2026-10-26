@@ -3,6 +3,9 @@ package com.trevorschoeny.openanywhere;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
@@ -41,34 +44,32 @@ import net.minecraft.world.item.ItemStack;
 /**
  * The tabs, on the server, where every rule is checked.
  *
- * <p>Every tab is a real screen. The row reads: the player's inventory, the container they
- * opened in the world (a chest, a barrel, a placed ender chest), then the items, in a
- * fixed order by where they sit ({@link #ORDER}). Clicking a tab switches to its screen
- * through SlotKit's {@link MenuSwitch}: the world container waits open behind the others,
- * its lid up, and every other screen really closes when the player leaves it.
+ * <p>Every tab is a real screen. Clicking one switches to its screen through SlotKit's
+ * {@link MenuSwitch}: the world container waits open behind the others, its lid up, and
+ * every other screen really closes when the player leaves it.
  *
- * <p>Which items have tabs is the player's setting ({@link PrefsC2S}): the ones they opened
- * by hand (a double-click marks one, again unmarks it), or every box, bundle and ender chest
- * in reach. An item open on screen is a {@link LiveItem}: tied to the item, not its slot, so
- * its screen closes the moment the item is moved by anything else, and every change is
- * written back up to the top-level slot as it's made. Nothing is lost when it closes.
+ * <p>The row is a tree ({@link #row}). "Open" means a tab is on the row; "selected" means
+ * it's the one in front. The inventory and the placed container are always open. A box is
+ * open while it's selected or something inside it is (the line up from the selected tab),
+ * and an open box is a main tab, its boxes its sub-tabs. Which other boxes have tabs is the
+ * player's setting ({@link PrefsC2S}): opened by hand (the default), only that open line;
+ * every box, also each box in an open container, as a sub-tab under it, and Pocket Ender
+ * Chest's ender chest stays open once it has been opened.
+ *
+ * <p>An item open on screen is a {@link LiveItem}: tied to the item, not its slot, so its
+ * screen closes the moment the item is moved by anything else, and every change is written
+ * back up to the top-level slot as it's made. Nothing is lost when it closes.
  */
 public final class ServerTabs {
 
     private ServerTabs() {}
 
     /**
-     * An item the player opened by hand: where it sits, the top-level stack it's in (by
-     * identity), and a copy of it as last seen there, to know it again once it moves.
+     * The item in front, opened by hand, now on the cursor, its tab closed: it opens again,
+     * in front, where it's put down. Gone when it leaves the cursor any other way, or when the
+     * screens close.
      */
-    private record Mark(ItemPath path, ItemStack top, ItemStack seen) {}
-
-    /**
-     * An item opened by hand, now on the cursor, its tab closed: it opens again where it's
-     * put down, and in front again if it was in front ({@code front}). Gone when it leaves the
-     * cursor any other way, or when the screens close.
-     */
-    private record Lifted(ItemPath path, ItemStack item, boolean front) {}
+    private record Lifted(ItemPath path, ItemStack item) {}
 
     /**
      * The item tab whose screen is in front. It follows its item: moved, the screen stays
@@ -107,7 +108,8 @@ public final class ServerTabs {
 
     private static final class State {
         PrefsC2S prefs = PrefsC2S.DEFAULT;
-        final List<Mark> marks = new ArrayList<>();
+        // Pocket Ender Chest's ender chest was opened with every box tabbed: it stays open until the screens close.
+        boolean pocketOpened;
         final List<Lifted> lifted = new ArrayList<>();
         @Nullable Front front;
         List<Tab> sentRow = List.of();
@@ -202,53 +204,131 @@ public final class ServerTabs {
     /** One item on the row: where it sits, and a copy of it. */
     private record Item(ItemPath path, ItemStack stack) {}
 
-    /** The player's row, in order: the inventory, the world container, then the items. */
-    private static List<Tab> row(ServerPlayer player, State st) {
-        AbstractContainerMenu world = world(player);
-        List<Tab> row = new ArrayList<>();
-        row.add(Tab.of(TabId.INVENTORY));
-        if (world != null) row.add(Tab.of(TabId.WORLD));
-        List<Item> items = st.prefs.everyBox() ? everything(player, world, st.prefs) : marked(player, world, st);
-        // The item in front, on the cursor, keeps its tab where it was.
-        Front f = st.front;
-        if (f != null && f.frozen && items.stream().noneMatch(i -> i.path().equals(f.id.path()))) items.add(new Item(f.id.path(), f.seen));
-        items.sort(Comparator.comparing(Item::path, ORDER));
-        // One ender chest tab, however many ender chests the player carries: the first one's.
-        boolean ender = worldIsEnderChest(player, world);
-        for (Item item : items) {
-            if (Openable.of(item.stack()) == Openable.ENDER_CHEST) {
-                if (ender) continue;
-                ender = true;
-            }
-            row.add(new Tab(TabId.item(item.path()), item.stack()));
+    /**
+     * What the row is built from this tick: the world container (or null), whether it's the
+     * player's own ender chest, placed, and the one ender chest item that stands for the ender
+     * chest ({@link #enderItem}; null when there's none, or when the world container is it).
+     */
+    private record Reach(@Nullable AbstractContainerMenu world, boolean worldEnder, @Nullable ItemPath ender) {
+        /** Whether the ender chest's item is Pocket Ender Chest's (a carried slot's): it stands after the world container. */
+        boolean pocket() {
+            return ender != null && ender.source() == ItemRef.Source.CARRIED;
         }
-        return row;
+    }
+
+    private static Reach reach(ServerPlayer player) {
+        AbstractContainerMenu world = world(player);
+        boolean worldEnder = worldIsEnderChest(player, world);
+        return new Reach(world, worldEnder, worldEnder ? null : enderItem(player, world));
     }
 
     /**
-     * The items the player opened by hand. A mark whose item moved follows it there (a
-     * shift-click, a lift and put-down in one tick); one whose item is on the cursor closes
-     * and waits there ({@link Lifted}, {@link #settle}); any other is gone.
+     * The ender chest item that is the ender chest's one tab, however many the player carries:
+     * the one in a carried slot (Pocket Ender Chest's) first, as it's always in reach, else the
+     * first in the row's order.
      */
-    private static List<Item> marked(ServerPlayer player, @Nullable AbstractContainerMenu world, State st) {
-        ItemStack carried = player.containerMenu.getCarried();
-        List<Mark> kept = new ArrayList<>();
-        for (Mark m : st.marks) {
-            if (stillThere(player, world, m)) {
-                kept.add(new Mark(m.path(), m.top(), at(player, world, m.path()).copy()));
-            } else if (m.path().depth() == 0 && ItemStack.matches(carried, m.seen())) {
-                if (st.lifted.stream().noneMatch(l -> l.path().equals(m.path()))) st.lifted.add(new Lifted(m.path(), m.seen(), false));
-            } else {
-                ItemPath to = find(player, world, m.seen(), null);
-                if (to != null && kept.stream().noneMatch(k -> k.path().equals(to)))
-                    kept.add(new Mark(to, topOf(player, world, to).getItem(to.slot()), m.seen()));
+    private static @Nullable ItemPath enderItem(ServerPlayer player, @Nullable AbstractContainerMenu world) {
+        Predicate<ItemStack> ender = s -> Openable.of(s) == Openable.ENDER_CHEST;
+        ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true).carried(true);
+        List<ItemPath> found = new ArrayList<>();
+        for (ItemSources.Found f : ItemSources.find(player, scope, ender)) found.add(f.path());
+        if (world != null) for (ItemSources.Found f : ItemSources.find(containerOf(world), scope, ender)) found.add(f.path());
+        return found.stream()
+                .min(Comparator.<ItemPath>comparingInt(p -> p.source() == ItemRef.Source.CARRIED ? 0 : 1).thenComparing(ORDER))
+                .orElse(null);
+    }
+
+    /**
+     * The tab of the container the item at {@code path} sits in: the box or bundle around it,
+     * the ender chest (its item's tab, or the world tab at a placed ender chest), the world
+     * container, or the inventory (a carried slot is the inventory's too).
+     */
+    private static TabId parentTab(Reach r, ItemPath path) {
+        if (path.depth() > 0) return TabId.item(parentOf(path));
+        return switch (path.source()) {
+            case INVENTORY, CARRIED -> TabId.INVENTORY;
+            case CONTAINER -> TabId.WORLD;
+            case ENDER_CHEST -> r.worldEnder() ? TabId.WORLD : r.ender() != null ? TabId.item(r.ender()) : TabId.INVENTORY;
+        };
+    }
+
+    /**
+     * The open line: item tab {@code id} and every box it sits in, up to the inventory or world
+     * tab (not included). Empty for none.
+     */
+    private static List<TabId> line(Reach r, @Nullable TabId id) {
+        List<TabId> line = new ArrayList<>();
+        for (TabId at = id; at != null && at.type() == TabId.Type.ITEM; at = parentTab(r, at.path())) line.add(at);
+        return line;
+    }
+
+    /**
+     * The player's row as a tree, laid out in the order it's drawn:
+     * <ul>
+     *   <li><b>Open:</b> the inventory and the world container, always; the line up from the
+     *       tab in front ({@link #line}); and, with every box tabbed, Pocket Ender Chest's
+     *       ender chest once it has been opened. Each open tab is a main tab.</li>
+     *   <li><b>Sub-tabs</b>, with every box tabbed: each box in an open container that isn't
+     *       open itself, under that container's tab. Opened by hand, there are none.</li>
+     *   <li><b>Order:</b> the inventory, the world container, then Pocket Ender Chest's ender
+     *       chest when it's open. Each main tab is followed by its sub-tabs, then by the open
+     *       boxes inside it, each in turn, so an opened box comes right after the group it
+     *       sits in. Siblings go by where they sit ({@link #ORDER}).</li>
+     *   <li><b>One ender chest tab</b>, however many ender chests the player carries
+     *       ({@link #enderItem}); none at a placed ender chest, which is the world tab.</li>
+     * </ul>
+     */
+    private static List<Tab> row(ServerPlayer player, State st) {
+        Reach r = reach(player);
+        Front f = st.front;
+        List<TabId> line = line(r, f == null ? null : f.id);
+        boolean every = st.prefs.everyBox();
+        TabId ender = r.ender() == null ? null : TabId.item(r.ender());
+        if (every && r.pocket() && line.contains(ender)) st.pocketOpened = true;
+
+        Set<TabId> open = new HashSet<>(line);
+        open.add(TabId.INVENTORY);
+        if (r.world() != null) open.add(TabId.WORLD);
+        if (every && r.pocket() && st.pocketOpened) open.add(ender);
+
+        // The items with tabs: every box in an open container, with every box tabbed; then
+        // the open ones themselves (the item in front on the cursor as last seen).
+        Map<TabId, ItemStack> items = new LinkedHashMap<>();
+        if (every) {
+            for (Item i : everything(player, r, st.prefs)) {
+                if (open.contains(parentTab(r, i.path()))) items.putIfAbsent(TabId.item(i.path()), i.stack());
             }
         }
-        st.marks.clear();
-        st.marks.addAll(kept);
-        List<Item> items = new ArrayList<>();
-        for (Mark m : st.marks) items.add(new Item(m.path(), m.seen()));
-        return items;
+        for (TabId id : open) {
+            if (id.type() != TabId.Type.ITEM || items.containsKey(id)) continue;
+            ItemStack stack = at(player, r.world(), id.path());
+            if (stack == null && f != null && id.equals(f.id)) stack = f.seen;
+            if (stack != null) items.put(id, stack.copy());
+        }
+        // One ender chest tab: every other ender chest item goes.
+        items.keySet().removeIf(id -> Openable.of(items.get(id)) == Openable.ENDER_CHEST && !id.equals(ender));
+
+        Map<TabId, List<TabId>> children = new HashMap<>();
+        for (TabId id : items.keySet()) children.computeIfAbsent(parentTab(r, id.path()), k -> new ArrayList<>()).add(id);
+        for (List<TabId> c : children.values()) c.sort(Comparator.comparing(TabId::path, ORDER));
+
+        List<Tab> row = new ArrayList<>();
+        // Pocket Ender Chest's ender chest, open, stands after the world container as a top-level
+        // tab of its own, with no parent, rather than in the inventory's group.
+        TabId pocket = r.pocket() && open.contains(ender) && items.containsKey(ender) ? ender : null;
+        place(row, TabId.INVENTORY, null, items, children, open, pocket);
+        if (r.world() != null) place(row, TabId.WORLD, null, items, children, open, pocket);
+        if (pocket != null) place(row, pocket, null, items, children, open, pocket);
+        return row;
+    }
+
+    /** Main tab {@code id}, its sub-tabs (the closed boxes in it), then each open box in it, in turn. */
+    private static void place(List<Tab> row, TabId id, @Nullable TabId parent, Map<TabId, ItemStack> items,
+                              Map<TabId, List<TabId>> children, Set<TabId> open, @Nullable TabId pocket) {
+        row.add(new Tab(id, items.getOrDefault(id, ItemStack.EMPTY), parent, false));
+        List<TabId> inside = children.getOrDefault(id, List.of());
+        for (TabId c : inside) if (!open.contains(c)) row.add(new Tab(c, items.get(c), id, true));
+        for (TabId c : inside) if (open.contains(c) && !c.equals(pocket)) place(row, c, id, items, children, open, pocket);
     }
 
     /**
@@ -324,24 +404,19 @@ public final class ServerTabs {
         }
     }
 
-    /** A mark holds while its top-level slot holds the same stack and an openable item is still at its place. */
-    private static boolean stillThere(ServerPlayer player, @Nullable AbstractContainerMenu world, Mark m) {
-        Container top = topOf(player, world, m.path());
-        return top != null && top.getItem(m.path().slot()) == m.top() && at(player, world, m.path()) != null;
-    }
-
     /**
      * Every box, bundle and ender chest in reach, of the kinds the player opens: in the
      * inventory, in the world container, inside those, and, when there's an ender chest
      * among them, in the ender chest. A stack of boxes (Carpet) never opens.
      */
-    private static List<Item> everything(ServerPlayer player, @Nullable AbstractContainerMenu world, PrefsC2S prefs) {
+    private static List<Item> everything(ServerPlayer player, Reach r, PrefsC2S prefs) {
+        AbstractContainerMenu world = r.world();
         Predicate<ItemStack> opens = s -> {
             Openable kind = Openable.of(s);
             return kind != null && prefs.opens(kind) && (kind != Openable.SHULKER || s.getCount() == 1);
         };
         ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true).carried(true);
-        boolean worldEnder = worldIsEnderChest(player, world);
+        boolean worldEnder = r.worldEnder();
         List<ItemSources.Found> found = new ArrayList<>(ItemSources.find(player, scope, opens));
         if (world != null && !worldEnder) found.addAll(ItemSources.find(containerOf(world), scope, opens));
         // The ender chest's contents are in reach when an ender chest is, or when it's the world container.
@@ -448,8 +523,7 @@ public final class ServerTabs {
                 f.frozen = true;
                 return;
             }
-            st.marks.removeIf(m -> m.path().equals(path));
-            st.lifted.add(new Lifted(path, f.seen.copy(), true));
+            st.lifted.add(new Lifted(path, f.seen.copy()));
             goHome(player, st, path);
             return;
         }
@@ -473,9 +547,7 @@ public final class ServerTabs {
                 if (f.bundle != null) contents.shownIn(f.bundle);
             }
         }
-        ItemPath from = f.id.path();
         ItemStack topStack = top.getItem(to.slot());
-        st.marks.replaceAll(m -> m.path().equals(from) ? new Mark(to, topStack, m.seen()) : m);
         f.id = TabId.item(to);
         f.top = top;
         f.topSlot = to.slot();
@@ -486,8 +558,8 @@ public final class ServerTabs {
     }
 
     /**
-     * Opened by hand, then lifted: put down anywhere in reach, it opens again there, and comes
-     * back in front if it was in front. Leaving the cursor any other way, it stays closed.
+     * Opened by hand, the item in front, then lifted: put down anywhere in reach, it opens
+     * again there, in front. Leaving the cursor any other way, it stays closed.
      */
     private static void settle(ServerPlayer player, State st) {
         if (st.lifted.isEmpty()) return;
@@ -497,10 +569,7 @@ public final class ServerTabs {
             if (ItemStack.matches(carried, l.item())) continue;
             st.lifted.remove(l);
             ItemPath to = find(player, world, l.item(), l.path());
-            Container top = to == null ? null : topOf(player, world, to);
-            if (top == null) continue;
-            if (st.marks.stream().noneMatch(m -> m.path().equals(to))) st.marks.add(new Mark(to, top.getItem(to.slot()), l.item()));
-            if (l.front()) pick(player, TabId.item(to));
+            if (to != null && openItem(player, st, to)) sync(player, st);
         }
     }
 
@@ -546,11 +615,11 @@ public final class ServerTabs {
         state(player).prefs = prefs;
     }
 
-    /** The player went back to the world: what they opened by hand closes with the screens. */
+    /** The player went back to the world: everything they opened closes with the screens. */
     static void done(ServerPlayer player) {
         State st = state(player);
-        st.marks.clear();
         st.front = null;
+        st.pocketOpened = false;
         // The client dropped its row with the screens: the next tick sends it whole again,
         // so the next screen has its tabs from its first frame, changed or not.
         st.sentRow = List.of();
@@ -574,9 +643,9 @@ public final class ServerTabs {
 
     /**
      * A double-click on the item in {@code menuSlot} of the open menu, or a click with the
-     * Open key held. Every box has a tab: it shows that one. Otherwise it opens the item as a
-     * tab, or closes it when it's open already. A refused request changes nothing, so a
-     * modified client gains nothing by sending one.
+     * Open key held: the item's screen comes up, its tab selected; on the item in front, it
+     * closes, back to the container it sits in. Both modes alike. A refused request changes
+     * nothing, so a modified client gains nothing by sending one.
      *
      * <p>{@code fromCursor}: the double-click's first click was vanilla's and lifted the item
      * onto the cursor, a brief lift that is accepted. It goes back into its now-empty slot
@@ -628,81 +697,38 @@ public final class ServerTabs {
         // At a placed ender chest the ender chest is already on the row.
         if (kind == Openable.ENDER_CHEST && worldIsEnderChest(player, world)) return;
 
-        if (st.prefs.everyBox()) {
-            // Every box has a tab: a double-click shows it, and on the one in front, closes it,
-            // back to its group's screen.
-            TabId tab = tabFor(player, st, path, kind);
-            if (tab.equals(shown(player, st))) goHome(player, st, path);
-            else pick(player, tab);
-            sync(player, st);
-            return;
-        }
-        Mark mark = markFor(st, player, world, path, kind);
-        if (mark != null) {
-            st.marks.remove(mark);
-            if (st.front != null && st.front.id.equals(TabId.item(mark.path()))) goHome(player, st, mark.path());
-            sync(player, st);
-            return;
-        }
-        Container top = topOf(player, world, path);
-        if (top == null) return;
-        st.marks.add(new Mark(path, top.getItem(path.slot()), stack.copy()));
-        pick(player, TabId.item(path));
+        TabId tab = tabFor(reach(player), path, kind);
+        if (tab.equals(shown(player, st))) goHome(player, st, tab.path());
+        else openItem(player, st, tab.path());
+        sync(player, st);
     }
 
     /** The close button on item tab {@code id}: it closes, and its screen gives way if it's in front. */
     static void close(ServerPlayer player, TabId id) {
         State st = state(player);
         if (id.path() == null) return;
-        st.marks.removeIf(m -> m.path().equals(id.path()));
         if (st.front != null && st.front.id.equals(id)) goHome(player, st, id.path());
         sync(player, st);
     }
 
     /**
-     * Off the item in front, to its group's own screen: the inventory for what's in the
-     * inventory, the world container for what's in it, the ender chest for what's in the
-     * ender chest. The inventory when that screen isn't there.
+     * Off the item in front, to the container it sits in: the box around it, the ender chest,
+     * the world container or the inventory, the nearest of those still in reach. The inventory
+     * when none is.
      */
     private static void goHome(ServerPlayer player, State st, @Nullable ItemPath path) {
-        AbstractContainerMenu world = world(player);
         st.front = null;
-        ItemRef.Source source = path == null ? ItemRef.Source.INVENTORY : path.source();
-        if (source == ItemRef.Source.CONTAINER && world != null
-                || source == ItemRef.Source.ENDER_CHEST && worldIsEnderChest(player, world)) {
-            MenuSwitch.back(player);
-            return;
-        }
-        if (source == ItemRef.Source.ENDER_CHEST) {
-            for (Tab tab : row(player, st)) {
-                if (tab.id().path() != null && Openable.of(tab.item()) == Openable.ENDER_CHEST) {
-                    openItem(player, st, tab.id().path());
-                    return;
-                }
-            }
-        }
-        MenuSwitch.openInventory(player);
+        Reach r = reach(player);
+        TabId home = path == null ? TabId.INVENTORY : parentTab(r, path);
+        while (home.type() == TabId.Type.ITEM && at(player, r.world(), home.path()) == null) home = parentTab(r, home.path());
+        if (home.type() == TabId.Type.ITEM && openItem(player, st, home.path())) return;
+        if (home.equals(TabId.WORLD) && r.world() != null) MenuSwitch.back(player);
+        else MenuSwitch.openInventory(player);
     }
 
     /** The row's tab for the item at {@code path}: the ender chest has one tab, wherever it was double-clicked. */
-    private static TabId tabFor(ServerPlayer player, State st, ItemPath path, Openable kind) {
-        if (kind != Openable.ENDER_CHEST) return TabId.item(path);
-        for (Tab tab : row(player, st)) {
-            if (Openable.of(tab.item()) == Openable.ENDER_CHEST) return tab.id();
-        }
-        return TabId.item(path);
-    }
-
-    /** The mark for the item at {@code path}, or for any ender chest when it's one: the ender chest is one. */
-    private static @Nullable Mark markFor(State st, ServerPlayer player, @Nullable AbstractContainerMenu world, ItemPath path, Openable kind) {
-        for (Mark m : st.marks) {
-            if (m.path().equals(path)) return m;
-            if (kind == Openable.ENDER_CHEST) {
-                ItemStack marked = at(player, world, m.path());
-                if (marked != null && Openable.of(marked) == Openable.ENDER_CHEST) return m;
-            }
-        }
-        return null;
+    private static TabId tabFor(Reach r, ItemPath path, Openable kind) {
+        return kind == Openable.ENDER_CHEST && r.ender() != null ? TabId.item(r.ender()) : TabId.item(path);
     }
 
     /**
@@ -738,14 +764,14 @@ public final class ServerTabs {
     /**
      * Opens the item at {@code path} on its own screen: a shulker box on vanilla's shulker box
      * screen over the item, the ender chest on vanilla's ender chest screen, a bundle on the host.
-     * One player per item: two players can't have the same item open.
+     * One player per item: two players can't have the same item open. Whether it opened.
      */
-    private static void openItem(ServerPlayer player, State st, @Nullable ItemPath path) {
-        if (path == null) return;
+    private static boolean openItem(ServerPlayer player, State st, @Nullable ItemPath path) {
+        if (path == null) return false;
         AbstractContainerMenu world = world(player);
         ItemStack item = at(player, world, path);
         Container top = topOf(player, world, path);
-        if (item == null || top == null) return;
+        if (item == null || top == null) return false;
         Openable kind = Openable.of(item);
         if (kind == Openable.ENDER_CHEST) {
             // The player's own ender chest, read and written in place: every placed ender chest
@@ -754,11 +780,11 @@ public final class ServerTabs {
                     Component.translatable("container.enderchest"));
             Front f = show(player, st, ender, path, kind, null, top, item.copy());
             if (f != null) f.slots = player.getEnderChestInventory();
-            return;
+            return f != null;
         }
-        if (openByAnother(player, top, path)) return;
+        if (openByAnother(player, top, path)) return false;
         LiveItem live = path.source() == ItemRef.Source.CONTAINER ? ItemSources.live(top, path) : ItemSources.live(player, path);
-        if (live == null) return;
+        if (live == null) return false;
         Component title = live.stack().getHoverName();
         if (kind == Openable.SHULKER) {
             int size = OpenItems.boxSizeOf(live.stack());
@@ -768,7 +794,7 @@ public final class ServerTabs {
             Front f = show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(new ShulkerBoxMenu(id, inventory, box)), title),
                     path, kind, anchor, top, live.stack().copy());
             if (f != null) f.slots = box;
-            return;
+            return f != null;
         }
         BundleStorage contents = new BundleStorage(live.stack());
         Anchor anchor = new Anchor(live, live.storage(contents), Openable.BUNDLE.slots, BundleStorage::new);
@@ -777,10 +803,11 @@ public final class ServerTabs {
         };
         Front f = show(player, st, new SimpleMenuProvider((id, inventory, p) -> ours(ContainerHost.create(id, inventory, validity)), title),
                 path, kind, anchor, top, live.stack().copy());
-        if (f == null) return;
+        if (f == null) return false;
         f.bundle = Groups.addBundle(player, anchor, contents);
         if (f.bundle != null && !f.bundle.slots().isEmpty()) f.slots = f.bundle.slots().getFirst().container;
         player.containerMenu.broadcastChanges();
+        return true;
     }
 
     /** Switches to {@code provider}'s screen as item tab {@code path}: the front it now is, or null when it didn't open. */

@@ -11,7 +11,6 @@
   "openanywhere.settings.tabs": "Tabs",
   "openanywhere.settings.tabs.hand": "Only boxes I open",
   "openanywhere.settings.tabs.every": "Every box",
-  "openanywhere.settings.tabs.every_open": "Every box, every group open",
   "openanywhere.settings.wheel": "Scroll to switch tabs",
   "openanywhere.settings.animation": "Animate opened boxes",
   "key.openanywhere.open_settings": "Open Settings"

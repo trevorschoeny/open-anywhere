@@ -17,7 +17,7 @@ import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * The player's settings, the one place they live:
- * {@code config/openanywhere/settings.json}, all on by default, with a tab for every box and only the front group open. Changed from the Open
+ * {@code config/openanywhere/settings.json}, all on by default, with tabs for the boxes opened by hand. Changed from the Open
  * Anywhere tab in Inventory Plus's settings menu when IP is installed; without it, the file
  * or the defaults apply. Every setter saves.
  *
@@ -38,16 +38,17 @@ public final class Settings {
     private static boolean doubleClick = true;
     private static boolean wheel = true;
     private static boolean animation = true;
-    private static TabMode tabs = TabMode.EVERY;
+    private static TabMode tabs = TabMode.HAND;
 
-    /** Which items get a tab. */
+    /** Which items get a tab ({@link ServerTabs} has the whole rule). */
     public enum TabMode {
-        /** Only the ones opened by hand (a double-click), each closing when picked up and opening again where it's put down. */
+        /**
+         * Only a box opened by hand (a double-click), while it or something inside it is
+         * selected; picked up, it closes, and opens again where it's put down. The default.
+         */
         HAND("hand"),
-        /** Every box, bundle and ender chest in reach; only the group holding the tab in front is open. The default. */
-        EVERY("every"),
-        /** Every box, bundle and ender chest in reach, every group open. */
-        EVERY_OPEN("every_open");
+        /** Every box in an open container, as a sub-tab under it. */
+        EVERY("every");
 
         final String key;
 
@@ -77,7 +78,7 @@ public final class Settings {
         doubleClick = true;
         wheel = true;
         animation = true;
-        tabs = TabMode.EVERY;
+        tabs = TabMode.HAND;
         save();
     }
 
@@ -103,6 +104,8 @@ public final class Settings {
             if (root.has("tabs")) {
                 String key = root.get("tabs").getAsString();
                 for (TabMode mode : TabMode.values()) if (mode.key.equals(key)) tabs = mode;
+                // The old "every box, every group open" is every box now: groups are always out.
+                if (key.equals("every_open")) tabs = TabMode.EVERY;
             }
         } catch (IOException | RuntimeException ex) {
             LOG.error("[openanywhere] couldn't read {}; using the defaults", path, ex);

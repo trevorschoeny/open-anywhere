@@ -89,7 +89,7 @@ public class ModeChecks implements FabricClientGameTest {
 
     /**
      * From the inventory a box opens on vanilla's shulker box screen, as a tab; a bundle
-     * opened from there is a second tab, the box's still on the row.
+     * opened from there takes its place, the box closing as it's no longer selected.
      */
     private void survivalShulker() {
         openInventory();
@@ -99,7 +99,7 @@ public class ModeChecks implements FabricClientGameTest {
         expectServerSession(Openable.SHULKER, true);
         doubleClick(hotbar(2), "the bundle, from the box's screen");
         int tabs = ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.Tabs.row().size());
-        if (tabs != 3) throw new AssertionError("a box and a bundle opened from the inventory: " + tabs + " tabs, not 3");
+        if (tabs != 2) throw new AssertionError("a bundle opened from a box's screen: " + tabs + " tabs, not 2 (the inventory and the bundle)");
         if (!ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.ContainerHost.is(((AbstractContainerScreen<?>) mc.gui.screen()).getMenu())))
             throw new AssertionError("the bundle didn't open on its host screen");
     }

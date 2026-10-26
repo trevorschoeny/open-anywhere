@@ -40,9 +40,9 @@ import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.block.Block;
 
 /**
- * What this mod adds to the screens: the tab row (three groups, the inventory, the world
- * container and the ender chest, through MenuKit's {@link ContainerTabs}), the bundle's
- * slots on its host, and the close button for the item in front.
+ * What this mod adds to the screens: the tab row (a group per main tab, through MenuKit's
+ * {@link ContainerTabs}), the bundle's slots on its host, and the close button for the item
+ * in front.
  */
 final class ClientPanels {
 
@@ -55,14 +55,9 @@ final class ClientPanels {
     private static final int CLOSE_SIZE = 11;
     private static final Identifier CLOSE_ICON = Identifier.fromNamespaceAndPath(OpenAnywhere.MOD_ID, "close");
 
-    static final String INVENTORY_TAB = OpenAnywhere.MOD_ID + ":inventory";
-    static final String WORLD_TAB = OpenAnywhere.MOD_ID + ":world";
-    static final String ENDER_TAB = OpenAnywhere.MOD_ID + ":ender_chest";
+    static final String TABS = OpenAnywhere.MOD_ID + ":tabs";
     /** The open bundle's section on its host. */
     static final String BUNDLE_ID = OpenAnywhere.MOD_ID + ":bundle";
-
-    /** The groups in order: the inventory, the world container, the ender chest. */
-    private static final int INVENTORY_ORDER = 0, WORLD_ORDER = 100, ENDER_ORDER = 200;
 
     /** The screens the row stands on: the inventory, a chest (and the bundle's host), a shulker box. */
     @SuppressWarnings("unchecked")
@@ -85,54 +80,35 @@ final class ClientPanels {
     }
 
     /**
-     * The row, as three groups: the inventory, the world container and the ender chest, each
-     * a header with the items it holds as smaller sub-tabs that slide out from under it while
-     * the group holds the tab in front (or always, with every group kept open). A header shows
-     * its own screen when clicked. MenuKit draws the row and the slide; the icons are ours.
+     * The row, as the server lays it out ({@link Tabs#mains}): each main tab a group's header,
+     * the closed boxes in it its smaller sub-tabs, always out. A tab shows its own screen when
+     * clicked. MenuKit draws the row and the slide as groups come and go; the icons are ours.
      */
     private static void tabs() {
-        group(Tabs.Group.INVENTORY, INVENTORY_TAB, INVENTORY_ORDER, ClientPanels::drawHead,
-                () -> Component.translatable("container.inventory"));
-        group(Tabs.Group.WORLD, WORLD_TAB, WORLD_ORDER,
-                ClientPanels::drawWorld,
-                ClientPanels::worldTitle);
-        group(Tabs.Group.ENDER_CHEST, ENDER_TAB, ENDER_ORDER,
-                (g, x, y, w, h) -> {
-                    TabId ender = Tabs.enderHeader();
-                    if (ender != null) drawOpening(g, item(ender), Tabs.Group.ENDER_CHEST, Tabs.open(ender), x, y, w);
-                },
-                () -> Component.translatable("container.enderchest"));
+        ContainerTabs.<TabId, TabId>groups(TABS, ModeScope.BOTH, Tabs::mains, Tabs::subs)
+                .header((main, h) -> h
+                        .icon((g, x, y, w, ht) -> drawMain(g, main, x, y, w, ht))
+                        .tooltip(() -> tooltip(main))
+                        .selectedWhen(() -> Tabs.selected().equals(main))
+                        // The tab in front stays in view when the row overflows.
+                        .pinnedWhen(() -> Tabs.selected().equals(main))
+                        .onClick(() -> Tabs.pick(main)))
+                .tab((main, sub, tab) -> tab
+                        .icon((g, x, y, w, h) -> drawOpening(g, item(sub), sub, false, x, y, w))
+                        .tooltip(() -> tooltip(sub))
+                        .selectedWhen(() -> Tabs.selected().equals(sub))
+                        .onClick(() -> Tabs.pick(sub)))
+                .on(SCREENS)
+                .declare();
     }
 
-    /** One group: its header, which shows its own screen, and its items as sub-tabs. */
-    private static void group(Tabs.Group group, String id, int order, ContainerTabs.Icon headerIcon,
-                              java.util.function.Supplier<Component> headerTooltip) {
-        ContainerTabs.keyed(id, ModeScope.BOTH, () -> Tabs.children(group))
-                .header(h -> h
-                        .icon(headerIcon)
-                        .tooltip(headerTooltip)
-                        .visibleWhen(() -> Tabs.header(group) != null)
-                        // Pinned at the row's left end while its group is open, when the row overflows.
-                        .pinnedWhen(() -> Tabs.expanded(group))
-                        .selectedWhen(() -> {
-                            TabId header = Tabs.header(group);
-                            return header != null && header.equals(Tabs.selected());
-                        })
-                        .onClick(() -> {
-                            TabId header = Tabs.header(group);
-                            if (header != null) Tabs.pick(header);
-                        }))
-                .tab((tabId, tab) -> tab
-                        .icon((g, x, y, w, h) -> drawOpening(g, item(tabId), tabId, Tabs.selected().equals(tabId), x, y, w))
-                        .tooltip(() -> tooltip(tabId))
-                        .selectedWhen(() -> Tabs.selected().equals(tabId))
-                        // The tab in front pins beside its group's header.
-                        .pinnedWhen(() -> Tabs.selected().equals(tabId))
-                        .onClick(() -> Tabs.pick(tabId)))
-                .expandedWhen(() -> Tabs.expanded(group))
-                .on(SCREENS)
-                .order(order)
-                .declare();
+    /** A main tab's icon: the player's head for the inventory, the block for the world container, else its item, lid up. */
+    private static void drawMain(GuiGraphicsExtractor g, TabId id, int x, int y, int w, int h) {
+        switch (id.type()) {
+            case INVENTORY -> drawHead(g, x, y, w, h);
+            case WORLD -> drawWorld(g, x, y, w, h);
+            case ITEM -> drawOpening(g, item(id), id, Tabs.open(id), x, y, w);
+        }
     }
 
     /**
@@ -168,13 +144,13 @@ final class ClientPanels {
 
     private static void drawWorld(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         ItemStack block = worldIcon();
-        boolean open = Tabs.groupOf(Tabs.selected()) == Tabs.Group.WORLD;
+        boolean open = Tabs.holds(TabId.WORLD, Tabs.selected());
         String path = BuiltInRegistries.ITEM.getKey(block.getItem()).getPath();
         if (!worldDouble || !HALVES.contains(path)) {
-            drawOpening(g, block, Tabs.Group.WORLD, open, x, y, w);
+            drawOpening(g, block, TabId.WORLD, open, x, y, w);
             return;
         }
-        float t = ClientMarks.OPENING.toward(Tabs.Group.WORLD, open && Settings.animation());
+        float t = ClientMarks.OPENING.toward(TabId.WORLD, open && Settings.animation());
         g.pose().pushMatrix();
         g.pose().translate(x, y);
         g.pose().scale(w / 16f, w / 16f);
@@ -214,7 +190,7 @@ final class ClientPanels {
     private static final int SHADOW_ALPHA = 0x12, SHADOW_LAYERS = 4;
 
     private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-        float t = HEAD_TURN.toward(Tabs.Group.INVENTORY, Tabs.groupOf(Tabs.selected()) == Tabs.Group.INVENTORY);
+        float t = HEAD_TURN.toward(TabId.INVENTORY, Tabs.holds(TabId.INVENTORY, Tabs.selected()));
         float scale = w / 16f * (1f + HEAD_GROWTH * t);
         // The shadow slides out from under the head over the end of the turn, once it's square to the viewer.
         float shadow = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
@@ -287,8 +263,13 @@ final class ClientPanels {
         return tab == null ? ItemStack.EMPTY : tab.item();
     }
 
-    /** An item tab's tooltip: its own name, as the inventory shows it ("Red Shulker Box", or the name the player gave it). */
+    /**
+     * A tab's tooltip: "Inventory", the world container's title, or an item's own name, as the
+     * inventory shows it ("Red Shulker Box", or the name the player gave it).
+     */
     private static Component tooltip(TabId id) {
+        if (id.type() == TabId.Type.INVENTORY) return Component.translatable("container.inventory");
+        if (id.type() == TabId.Type.WORLD) return worldTitle();
         Tab tab = Tabs.tab(id);
         return tab == null ? Component.empty() : tab.item().getHoverName();
     }
