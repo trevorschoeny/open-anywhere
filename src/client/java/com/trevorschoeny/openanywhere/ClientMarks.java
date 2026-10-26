@@ -3,11 +3,10 @@ package com.trevorschoeny.openanywhere;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.jspecify.annotations.Nullable;
-
 import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.element.Transition;
+import com.trevlar.menukit.api.panel.SlotDecorations;
 import com.trevlar.menukit.api.panel.SlotItemLooks;
 import com.trevlar.slotkit.api.slot.CreatedSlot;
 
@@ -21,9 +20,9 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * How an opened item looks in its slot ({@code SlotMarksMixin}, {@code OpenBundleLookMixin}):
- * a box or ender chest plays its open animation and stays open (greyed instead, with the
- * animation turned off), a bundle drawn open, and an open bundle's add slot marked with a plus.
+ * How an opened item looks in its slot, through MenuKit's slot looks and decorations: a box
+ * or ender chest plays its open animation and stays open (greyed instead, with the animation
+ * turned off), a bundle drawn open, and an open bundle's add slot marked with a plus.
  */
 public final class ClientMarks {
 
@@ -33,11 +32,6 @@ public final class ClientMarks {
     private static boolean shownOpen(Slot slot) {
         return Tabs.looksOpen(slot);
     }
-
-    /**
-     * Where an opened item sits, as the server names it: what its animation is keyed by, so a
-     * screen opened in place of another picks it up where it stood.
-     */
 
     /**
      * A quarter second, as a placed shulker box takes to open. The property slows it for a
@@ -51,19 +45,25 @@ public final class ClientMarks {
     static final ItemAnimation OPEN = ItemAnimation.OPEN_LID
             .posed(t -> new ItemAnimation.Pose(1f - 0.3f * t, 0f, 2f * t));
 
+    /** A bundle has no lid: open, it's drawn with vanilla's open-bag art, animation or not. */
+    private static final ItemAnimation.Frame OPEN_BUNDLE = ItemAnimation.AS_IS.swapped(ClientMarks::openBundle).at(1);
+
     /**
-     * Boxes and ender chests open in their slots, and close again, through MenuKit's slot
-     * looks. A bundle has no lid; it's drawn open by {@link #drawnAs}.
+     * Boxes and ender chests open in their slots, and close again; a bundle is drawn open.
+     * The marks draw over the item.
      */
     static void register() {
         SlotItemLooks.declare(OpenAnywhere.MOD_ID + ":open_items", (screen, slot, stack) -> {
             Openable kind = Openable.of(stack);
-            if (kind == null || kind == Openable.BUNDLE || !Settings.animation()) return null;
+            if (kind == null) return null;
+            if (kind == Openable.BUNDLE) return shownOpen(slot) ? OPEN_BUNDLE : null;
+            if (!Settings.animation()) return null;
             var place = Tabs.pathOf(slot);
             if (place == null) return null;
             float t = OPENING.toward(place, shownOpen(slot));
             return t > 0 ? OPEN.at(t) : null;
         });
+        SlotDecorations.over(OpenAnywhere.MOD_ID + ":marks", (graphics, screen, slot, stack, x, y) -> draw(graphics, slot, x, y));
     }
 
     /** Shulker Palette's grey for its open box: a disabled control's. */
@@ -71,27 +71,20 @@ public final class ClientMarks {
     /** MenuKit's add mark (ItemPicker): white over vanilla's shadow for white. */
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
 
-    public static void draw(GuiGraphicsExtractor graphics, Slot slot, @Nullable CreatedSlot created) {
+    /** The marks over {@code slot}, whose item box's top left is {@code (x, y)}. */
+    private static void draw(GuiGraphicsExtractor graphics, Slot slot, int x, int y) {
         // With the animation on, an open box shows by its lid and a bundle by its open bag.
         // Grey, too, every slot of the item in front while it's on the cursor: locked till it's put down.
         if (shownOpen(slot) && !Settings.animation() || Tabs.frozen() && !(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, GREY);
+            graphics.fill(x, y, x + 16, y + 16, GREY);
         }
+        CreatedSlot created = CreatedSlot.of(slot);
         if (created != null && !slot.hasItem() && isAddSlot(slot, created)) {
             // MenuKit measures from the slot's 18 px frame, one pixel up and left of the item.
-            int frameX = slot.x - 1, frameY = slot.y - 1;
+            int frameX = x - 1, frameY = y - 1;
             plus(graphics, frameX + 1, frameY + 1, ADD_SHADOW);
             plus(graphics, frameX, frameY, ADD_MARK);
         }
-    }
-
-    /**
-     * The stack to draw in {@code slot}: an open bundle with vanilla's open-bag art for its
-     * colour ({@code assets/openanywhere/items/<colour>_bundle_open.json}), else the stack.
-     */
-    public static ItemStack drawnAs(Slot slot, ItemStack stack) {
-        if (Openable.of(stack) != Openable.BUNDLE || !shownOpen(slot)) return stack;
-        return openBundle(stack);
     }
 
     /** {@code bundle} with vanilla's open-bag art for its colour. */

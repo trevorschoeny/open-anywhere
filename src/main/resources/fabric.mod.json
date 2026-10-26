@@ -37,7 +37,7 @@
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": "~26.3",
-    "menukit": ">=7.4.0 <8.0.0",
+    "menukit": ">=7.5.0 <8.0.0",
     "slotkit": ">=2.2.0 <3.0.0",
     "keybindery": ">=1.3.0 <2.0.0"
   },

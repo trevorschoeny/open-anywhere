@@ -317,6 +317,17 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.waitTicks(20);
         expectScreen(ContainerScreen.class, "20 ticks with the carried ender chest in front");
         expectShownFrom(ItemRef.Source.CARRIED, "20 ticks with the carried ender chest in front");
+        // The client knows its slot as the open one: what draws its lid and lets a double-click close it.
+        String open = ctx.computeOnClient(mc -> {
+            for (Slot slot : mc.player.containerMenu.slots) {
+                ItemPath path = ItemSources.pathOf(mc.player, slot);
+                if (path != null && path.source() == ItemRef.Source.CARRIED) return String.valueOf(Tabs.looksOpen(slot));
+            }
+            return "no carried slot";
+        });
+        if (!open.equals("true")) throw new AssertionError("with the carried ender chest in front, its slot looks open: " + open);
+        openPocket();
+        expectScreen(InventoryScreen.class, "a second double-click on the carried ender chest");
     }
 
     /** Every box tabbed: the carried ender chest has its tab after the inventory's, and the ender chest's group shows. */

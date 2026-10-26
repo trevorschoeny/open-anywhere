@@ -5,9 +5,7 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "HeldItemMixin",
-    "OpenBundleLookMixin",
     "ScreenAccessor",
-    "SlotMarksMixin",
     "ItemLayerAccessor",
     "ItemStateAccessor",
     "ItemTurnMixin",

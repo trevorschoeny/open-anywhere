@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.trevlar.slotkit.api.item.ItemPath;
 import com.trevlar.slotkit.api.item.ItemRef;
+import com.trevlar.slotkit.api.item.ItemSources;
 
 import org.jspecify.annotations.Nullable;
 
@@ -165,13 +166,15 @@ public final class Tabs {
     }
 
     /**
-     * Where the item in {@code slot} sits, as the server names it: the inventory, the world
-     * container while it's on screen, or inside the item in front. Null for anything else.
+     * Where the item in {@code slot} sits, as the server names it: the inventory, a carried
+     * attachment, the world container while it's on screen, or inside the item in front. Null for anything else.
      */
     static @Nullable ItemPath pathOf(Slot slot) {
-        if (slot.container instanceof Inventory) {
-            return slot.getContainerSlot() < 36 ? new ItemPath(ItemRef.Source.INVENTORY, slot.getContainerSlot(), List.of()) : null;
-        }
+        // The player's own slots, named as the server names them: the inventory's main 36 and a
+        // carried attachment's. The ender chest's aren't, here: the client's is a stand-in.
+        ItemPath own = ItemSources.pathOf(Minecraft.getInstance().player, slot);
+        if (own != null) return own;
+        if (slot.container instanceof Inventory) return null;
         if (shown.equals(TabId.WORLD)) return new ItemPath(ItemRef.Source.CONTAINER, slot.getContainerSlot(), List.of());
         Tab front = shownItem();
         if (front == null || front.id().path() == null) return null;
@@ -189,7 +192,7 @@ public final class Tabs {
      * Whether the item in {@code slot} shows open: it has a tab, or with every box tabbed,
      * it's the one in front. Only while the row shows.
      */
-    static boolean looksOpen(Slot slot) {
+    public static boolean looksOpen(Slot slot) {
         if (!showing()) return false;
         ItemPath path = pathOf(slot);
         if (path == null) return false;
