@@ -271,9 +271,9 @@ public final class ServerTabs {
      *   <li><b>Sub-tabs</b>, with every box tabbed: each box in an open container that isn't
      *       open itself, under that container's tab. Opened by hand, there are none.</li>
      *   <li><b>Order:</b> the inventory, the world container, then Pocket Ender Chest's ender
-     *       chest when it's open. Each main tab is followed by its sub-tabs, then by the open
-     *       boxes inside it, each in turn, so an opened box comes right after the group it
-     *       sits in. Siblings go by where they sit ({@link #ORDER}).</li>
+     *       chest when it's open. Each main tab is followed by what's in it, by where it
+     *       sits ({@link #ORDER}): a closed box as a sub-tab, an open one as its own main tab
+     *       and what's in it, so an opened box keeps its place.</li>
      *   <li><b>One ender chest tab</b>, however many ender chests the player carries
      *       ({@link #enderItem}); none at a placed ender chest, which is the world tab.</li>
      * </ul>
@@ -324,13 +324,17 @@ public final class ServerTabs {
         return row;
     }
 
-    /** Main tab {@code id}, its sub-tabs (the closed boxes in it), then each open box in it, in turn. */
+    /**
+     * Main tab {@code id}, then what's in it by place: a closed box as a sub-tab, an open one as
+     * a main tab followed by what's in it, so an opened box stays where its sub-tab was.
+     */
     private static void place(List<Tab> row, TabId id, @Nullable TabId parent, Map<TabId, ItemStack> items,
                               Map<TabId, List<TabId>> children, Set<TabId> open, @Nullable TabId pocket) {
         row.add(new Tab(id, items.getOrDefault(id, ItemStack.EMPTY), parent, false));
-        List<TabId> inside = children.getOrDefault(id, List.of());
-        for (TabId c : inside) if (!open.contains(c)) row.add(new Tab(c, items.get(c), id, true));
-        for (TabId c : inside) if (open.contains(c) && !c.equals(pocket)) place(row, c, id, items, children, open, pocket);
+        for (TabId c : children.getOrDefault(id, List.of())) {
+            if (!open.contains(c)) row.add(new Tab(c, items.get(c), id, true));
+            else if (!c.equals(pocket)) place(row, c, id, items, children, open, pocket);
+        }
     }
 
     /**

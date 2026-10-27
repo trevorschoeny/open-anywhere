@@ -81,10 +81,13 @@ public final class Tabs {
         return ids;
     }
 
-    /** Main tab {@code main}'s sub-tabs (the closed boxes in it), in order: MenuKit's keys for them. */
+    /**
+     * What's in main tab {@code main}, in order: MenuKit's keys for its sub-tabs. An open box
+     * in it is a main tab too, so MenuKit stands that box's group here, in its place.
+     */
     public static List<TabId> subs(TabId main) {
         List<TabId> ids = new ArrayList<>();
-        for (Tab tab : row()) if (tab.sub() && main.equals(tab.parent())) ids.add(tab.id());
+        for (Tab tab : row()) if (main.equals(tab.parent())) ids.add(tab.id());
         return ids;
     }
 
@@ -107,8 +110,6 @@ public final class Tabs {
     /**
      * Every tab in where-it-sits order, for the wheel: each container, then each tab inside
      * it, open or not, by place ({@link ServerTabs#ORDER}), each followed by what's inside it.
-     * Unlike the drawn row it doesn't move a tab when it's selected, so the wheel walks a
-     * steady line.
      */
     static List<TabId> walk() {
         List<TabId> out = new ArrayList<>();
