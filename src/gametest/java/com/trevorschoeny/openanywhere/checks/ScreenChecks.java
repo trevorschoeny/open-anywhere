@@ -423,8 +423,11 @@ public class ScreenChecks implements FabricClientGameTest {
     /** A bundle opens on the host, one slot per stack plus the add slot. */
     private void bundle() {
         openInventory();
+        int before = hotbarY();
         doubleClick(hotbar(2), "the bundle");
         expectScreen(ContainerScreen.class, "double-click on the bundle");
+        // Opened by hand, the inventory stays where it was: the bundle's slots and the row go above it.
+        if (hotbarY() != before) throw new AssertionError("the hotbar moved from y " + before + " to " + hotbarY() + " as the bundle opened");
         String slots = ctx.computeOnClient(mc -> {
             var screen = screen(mc);
             if (!ContainerHost.is(screen.getMenu())) return "not the host: " + screen.getMenu();
@@ -976,6 +979,17 @@ public class ScreenChecks implements FabricClientGameTest {
         // An open box shows its brackets even when empty, so it reads open; the top tabs only when full.
         boolean brackets = !inside.isEmpty() || Tabs.open(id) && id.type() == TabId.Type.ITEM;
         return tabName(id) + (brackets ? "[" + String.join(", ", inside) + "]" : "");
+    }
+
+    /** Where the hotbar's first slot draws, from the top of the window. */
+    private int hotbarY() {
+        return ctx.computeOnClient(mc -> {
+            var screen = screen(mc);
+            for (Slot s : screen.getMenu().slots)
+                if (s.container instanceof Inventory && s.getContainerSlot() == 0)
+                    return ((com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen).openanywhere$topPos() + s.y;
+            throw new AssertionError("no hotbar on " + screen);
+        });
     }
 
     /** Where the screen's frame starts, from the top of the window. */
