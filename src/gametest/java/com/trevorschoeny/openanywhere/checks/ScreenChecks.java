@@ -113,6 +113,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_box_edits", this::walkedAway);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
+            run("openanywhere:screens_every_box", this::inventoryAlone);
             run("openanywhere:screens_every_box", this::treeEvery);
             run("openanywhere:screens_every_box", this::treeHand);
             run("openanywhere:screens_no_flash", this::noFlash);
@@ -706,6 +707,18 @@ public class ScreenChecks implements FabricClientGameTest {
         expectChestOpen(false, "Escape");
         openBlock();
         expectRow("INVENTORY, WORLD", "the chest opened again after Escape");
+    }
+
+    /** With nothing to open, every box tabbed shows the Inventory tab alone; opened by hand, no row. */
+    private void inventoryAlone() {
+        command("clear @p");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        expectRow("INVENTORY", "the inventory opened with no boxes, every box tabbed");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+        ctx.waitTicks(3);
+        expectRow("", "opened by hand, with no boxes");
     }
 
     /** Every box gets a tab: all of them in reach, in order, the bundle inside the cyan box too; the wheel moves between them. */

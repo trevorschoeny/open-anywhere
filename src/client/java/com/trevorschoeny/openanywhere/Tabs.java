@@ -64,9 +64,13 @@ public final class Tabs {
         return screen instanceof InventoryScreen || screen instanceof ContainerScreen || screen instanceof ShulkerBoxScreen;
     }
 
-    /** Whether the row shows: on a tab screen, with something besides the inventory on it. */
+    /**
+     * Whether the row shows: on a tab screen, with something besides the inventory on it. With
+     * every box tabbed, the Inventory tab alone shows too, a sign that boxes would have tabs.
+     */
     static boolean showing() {
-        return row.size() > 1 && isTabScreen(Minecraft.getInstance().gui.screen());
+        int least = Settings.tabs() == Settings.TabMode.EVERY ? 1 : 2;
+        return row.size() >= least && isTabScreen(Minecraft.getInstance().gui.screen());
     }
 
     /** The whole row, in order, while it shows. */
