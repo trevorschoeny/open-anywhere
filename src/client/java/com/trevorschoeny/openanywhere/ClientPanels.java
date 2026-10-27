@@ -88,6 +88,11 @@ final class ClientPanels {
                         .onClick(() -> Tabs.pick(sub)))
                 .on(SCREENS)
                 .declare();
+        // Opened by hand, the row comes and goes with the boxes opened: the frame keeps
+        // vanilla's place under it, moving only when the row wouldn't fit. With every box
+        // tabbed the row is always there, centred with the frame.
+        ContainerTabs.frameStaysWhen(ModeScope.BOTH, ScreenMatcher.only(SCREENS),
+                () -> Settings.tabs() == Settings.TabMode.HAND);
     }
 
     /** A main tab's icon: the player's head for the inventory, the block for the world container, else its item, lid up. */

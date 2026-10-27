@@ -646,12 +646,16 @@ public class ScreenChecks implements FabricClientGameTest {
 
     /**
      * Opened by hand, a quick double-click (each press held a tick, a tick apart) on the box in front closes
-     * it: back to the inventory, the box in its slot, nothing on the cursor, on both sides.
+     * it: back to the inventory, the box in its slot, nothing on the cursor, on both sides. The
+     * frame stays put as the row comes and goes.
      */
     private void quickClose() {
         openInventory();
+        int before = frameTop();
         doubleClick(hotbar(0), "the lime box");
         expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+        // The row came with the box, and the frame stayed where it was (there's room above it).
+        if (frameTop() != before) throw new AssertionError("the frame moved from " + before + " to " + frameTop() + " as the box's row came");
         hover(hotbar(0), "the open lime box");
         for (int i = 0; i < 2; i++) {
             ctx.getInput().holdMouse(InputConstants.MOUSE_BUTTON_LEFT);
@@ -663,6 +667,7 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(InventoryScreen.class, "double-clicking the open box");
         String client = ctx.computeOnClient(mc -> name(mc.player.containerMenu.getCarried()) + " " + name(mc.player.getInventory().getItem(0)));
         String server = scene.world().getServer().computeOnServer(s -> name(player(s).containerMenu.getCarried()) + " " + name(player(s).getInventory().getItem(0)));
+        if (frameTop() != before) throw new AssertionError("the frame moved from " + before + " to " + frameTop() + " as the row went");
         if (!client.equals("air lime_shulker_box") || !server.equals(client))
             throw new AssertionError("after the double-click the cursor and hotbar 1 read [" + client + "] on the client, [" + server + "] on the server, not [air lime_shulker_box]");
     }
@@ -971,6 +976,11 @@ public class ScreenChecks implements FabricClientGameTest {
         // An open box shows its brackets even when empty, so it reads open; the top tabs only when full.
         boolean brackets = !inside.isEmpty() || Tabs.open(id) && id.type() == TabId.Type.ITEM;
         return tabName(id) + (brackets ? "[" + String.join(", ", inside) + "]" : "");
+    }
+
+    /** Where the screen's frame starts, from the top of the window. */
+    private int frameTop() {
+        return ctx.computeOnClient(mc -> ((com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen(mc)).openanywhere$topPos());
     }
 
     private static String tabName(TabId id) {
