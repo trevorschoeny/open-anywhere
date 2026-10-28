@@ -25,6 +25,7 @@ public final class OpenAnywhere implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(PickC2S.TYPE, PickC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(PrefsC2S.TYPE, PrefsC2S.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DoneC2S.TYPE, DoneC2S.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HoldC2S.TYPE, HoldC2S.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(TabsS2C.TYPE, TabsS2C.CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(OpenC2S.TYPE,
@@ -32,6 +33,7 @@ public final class OpenAnywhere implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(PickC2S.TYPE, (payload, context) -> ServerTabs.pick(context.player(), payload.id()));
         ServerPlayNetworking.registerGlobalReceiver(PrefsC2S.TYPE, (payload, context) -> ServerTabs.prefs(context.player(), payload));
         ServerPlayNetworking.registerGlobalReceiver(DoneC2S.TYPE, (payload, context) -> ServerTabs.done(context.player()));
+        ServerPlayNetworking.registerGlobalReceiver(HoldC2S.TYPE, (payload, context) -> ServerTabs.hold(context.player(), payload.on()));
         ServerTickEvents.END_SERVER_TICK.register(ServerTabs::tick);
         // What ServerTabs keeps per player goes when they leave or the server stops; settings outlive a death.
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ServerTabs.left(handler.player));

@@ -111,6 +111,8 @@ public final class ServerTabs {
         // Pocket Ender Chest's ender chest was opened with every box tabbed: it stays open until the screens close.
         boolean pocketOpened;
         final List<Lifted> lifted = new ArrayList<>();
+        // A double-click is pending, till this server tick: the front lifted meanwhile keeps its tab ({@link #hold}).
+        int holdUntil;
         @Nullable Front front;
         List<Tab> sentRow = List.of();
         @Nullable TabId sentShown = TabId.INVENTORY;
@@ -525,6 +527,9 @@ public final class ServerTabs {
             return;
         }
         if (ItemStack.matches(player.containerMenu.getCarried(), f.seen)) {
+            // Lifted by a double-click's first click: nothing changes till it's decided. Its
+            // slots are already refused, being off their place.
+            if (st.holdUntil > player.level().getServer().getTickCount()) return;
             if (st.prefs.everyBox()) {
                 f.frozen = true;
                 return;
@@ -660,6 +665,7 @@ public final class ServerTabs {
     static void open(ServerPlayer player, int menuSlot, boolean fromCursor) {
         AbstractContainerMenu menu = player.containerMenu;
         State st = state(player);
+        st.holdUntil = 0;
         // The second click of a double-click on an item opened by hand: its first click lifted
         // it, which closed its tab (and left its screen, if it was in front, so the slot
         // number may be another screen's). It goes back where it was and stays closed.
@@ -707,6 +713,19 @@ public final class ServerTabs {
         if (tab.equals(shown(player, st))) goHome(player, st, tab.path());
         else openItem(player, st, tab.path());
         sync(player, st);
+    }
+
+    // A double-click's window is a second; this leaves room for lag. Past it, a client that
+    // never said the window ended gets the pickup anyway.
+    private static final int HOLD_TICKS = 30;
+
+    /**
+     * A double-click's first click is pending ({@code on}), or its window ended unpaired. While
+     * one is pending, the item in front lifted by it keeps its tab and screen as they were: the
+     * second click closes it as a double-click, else, once the window ends, it's picked up.
+     */
+    static void hold(ServerPlayer player, boolean on) {
+        state(player).holdUntil = on ? player.level().getServer().getTickCount() + HOLD_TICKS : 0;
     }
 
     /**

@@ -622,14 +622,18 @@ public class ScreenChecks implements FabricClientGameTest {
 
     /** The box in front can't be lifted out from under its own screen. */
     /**
-     * Opened by hand, the box in front picked up from its own screen: its tab closes and the
-     * screen goes back to the inventory. Put down in another slot, it opens again there, in front.
+     * Opened by hand, the box in front picked up from its own screen: once the double-click
+     * window ends, its tab closes and the screen goes back to the inventory. Put down in another slot, it opens again there, in front.
      */
     private void handPickup() {
         openInventory();
         doubleClick(hotbar(0), "the lime box");
         expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
         click(hotbar(0), "the open lime box");
+        // Till the double-click window ends (a second, the cursor still), the box keeps its tab.
+        expectScreen(ShulkerBoxScreen.class, "lifting the open box, the double-click window open");
+        expectRow("INVENTORY, lime_shulker_box", "lifting the open box, the double-click window open");
+        ctx.waitTicks(25);
         expectScreen(InventoryScreen.class, "picking up the open box");
         expectRow("", "picking up the open box");
         click(slot(14), "an empty inventory slot");
@@ -676,8 +680,8 @@ public class ScreenChecks implements FabricClientGameTest {
     }
 
     /**
-     * Every box tabbed, the box in front picked up from its own screen: the screen stays, its
-     * slots greyed and locked, the emeralds still shown. Put down elsewhere, they work again,
+     * Every box tabbed, the box in front picked up from its own screen: the screen stays, and
+     * once the double-click window ends its slots are greyed and locked, the emeralds still shown. Put down elsewhere, they work again,
      * writing to the box where it now is. A double-click on it goes back to the inventory.
      */
     private void everyPickup() {
@@ -688,6 +692,9 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
         click(hotbar(0), "the open lime box");
         ctx.waitTicks(3);
+        // Till the double-click window ends, the box's screen isn't greyed yet.
+        if (ctx.computeOnClient(mc -> Tabs.frozen())) throw new AssertionError("the box's screen greyed with the double-click window still open");
+        ctx.waitTicks(25);
         expectScreen(ShulkerBoxScreen.class, "picking up the open box");
         String held = ctx.computeOnClient(mc -> Tabs.frozen() + " " + name(screen(mc).getMenu().getSlot(0).getItem()));
         if (!held.equals("true emerald")) throw new AssertionError("with the box on the cursor its screen reads [" + held + "], not frozen with its emeralds");
