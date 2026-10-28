@@ -620,10 +620,10 @@ public class ScreenChecks implements FabricClientGameTest {
         if (server != 40) throw new AssertionError("the server's cursor holds " + server + " on the box's menu, not 40");
     }
 
-    /** The box in front can't be lifted out from under its own screen. */
     /**
      * Opened by hand, the box in front picked up from its own screen: once the double-click
-     * window ends, its tab closes and the screen goes back to the inventory. Put down in another slot, it opens again there, in front.
+     * window ends, its tab closes and the screen goes back to the inventory. Put down in
+     * another slot, it opens again there, in front.
      */
     private void handPickup() {
         openInventory();
@@ -681,8 +681,9 @@ public class ScreenChecks implements FabricClientGameTest {
 
     /**
      * Every box tabbed, the box in front picked up from its own screen: the screen stays, and
-     * once the double-click window ends its slots are greyed and locked, the emeralds still shown. Put down elsewhere, they work again,
-     * writing to the box where it now is. A double-click on it goes back to the inventory.
+     * once the double-click window ends its slots are greyed and locked, the emeralds still
+     * shown. Put down elsewhere, they work again, writing to the box where it now is. A
+     * double-click on it goes back to the inventory.
      */
     private void everyPickup() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));

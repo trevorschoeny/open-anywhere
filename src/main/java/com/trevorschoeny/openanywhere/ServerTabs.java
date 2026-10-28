@@ -111,7 +111,7 @@ public final class ServerTabs {
         // Pocket Ender Chest's ender chest was opened with every box tabbed: it stays open until the screens close.
         boolean pocketOpened;
         final List<Lifted> lifted = new ArrayList<>();
-        // A double-click is pending, till this server tick: the front lifted meanwhile keeps its tab ({@link #hold}).
+        // A double-click is pending, till this server tick: the front lifted meanwhile keeps its tab (hold).
         int holdUntil;
         @Nullable Front front;
         List<Tab> sentRow = List.of();
