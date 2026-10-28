@@ -8,10 +8,11 @@ I kept it separate from Inventory Plus on purpose. Some servers count opening co
 
 #### Tabs
 
-- Every shulker box, bundle, and ender chest you carry, or that's in the chest you have open, gets a tab.
-- The tabs are grouped under your inventory, the chest you opened, and your ender chest. Click a group's header to see its screen, and its boxes slide out beside it as smaller tabs.
+- Double-click a shulker box, bundle, or ender chest you carry, or that is in the chest you have open, and it gets a tab.
+- The tabs read like a path: your inventory and the chest first, then the box you opened, then any box you opened inside it.
 - Click a tab, or scroll the mouse wheel, to move between screens. The chest stays open in the world the whole time.
-- If you'd rather keep the screen as vanilla has it, a setting gives tabs only to the boxes you double-click open.
+- A setting gives every box, bundle, and ender chest in reach a small tab under the container it's in, with no double-click needed.
+- Boxes in other mods' slots open too, such as the ender chest in Pocket Ender Chest's slot.
 
 #### Real screens
 
@@ -39,13 +40,14 @@ I kept it separate from Inventory Plus on purpose. Some servers count opening co
 ### Requirements
 
 - [Fabric API](https://modrinth.com/mod/fabric-api)
-- [MenuKit](https://modrinth.com/mod/menukit) 7.4.0 or newer, below 8.0.0, which draws the tabs and the bundle's screen, and moves the frame between screens.
-- [SlotKit](https://modrinth.com/mod/slotkit) 2.1.0 or newer, below 3.0.0, which switches between screens while the chest stays open, writes every change back into the box, and checks that a joining player has the mod.
+- [MenuKit](https://modrinth.com/mod/menukit) 7.5.0 or newer, below 8.0.0, which draws the tabs and the bundle's screen, and moves the frame between screens.
+- [SlotKit](https://modrinth.com/mod/slotkit) 2.2.0 or newer, below 3.0.0, which switches between screens while the chest stays open, writes every change back into the box, and checks that a joining player has the mod.
 - [Keybindery](https://modrinth.com/mod/keybindery) 1.3.0 or newer, below 2.0.0, which lets the Open key be a combination like Ctrl+X and puts its key button in the settings.
 
 ### Pairs well with
 
 - [Inventory Plus](https://modrinth.com/mod/inventory-plus-trevlar), my mod for restocking, sorting, and locking slots. With it, opened boxes and bundles can be sorted and Open Anywhere gets a settings tab. Open Anywhere needs Inventory Plus 3.3.0 or newer, and older versions can't be installed alongside it.
+- [Pocket Ender Chest](https://modrinth.com/mod/pocket-ender-chest), my mod that gives your ender chest a slot of its own. Its ender chest opens here as a tab.
 
 ### Compatibility
 
@@ -57,30 +59,31 @@ Inventory Profiles Next's sort works on opened boxes, bundles, and the inventory
 
 #### The tabs
 
-Open your inventory with a shulker box, bundle, or ender chest in it, or open a chest, barrel, double chest, ender chest, or chest boat. A row of tabs appears along the top of the screen.
+Open your inventory, or a chest, barrel, double chest, ender chest, or chest boat, and double-click a box. A row of tabs appears along the top of the screen.
 
-- The tabs come in up to three groups. Inventory has your own head as its icon, the chest you opened has the chest's block, and Ender Chest shows while you carry an ender chest or are at a placed one.
-- Each group has a header tab, then a smaller tab for each box in it. Your inventory's boxes come in slot order, hotbar first. A box inside a box in the chest belongs to the chest's group, however deep it sits.
-- The group with the tab you're looking at is open, with its boxes slid out beside its header. The other groups show only their header.
-- Click a header to show its screen: your inventory, the chest, or your ender chest. Click a box's tab to open that box.
-- Hover a tab to see the item's name.
+- Your inventory always has a tab, with your own head as its icon. The chest you opened has one too, with the chest's block as its icon.
+- The box you opened gets a tab right after the container it's in. A box you open inside it gets the next tab, so the row reads from your inventory or the chest down to the box you're looking at.
+- You have one ender chest, so it gets one tab however many ender chests you carry. One in Pocket Ender Chest's slot is the one used.
+- Click a tab to show its screen. Hover a tab to see the item's name.
 - Scroll the mouse wheel to move one tab left or right. Over a container that scrolls, the wheel scrolls it instead.
-- When the tabs don't fit, arrows at the ends page through them. The open group's header and the tab you're on stay in view.
+- When the tabs don't fit, arrows at the ends page through them, and the tab you're on stays in view.
 - The chest stays open in the world, lid up, while you move between tabs. Leaving the inventory tab gives back what's in its crafting grid, the same as closing the inventory.
 - The screen's frame grows or shrinks to the next screen's size as you switch.
+- With Only boxes I open, your inventory or chest stays exactly where vanilla puts it as tabs come and go, including for a bundle; the frame moves only as far as needed when the row wouldn't otherwise fit, such as a large chest in a short window. With Every box, it stays centred with the row.
 - On a game window too short for a chest's screen and its tabs, the chest's rows scroll inside its frame.
 
 #### Tab modes
 
 The Tabs setting decides which boxes get a tab.
 
-| Tabs | Which boxes have tabs | Groups |
-| --- | --- | --- |
-| Only boxes I open | The ones you double-click open | The one you're on is open |
-| Every box (the default) | Every box, bundle, and ender chest in reach | The one you're on is open |
-| Every box, every group open | Every box, bundle, and ender chest in reach | All open |
+| Tabs | Which boxes have tabs |
+| --- | --- |
+| Only boxes I open (the default) | The box you double-clicked and the boxes it's inside. Its tab closes once you've moved off it and everything inside it. |
+| Every box | Every box, bundle, and ender chest in reach, each a small tab under the container that holds it. The one you're on becomes a full tab in its place, with its own boxes under it. |
 
-With Only boxes I open, a close button on the frame's top-right corner closes the box you're looking at.
+- With Every box, your inventory's tab shows even when there's nothing to open.
+- With Every box, the ender chest in Pocket Ender Chest's slot keeps its tab once you've opened it, until you close the screen.
+- There's no close button on the frame. Another tab is always there to go to: double-click the box again, or click your inventory's or the chest's tab.
 
 #### Double-click
 
@@ -88,10 +91,11 @@ Double-click a shulker box, bundle, or ender chest in your inventory or in the c
 
 - Keep the mouse still between the two clicks. They have to land within one second.
 - With Every box, a double-click shows the box's tab. With Only boxes I open, it opens the box as a new tab.
-- Double-click the box you're looking at to go back to its group's screen. With Only boxes I open, that closes its tab too.
+- Double-click the box you're looking at to go back to the screen of the container it's in. With Only boxes I open, that closes its tab too.
 - Shift+double-click is still vanilla's move-all.
 - A stack of shulker boxes doesn't open, so double-clicking it still collects them. A stack of ender chests opens your ender chest.
 - A bundle inside a box in the chest opens too, as its own tab.
+- Boxes in other mods' carried slots, such as the ender chest in Pocket Ender Chest's slot, open the same way.
 - Only one player at a time can have a given box open.
 - Furnaces, crafting tables, villagers, and other screens that aren't chests don't open anything.
 
@@ -119,12 +123,12 @@ A bundle opens on a screen of its own, above your inventory.
 
 #### Picking up an open box
 
-You can pick up the box you're looking at, even from under its own screen.
+Pick up the box you're looking at, even from under its own screen. Nothing happens right away, the same pause any lifted item gets as the first click of a double-click: for about a second with the cursor still, or until the cursor moves, its tab and screen stay exactly as they were, and a second click in that window closes it cleanly as a double-click instead.
 
-- With Every box, the box's screen stays up, its slots grayed and locked, showing what the box holds. Put the box down anywhere in reach and they work again.
-- With Only boxes I open, its tab closes, and the screen goes back to its group's. Put it straight down anywhere in reach and it opens again. If it leaves your cursor any other way, such as being dropped or the screen closing, it stays closed.
+- Once the window passes, with Only boxes I open its tab closes and the screen goes back to the container it was in. Put it straight down anywhere in reach and it opens again. If it leaves your cursor any other way, such as being dropped or the screen closing, it stays closed.
+- Once the window passes, with Every box the box's screen greys, its slots locked, showing what the box holds. Put the box down anywhere in reach and they work again.
 - A box moved any other way, by a shift-click, a sort, or Inventory Profiles Next, keeps its screen, which follows it to its new slot.
-- A box taken out of reach, by a hopper, a command, or another mod, sends its screen back to its group's.
+- A box taken out of reach, by a hopper, a command, or another mod, sends its screen back to the container it was in.
 
 #### Creative
 
@@ -141,7 +145,7 @@ Open the settings from Mod Menu's config button, if Mod Menu is installed, or wi
 | Open the ender chest | On |
 | Double-click to open | On |
 | Open key (hold and click) | No key |
-| Tabs | Every box |
+| Tabs | Only boxes I open |
 | Scroll to switch tabs | On |
 | Animate opened boxes | On |
 

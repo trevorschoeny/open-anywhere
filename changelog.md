@@ -2,24 +2,16 @@
 
 #### Added
 
-- Ender chests, shulker boxes and bundles in another mod's carried slot (such as Pocket Ender Chest's ender chest slot) open and get their tabs, like the ones in your inventory.
+- Shulker boxes, bundles, and ender chests in other mods' carried slots, such as Pocket Ender Chest's ender chest slot, open and get tabs like the ones in your inventory.
+- With Pocket Ender Chest, its ender chest's tab and its slot always show the same lid. With Every box, its tab stays once you've opened it, until you close the screen.
 
-Requires SlotKit 2.2.0 or newer.
+#### Changed
 
-## 1.0.0
-
-First release.
-
-#### Added
-
-- Open shulker boxes, bundles, and your ender chest from your inventory or an open chest, without placing anything.
-- A tab for every box you carry or that's in the open chest, grouped under your inventory, the chest, and your ender chest. A setting gives tabs only to the boxes you double-click open.
-- Shulker boxes and the ender chest open on their own vanilla screens, and the chest stays open in the world while you switch.
-- An opened bundle shows one slot per stack, plus a slot for adding more, and scrolls when it holds more than fits.
-- The box you're looking at opens its lid in its tab and in its slot.
-- An open box can be picked up and put down again, and its screen follows it when it moves.
-- An Open key, unbound by default, that opens an item with one click while held.
-- A settings screen of its own, or an Open Anywhere tab in Inventory Plus's settings menu.
-- An API for other mods to read the opened item, give shulker boxes more slots, and place a panel beside the opened item's screen.
-
-Requires MenuKit 7.4.0 or newer, SlotKit 2.1.0 or newer, and Keybindery 1.3.0 or newer.
+- The tab row follows what's open. Your inventory and the chest keep their tabs, and an opened box's tab sits right after the container it's in, with any box opened inside it after that.
+- Only boxes I open is the new default. A box gets a tab when you double-click it, and the tab closes once neither it nor anything inside it is selected.
+- With Every box, each closed box is a small tab under the container holding it, and the box you're on becomes a full tab in its place. The Every box, every group open setting is gone, and anyone using it now has Every box.
+- The close button on the frame is gone, since another tab is always there to go to.
+- Double-click works the same way as in Pocket Ender Chest and other mods that share the gesture.
+- Picking up an open box waits out the double-click window, as any lifted item does: its tab or screen stays as it is until the window passes, so a second click on it closes it cleanly as a double-click.
+- With Only boxes I open, the inventory or chest no longer jumps position as tabs appear or go away, including when a bundle opens; it moves only as far as needed when the row wouldn't fit.
+- Requires MenuKit 7.5.0 or newer and SlotKit 2.2.0 or newer.
