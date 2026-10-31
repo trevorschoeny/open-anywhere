@@ -13,7 +13,8 @@ import net.minecraft.world.item.ItemStack;
  * One tab as the server tells the client: which it is, the item it stands for (its icon,
  * and the item itself: its name, and a bundle's contents for the bundle's slot rules), the
  * container it sits in, and whether it's a sub-tab under that container's tab or a main tab.
- * The inventory and world tabs carry no item and no parent; the client draws those itself.
+ * The inventory tab carries no item; the world tab carries its icon (the block or entity its
+ * screen was opened from, empty when unknown). Neither has a parent.
  *
  * @param parent the tab of the container the item sits in; null for a top-level tab: the
  *               inventory, the world container, and Pocket Ender Chest's ender chest while open

@@ -20,22 +20,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.Container;
-import net.minecraft.world.Nameable;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ResolvableProfile;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 
 /**
  * What this mod adds to the screens: the tab row (a group per main tab, through MenuKit's
@@ -54,14 +46,14 @@ final class ClientPanels {
     /** The open bundle's section on its host. */
     static final String BUNDLE_ID = OpenAnywhere.MOD_ID + ":bundle";
 
-    /** The screens the row stands on: the inventory, a chest (and the bundle's host), a shulker box. */
+    /**
+     * The screens the row may stand on: every container screen. Which ones it does is the
+     * server's row ({@link Tabs#showing}); creative's never.
+     */
     @SuppressWarnings("unchecked")
-    private static final Class<? extends AbstractContainerScreen<?>>[] SCREENS =
-            new Class[] { InventoryScreen.class, ContainerScreen.class, ShulkerBoxScreen.class };
+    private static final Class<? extends AbstractContainerScreen<?>>[] SCREENS = new Class[] { AbstractContainerScreen.class };
 
-    // The world container's look, kept from its own screen so its tab shows it from any screen.
-    // Null until a world screen is seen: items can't be made before the game has bound them.
-    private static @Nullable ItemStack worldIcon;
+    // The world container's title, kept from its own screen so its tab shows it from any screen.
     private static Component worldTitle = Component.translatable("container.chest");
     // Whether the world container is a double chest: its icon is the two halves together.
     private static boolean worldDouble;
@@ -97,7 +89,7 @@ final class ClientPanels {
         // Opened by hand, the row comes and goes with the boxes opened: the frame keeps
         // vanilla's place under it, moving only when the row wouldn't fit. With every box
         // tabbed the row is always there, centred with the frame.
-        ContainerTabs.frameStaysWhen(ModeScope.BOTH, ScreenMatcher.only(SCREENS),
+        ContainerTabs.frameStaysWhen(ModeScope.BOTH, ScreenMatcher.allExcept(CreativeModeInventoryScreen.class),
                 () -> Settings.tabs() == Settings.TabMode.HAND);
     }
 
@@ -145,6 +137,15 @@ final class ClientPanels {
         ItemStack block = worldIcon();
         boolean open = Tabs.holds(TabId.WORLD, Tabs.selected());
         String path = BuiltInRegistries.ITEM.getKey(block.getItem()).getPath();
+        // Only a lidded block opens; a furnace, a crafting table or a minecart is drawn as it is.
+        if (Openable.of(block) == null && !HALVES.contains(path) && !path.equals("barrel")) {
+            g.pose().pushMatrix();
+            g.pose().translate(x, y);
+            g.pose().scale(w / 16f, w / 16f);
+            g.item(block, 0, 0);
+            g.pose().popMatrix();
+            return;
+        }
         if (!worldDouble || !HALVES.contains(path)) {
             drawOpening(g, block, TabId.WORLD, open, x, y, w);
             return;
@@ -236,37 +237,18 @@ final class ClientPanels {
     }
 
     /**
-     * The world container's tab icon: the block its screen was opened on
-     * ({@link #blockOpenedOn}), a chest when there's none (a minecart, a large chest, a
-     * double chest's two halves). Read while its screen is up and kept for the other screens.
+     * The world container's tab icon, as the server sends it: the block or entity its screen
+     * was opened from ({@code ServerTabs.iconOf}), a chest when the server doesn't know. Its
+     * title, and whether it's a large chest, are read while its screen is up and kept for the
+     * other screens.
      */
     static ItemStack worldIcon() {
         if (Tabs.shown().equals(TabId.WORLD) && Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen) {
-            Block block = blockOpenedOn(screen);
-            worldIcon = block == null ? new ItemStack(Items.CHEST) : new ItemStack(block);
             worldTitle = screen.getTitle();
             worldDouble = screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu chest && chest.getRowCount() == 6;
         }
-        return worldIcon == null ? new ItemStack(Items.CHEST) : worldIcon;
-    }
-
-    /**
-     * The block under the crosshair as {@code screen} opened: whichever one it is, so a
-     * placed shulker box's tab shows its colour rather than always a chest, the same as a
-     * barrel's or a placed ender chest's. Null for a screen whose container isn't the block
-     * in front (the player stepped back, or it opened some other way) or whose size doesn't
-     * match that block's (a double chest: each half is 27 slots to the screen's 54), which
-     * keeps the chest fallback above instead of guessing.
-     */
-    private static @Nullable Block blockOpenedOn(AbstractContainerScreen<?> screen) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || !(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
-        Container own = screen.getMenu().getSlot(0).container;
-        if (own instanceof Inventory) return null;
-        BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
-        if (!(be instanceof Container c) || c.getContainerSize() != own.getContainerSize()) return null;
-        if (be instanceof Nameable n && !n.getDisplayName().getContents().equals(screen.getTitle().getContents())) return null;
-        return be.getBlockState().getBlock();
+        Tab world = Tabs.tab(TabId.WORLD);
+        return world == null || world.item().isEmpty() ? new ItemStack(Items.CHEST) : world.item();
     }
 
     private static Component worldTitle() {

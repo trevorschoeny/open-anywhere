@@ -27,6 +27,7 @@ import com.trevorschoeny.openanywhere.api.OpenItems;
 import org.jspecify.annotations.Nullable;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,12 +35,19 @@ import net.minecraft.world.Container;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AbstractMountInventoryMenu;
 import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.DispenserMenu;
+import net.minecraft.world.inventory.HopperMenu;
+import net.minecraft.world.inventory.LecternMenu;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * The tabs, on the server, where every rule is checked.
@@ -127,6 +135,8 @@ public final class ServerTabs {
     private static final Map<ServerPlayer, State> STATES = Collections.synchronizedMap(new WeakHashMap<>());
     // The menus this mod opened: tabs, never the world container.
     private static final Set<AbstractContainerMenu> OURS = Collections.newSetFromMap(new WeakHashMap<>());
+    // Each menu's tab icon, from when it opened ({@link #iconOf}): the world tab's, sent with the row.
+    private static final Map<AbstractContainerMenu, ItemStack> ICONS = new WeakHashMap<>();
 
     private static State state(ServerPlayer player) {
         return STATES.computeIfAbsent(player, p -> new State());
@@ -164,22 +174,48 @@ public final class ServerTabs {
     /**
      * The container the player opened in the world, waiting behind or in front, or null: a
      * chest's menu (a chest, a large chest, a barrel, a placed ender chest, a minecart) or a
-     * placed shulker box's.
+     * placed shulker box's; with every box tabbed, any other screen of vanilla's that can wait
+     * behind ({@link #waits}): a crafting table, a furnace, an anvil, a hopper.
      */
     static @Nullable AbstractContainerMenu world(ServerPlayer player) {
         AbstractContainerMenu menu = MenuSwitch.setAside(player).orElse(player.containerMenu);
-        boolean container = menu instanceof ChestMenu && !ContainerHost.is(menu) || menu instanceof ShulkerBoxMenu;
-        return container && !OURS.contains(menu) ? menu : null;
+        if (menu == player.inventoryMenu || OURS.contains(menu) || ContainerHost.is(menu)) return null;
+        if (menu instanceof ChestMenu || menu instanceof ShulkerBoxMenu) return menu;
+        return state(player).prefs.everyBox() && waits(menu) ? menu : null;
     }
 
-    /** The world container's own slots: its first slot's container, the chest or box, not the inventory. */
-    private static Container containerOf(AbstractContainerMenu world) {
-        return world.getSlot(0).container;
+    /**
+     * Whether {@code menu}, not a chest's or a box's, can be the world container: one of
+     * vanilla's that SlotKit's {@link MenuSwitch} sets aside and brings back whole. Not a
+     * villager's (its trades come in a packet of their own, which {@code back} doesn't send
+     * again), a horse's (no {@code openMenu} opens it, so it can't be set aside) or a
+     * lectern's (not a container screen, so it has no row). Another mod's menu isn't assumed
+     * to come back whole.
+     */
+    private static boolean waits(AbstractContainerMenu menu) {
+        if (menu instanceof AbstractMountInventoryMenu || menu instanceof MerchantMenu || menu instanceof LecternMenu) return false;
+        try {
+            var type = BuiltInRegistries.MENU.getKey(menu.getType());
+            return type != null && type.getNamespace().equals("minecraft");
+        } catch (UnsupportedOperationException typeless) {
+            return false;   // a menu made with no type (some mods'): getType throws
+        }
+    }
+
+    /**
+     * The world container's own slots, when an item to open could be in them: its first
+     * slot's container (the chest, box, hopper or dispenser, not the inventory). Null for a
+     * workstation (a furnace, a crafting table): nothing in its slots opens or gets a tab.
+     */
+    private static @Nullable Container contents(@Nullable AbstractContainerMenu world) {
+        boolean storage = world instanceof ChestMenu || world instanceof ShulkerBoxMenu
+                || world instanceof HopperMenu || world instanceof DispenserMenu;
+        return storage ? world.getSlot(0).container : null;
     }
 
     /** A placed ender chest is the world container: the ender chest's own tab would be a second copy of it. */
     private static boolean worldIsEnderChest(ServerPlayer player, @Nullable AbstractContainerMenu world) {
-        return world != null && containerOf(world) == player.getEnderChestInventory();
+        return contents(world) == player.getEnderChestInventory();
     }
 
     /** The top-level container a path starts in. */
@@ -187,7 +223,7 @@ public final class ServerTabs {
         return switch (path.source()) {
             case INVENTORY -> player.getInventory();
             case ENDER_CHEST -> player.getEnderChestInventory();
-            case CONTAINER -> world == null ? null : containerOf(world);
+            case CONTAINER -> contents(world);
             // A new container each call, over the same stacks: compare its stacks, never it.
             case CARRIED -> ItemSources.containerOf(player, path);
         };
@@ -195,9 +231,9 @@ public final class ServerTabs {
 
     /** The live item at {@code path}, or null when nothing openable is there. */
     private static @Nullable ItemStack at(ServerPlayer player, @Nullable AbstractContainerMenu world, ItemPath path) {
-        ItemRef ref = path.source() == ItemRef.Source.CONTAINER
-                ? (world == null ? null : ItemSources.at(containerOf(world), path))
-                : ItemSources.at(player, path);
+        Container contents = contents(world);
+        ItemRef ref = path.source() != ItemRef.Source.CONTAINER ? ItemSources.at(player, path)
+                : contents == null ? null : ItemSources.at(contents, path);
         return ref == null || Openable.of(ref.stack()) == null ? null : ref.stack();
     }
 
@@ -234,7 +270,8 @@ public final class ServerTabs {
         ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true).carried(true);
         List<ItemPath> found = new ArrayList<>();
         for (ItemSources.Found f : ItemSources.find(player, scope, ender)) found.add(f.path());
-        if (world != null) for (ItemSources.Found f : ItemSources.find(containerOf(world), scope, ender)) found.add(f.path());
+        Container contents = contents(world);
+        if (contents != null) for (ItemSources.Found f : ItemSources.find(contents, scope, ender)) found.add(f.path());
         return found.stream()
                 .min(Comparator.<ItemPath>comparingInt(p -> p.source() == ItemRef.Source.CARRIED ? 0 : 1).thenComparing(ORDER))
                 .orElse(null);
@@ -316,6 +353,10 @@ public final class ServerTabs {
         for (TabId id : items.keySet()) children.computeIfAbsent(parentTab(r, id.path()), k -> new ArrayList<>()).add(id);
         for (List<TabId> c : children.values()) c.sort(Comparator.comparing(TabId::path, ORDER));
 
+        // The world tab's icon: the block or entity its screen was opened from. Empty when
+        // neither is known (opened by a command or another mod): the client draws a chest.
+        if (r.world() != null) items.put(TabId.WORLD, ICONS.getOrDefault(r.world(), ItemStack.EMPTY));
+
         List<Tab> row = new ArrayList<>();
         // Pocket Ender Chest's ender chest, open, stands after the world container as a top-level
         // tab of its own, with no parent, rather than in the inventory's group.
@@ -391,7 +432,8 @@ public final class ServerTabs {
             ItemPath path = new ItemPath(ItemRef.Source.CARRIED, 0, List.of(), id);
             tops.add(new Top(ItemRef.Source.CARRIED, id, ItemSources.containerOf(player, path)));
         }
-        if (world != null && !worldIsEnderChest(player, world)) tops.add(new Top(ItemRef.Source.CONTAINER, null, containerOf(world)));
+        Container contents = contents(world);
+        if (contents != null && !worldIsEnderChest(player, world)) tops.add(new Top(ItemRef.Source.CONTAINER, null, contents));
         tops.add(new Top(ItemRef.Source.ENDER_CHEST, null, player.getEnderChestInventory()));
         return tops;
     }
@@ -426,7 +468,8 @@ public final class ServerTabs {
         ItemScope scope = ItemScope.inventory().shulkers(true).bundles(true).carried(true);
         boolean worldEnder = r.worldEnder();
         List<ItemSources.Found> found = new ArrayList<>(ItemSources.find(player, scope, opens));
-        if (world != null && !worldEnder) found.addAll(ItemSources.find(containerOf(world), scope, opens));
+        Container contents = contents(world);
+        if (contents != null && !worldEnder) found.addAll(ItemSources.find(contents, scope, opens));
         // The ender chest's contents are in reach when an ender chest is, or when it's the world container.
         boolean ender = worldEnder || found.stream().anyMatch(f -> Openable.of(f.stack()) == Openable.ENDER_CHEST);
         if (ender) {
@@ -461,11 +504,29 @@ public final class ServerTabs {
     private static boolean switching;
 
     /**
-     * The player opened a screen ({@code ServerPlayer.openMenu}): the row goes with it, so the
-     * client draws the screen's first frame with its tab in front. A tab switch sends its own.
+     * The player opened a screen ({@code ServerPlayer.openMenu}) from {@code provider}: its
+     * icon is noted ({@link #iconOf}), and the row goes with it, so the client draws the
+     * screen's first frame with its tab in front. A tab switch sends its own.
      */
-    public static void opened(ServerPlayer player) {
+    public static void opened(ServerPlayer player, MenuProvider provider) {
+        ICONS.put(player.containerMenu, iconOf(provider));
         if (!switching) sync(player, state(player));
+    }
+
+    /**
+     * The one place a world container's tab icon comes from, for every kind: the block of a
+     * block entity (a furnace, a barrel, a placed box, named or not), the item of an entity (a
+     * minecart with a chest, a boat with one), else whatever block or entity the player was
+     * using as it opened ({@link Opener}: a crafting table, an anvil, a large chest). Empty
+     * when none of these is known.
+     */
+    private static ItemStack iconOf(MenuProvider provider) {
+        if (provider instanceof BlockEntity be) return new ItemStack(be.getBlockState().getBlock());
+        if (provider instanceof Entity e) {
+            ItemStack item = e.getPickResult();
+            return item == null ? ItemStack.EMPTY : item;
+        }
+        return Opener.using().copy();
     }
 
     /** Sends the row when it or the tab in front changed. */
@@ -587,8 +648,8 @@ public final class ServerTabs {
     /** Whether the top-level container {@code f}'s item is in is still in reach: the world container, while it's still open. */
     private static boolean reachable(ServerPlayer player, Front f) {
         if (f.id.path() == null || f.id.path().source() != ItemRef.Source.CONTAINER) return true;
-        AbstractContainerMenu world = world(player);
-        return world != null && containerOf(world) == f.top;
+        Container contents = contents(world(player));
+        return contents != null && contents == f.top;
     }
 
     /** Whether {@code f}'s item has left its place: moved, taken, or on the cursor. */
@@ -759,7 +820,7 @@ public final class ServerTabs {
         if (own != null) return own;
         if (slot.container == player.getInventory()) return null;
         AbstractContainerMenu menu = player.containerMenu;
-        if (world != null && menu == world && slot.container == containerOf(world)) {
+        if (world != null && menu == world && slot.container == contents(world)) {
             ItemRef.Source source = worldIsEnderChest(player, world) ? ItemRef.Source.ENDER_CHEST : ItemRef.Source.CONTAINER;
             return new ItemPath(source, slot.getContainerSlot(), List.of());
         }

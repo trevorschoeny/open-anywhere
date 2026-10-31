@@ -121,6 +121,9 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_no_flash", this::noFlash);
             run("openanywhere:screens_double_chest", this::doubleChest);
             run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
+            run("openanywhere:screens_world_shulker", this::worldShulkerNamed);
+            // Last at this station: it builds other blocks over the box.
+            run("openanywhere:screens_world_shulker", this::everyContainer);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
             if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
                 run("openanywhere:screens_lock", this::ipnBox);
@@ -919,16 +922,74 @@ public class ScreenChecks implements FabricClientGameTest {
             throw new AssertionError("the placed box's tab icon is " + icon + ", not purple_shulker_box");
     }
 
+    /**
+     * Trev's case in game: a placed box he had named. The screen's title is his name, which the
+     * client's copy of the box never hears, so a tab icon guessed from the block under the
+     * crosshair drew a chest. The icon is now the server's: the block the screen was opened on.
+     */
+    private void worldShulkerNamed() {
+        BlockPos b = block();
+        command(String.format("data merge block %d %d %d {CustomName:\"Trev's Box\"}", b.getX(), b.getY(), b.getZ()));
+        ctx.waitTicks(3);
+        openWorldShulker();
+        expectRow("INVENTORY, WORLD", "the named box opened");
+        String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+        if (!icon.equals("purple_shulker_box"))
+            throw new AssertionError("the named box's tab icon is " + icon + ", not purple_shulker_box");
+    }
+
+    /**
+     * With every box tabbed, a crafting table, a furnace and a stonecutter each get the world
+     * tab, apart from the inventory's, showing their block: the Inventory tab goes to the
+     * inventory with the station waiting behind, and the station's tab brings it back. Opened
+     * by hand, a crafting table has no row, as before.
+     */
+    private void everyContainer() {
+        command("clear @p");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        Object[][] stations = {
+                {"crafting_table", net.minecraft.client.gui.screens.inventory.CraftingScreen.class},
+                {"furnace", net.minecraft.client.gui.screens.inventory.FurnaceScreen.class},
+                {"stonecutter", net.minecraft.client.gui.screens.inventory.StonecutterScreen.class}};
+        BlockPos b = block();
+        for (Object[] s : stations) {
+            String id = (String) s[0];
+            Class<?> type = (Class<?>) s[1];
+            command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
+            ctx.waitTicks(3);
+            openAt(b, type, "the " + id);
+            expectRow("INVENTORY, WORLD", "the " + id + " opened");
+            String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+            if (!icon.equals(id)) throw new AssertionError("the " + id + "'s tab icon is " + icon);
+            pick(TabId.INVENTORY);
+            expectScreen(InventoryScreen.class, "the Inventory tab at the " + id);
+            if (!setAside()) throw new AssertionError("the " + id + " isn't waiting behind the inventory");
+            pick(TabId.WORLD);
+            expectScreen(type, "the " + id + "'s tab");
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+        }
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+        command(String.format("setblock %d %d %d minecraft:crafting_table", b.getX(), b.getY(), b.getZ()));
+        ctx.waitTicks(3);
+        openAt(b, net.minecraft.client.gui.screens.inventory.CraftingScreen.class, "the crafting table, opened by hand");
+        expectRow("", "the crafting table opened, boxes opened by hand");
+    }
+
     /** Stands two blocks north of the station's placed shulker box and opens it. */
     private void openWorldShulker() {
-        BlockPos b = block();
+        openAt(block(), ShulkerBoxScreen.class, "the placed box");
+    }
+
+    /** Stands two blocks north of {@code b}, looks at it and uses it: {@code type}'s screen must open. */
+    private void openAt(BlockPos b, Class<?> type, String what) {
         command(String.format("tp @p %.1f %d %.1f 0 30", b.getX() + 0.5, b.getY(), b.getZ() - 1.5));
         ctx.waitTicks(3);
         ctx.getInput().lookAt(b);
         ctx.waitTick();
         ctx.getInput().pressKey(o -> o.keyUse);
         ctx.waitTicks(5);
-        if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ShulkerBoxScreen)) throw new AssertionError("the placed box didn't open");
+        if (!ctx.computeOnClient(mc -> type.isInstance(mc.gui.screen()))) throw new AssertionError(what + " didn't open");
     }
 
     /** The row's tab for the item named {@code name}. */

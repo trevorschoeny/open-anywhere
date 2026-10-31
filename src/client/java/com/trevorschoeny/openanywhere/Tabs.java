@@ -12,9 +12,8 @@ import org.jspecify.annotations.Nullable;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.ContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -59,9 +58,9 @@ public final class Tabs {
         return frozen && shownItem() != null;
     }
 
-    /** Whether {@code screen} is one the row stands on: the inventory, a chest, a shulker box, the bundle's host. */
+    /** Whether {@code screen} is one the row can stand on: any container screen but creative's. */
     static boolean isTabScreen(@Nullable Screen screen) {
-        return screen instanceof InventoryScreen || screen instanceof ContainerScreen || screen instanceof ShulkerBoxScreen;
+        return screen instanceof AbstractContainerScreen<?> && !(screen instanceof CreativeModeInventoryScreen);
     }
 
     /**

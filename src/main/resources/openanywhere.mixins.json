@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "CloseScreenMixin",
-    "OpenMenuMixin"
+    "OpenMenuMixin",
+    "UseBlockMixin",
+    "UseEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
