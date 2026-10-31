@@ -159,6 +159,11 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         return ClientPanels.frame(screen);
     }
 
+    /** The world tab's icon now, for the self-checks ({@link ClientPanels#worldIcon}). */
+    public static ItemStack worldIconForChecks() {
+        return ClientPanels.worldIcon();
+    }
+
     /** Tells the server the settings that shape the row: on joining, and on every change. */
     static void sendPrefs() {
         if (!ClientPlayNetworking.canSend(PrefsC2S.TYPE)) return;

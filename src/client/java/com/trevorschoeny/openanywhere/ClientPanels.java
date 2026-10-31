@@ -26,10 +26,16 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.Container;
+import net.minecraft.world.Nameable;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 /**
  * What this mod adds to the screens: the tab row (a group per main tab, through MenuKit's
@@ -231,18 +237,36 @@ final class ClientPanels {
 
     /**
      * The world container's tab icon: the block its screen was opened on
-     * ({@link ContainerRegion#openedOn()}), a chest when there's none (a minecart, a large
-     * chest). Read while its screen is up and kept for the other screens.
+     * ({@link #blockOpenedOn}), a chest when there's none (a minecart, a large chest, a
+     * double chest's two halves). Read while its screen is up and kept for the other screens.
      */
-    private static ItemStack worldIcon() {
+    static ItemStack worldIcon() {
         if (Tabs.shown().equals(TabId.WORLD) && Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen) {
-            ContainerRegion.Source source = ContainerRegion.openedOn();
-            Block block = source == null || source.block() == null ? null : BuiltInRegistries.BLOCK.getValue(source.block());
+            Block block = blockOpenedOn(screen);
             worldIcon = block == null ? new ItemStack(Items.CHEST) : new ItemStack(block);
             worldTitle = screen.getTitle();
             worldDouble = screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu chest && chest.getRowCount() == 6;
         }
         return worldIcon == null ? new ItemStack(Items.CHEST) : worldIcon;
+    }
+
+    /**
+     * The block under the crosshair as {@code screen} opened: whichever one it is, so a
+     * placed shulker box's tab shows its colour rather than always a chest, the same as a
+     * barrel's or a placed ender chest's. Null for a screen whose container isn't the block
+     * in front (the player stepped back, or it opened some other way) or whose size doesn't
+     * match that block's (a double chest: each half is 27 slots to the screen's 54), which
+     * keeps the chest fallback above instead of guessing.
+     */
+    private static @Nullable Block blockOpenedOn(AbstractContainerScreen<?> screen) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || !(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
+        Container own = screen.getMenu().getSlot(0).container;
+        if (own instanceof Inventory) return null;
+        BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
+        if (!(be instanceof Container c) || c.getContainerSize() != own.getContainerSize()) return null;
+        if (be instanceof Nameable n && !n.getDisplayName().getContents().equals(screen.getTitle().getContents())) return null;
+        return be.getBlockState().getBlock();
     }
 
     private static Component worldTitle() {

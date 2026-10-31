@@ -15,6 +15,7 @@ import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
+import com.trevorschoeny.openanywhere.OpenAnywhereClient;
 import com.trevorschoeny.openanywhere.Settings;
 import com.trevorschoeny.openanywhere.Tab;
 import com.trevorschoeny.openanywhere.TabId;
@@ -119,6 +120,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_every_box", this::treeHand);
             run("openanywhere:screens_no_flash", this::noFlash);
             run("openanywhere:screens_double_chest", this::doubleChest);
+            run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
             if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
                 run("openanywhere:screens_lock", this::ipnBox);
@@ -903,6 +905,30 @@ public class ScreenChecks implements FabricClientGameTest {
         ctx.waitTicks(3);
         ctx.takeScreenshot("screens-double-chest-tab");
         ctx.runOnClient(mc -> { mc.options.guiScale().set(scale); mc.resizeGui(); });
+    }
+
+    /**
+     * A placed shulker box opened as the world container: its tab shows the box itself (the
+     * block under the crosshair), not the chest every other world container falls back to.
+     */
+    private void worldShulkerIcon() {
+        openWorldShulker();
+        expectRow("INVENTORY, WORLD", "the placed box opened");
+        String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+        if (!icon.equals("purple_shulker_box"))
+            throw new AssertionError("the placed box's tab icon is " + icon + ", not purple_shulker_box");
+    }
+
+    /** Stands two blocks north of the station's placed shulker box and opens it. */
+    private void openWorldShulker() {
+        BlockPos b = block();
+        command(String.format("tp @p %.1f %d %.1f 0 30", b.getX() + 0.5, b.getY(), b.getZ() - 1.5));
+        ctx.waitTicks(3);
+        ctx.getInput().lookAt(b);
+        ctx.waitTick();
+        ctx.getInput().pressKey(o -> o.keyUse);
+        ctx.waitTicks(5);
+        if (!ctx.computeOnClient(mc -> mc.gui.screen() instanceof ShulkerBoxScreen)) throw new AssertionError("the placed box didn't open");
     }
 
     /** The row's tab for the item named {@code name}. */
