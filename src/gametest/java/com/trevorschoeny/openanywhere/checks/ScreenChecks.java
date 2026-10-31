@@ -114,6 +114,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_every_box", this::inventoryAlone);
+            run("openanywhere:screens_every_box", this::fastWheel);
             run("openanywhere:screens_every_box", this::treeEvery);
             run("openanywhere:screens_every_box", this::treeHand);
             run("openanywhere:screens_no_flash", this::noFlash);
@@ -723,6 +724,29 @@ public class ScreenChecks implements FabricClientGameTest {
         expectChestOpen(false, "Escape");
         openBlock();
         expectRow("INVENTORY, WORLD", "the chest opened again after Escape");
+    }
+
+    /**
+     * The wheel spun fast through the tabs, a turn every tick and several a frame, both ways:
+     * each tab's screen swap starts the frame's resize before the last one ends, and nothing
+     * throws (the swap's clip once crashed when its animation ran out mid-frame).
+     */
+    private void fastWheel() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openBlock();
+        ctx.getInput().setCursorPos(2, 2);
+        java.util.Set<TabId> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 60; i++) {
+            double way = i / 15 % 2 == 0 ? -1 : 1;
+            ctx.getInput().scroll(way);
+            if (i % 3 == 0) ctx.getInput().scroll(way);
+            ctx.waitTick();
+            seen.add(ctx.computeOnClient(mc -> Tabs.shown()));
+        }
+        ctx.waitTicks(10);
+        if (seen.size() < 3) throw new AssertionError("the fast wheel showed only " + seen.size() + " tabs");
+        if (ctx.computeOnClient(mc -> !(mc.gui.screen() instanceof AbstractContainerScreen<?>))) throw new AssertionError("the fast wheel left " + ctx.computeOnClient(mc -> String.valueOf(mc.gui.screen())));
     }
 
     /** With nothing to open, every box tabbed shows the Inventory tab alone; opened by hand, no row. */
