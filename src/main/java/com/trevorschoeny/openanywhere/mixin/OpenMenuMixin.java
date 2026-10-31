@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.animal.equine.AbstractHorse;
+import net.minecraft.world.entity.animal.nautilus.AbstractNautilus;
 
 /**
  * A screen the player opens in the world (a chest, a barrel, a furnace) gets its tab row,
@@ -28,9 +29,14 @@ abstract class OpenMenuMixin {
         if (cir.getReturnValue().isPresent()) ServerTabs.opened((ServerPlayer) (Object) this, provider);
     }
 
-    // A mount's inventory opens without openMenu.
+    // A mount's inventory opens without openMenu: a horse's, a llama's, a nautilus's.
     @Inject(method = "openHorseInventory", at = @At("RETURN"))
     private void openanywhere$rowWithMount(AbstractHorse mount, Container inventory, CallbackInfo ci) {
+        ServerTabs.openedMount((ServerPlayer) (Object) this, mount);
+    }
+
+    @Inject(method = "openNautilusInventory", at = @At("RETURN"))
+    private void openanywhere$rowWithNautilus(AbstractNautilus mount, Container inventory, CallbackInfo ci) {
         ServerTabs.openedMount((ServerPlayer) (Object) this, mount);
     }
 }

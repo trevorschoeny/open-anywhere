@@ -43,7 +43,6 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.DispenserMenu;
 import net.minecraft.world.inventory.HopperMenu;
 import net.minecraft.world.inventory.LecternMenu;
-import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -171,11 +170,6 @@ public final class ServerTabs {
 
     // The world container
 
-    // ponytail: off until SlotKit's MenuSwitch brings these back whole (a villager's trades
-    // resent by back(), a mount's screen set aside at all). Turn on with the SlotKit floor
-    // raised to that release in fabric.mod.json; icons and the mount's row already work.
-    private static final boolean TRADES_AND_MOUNTS = false;
-
     /**
      * The container the player opened in the world, waiting behind or in front, or null: a
      * chest's menu (a chest, a large chest, a barrel, a placed ender chest, a minecart) or a
@@ -192,14 +186,14 @@ public final class ServerTabs {
 
     /**
      * Whether {@code menu}, not a chest's or a box's, can be the world container: one of
-     * vanilla's that SlotKit's {@link MenuSwitch} sets aside and brings back whole. Not a
-     * lectern's (not a container screen, so it has no row), and a villager's or a mount's
-     * only once {@link #TRADES_AND_MOUNTS} is on. Another mod's menu isn't assumed to come
+     * vanilla's that SlotKit's {@link MenuSwitch} sets aside and brings back whole, a
+     * villager's trades and a mount's inventory included (SlotKit 2.2.2). Not a lectern's
+     * (not a container screen, so it has no row). Another mod's menu isn't assumed to come
      * back whole.
      */
     private static boolean waits(AbstractContainerMenu menu) {
         if (menu instanceof LecternMenu) return false;
-        if (!TRADES_AND_MOUNTS && (menu instanceof AbstractMountInventoryMenu || menu instanceof MerchantMenu)) return false;
+        if (menu instanceof AbstractMountInventoryMenu) return true;   // vanilla's mount menus have no menu type
         try {
             var type = BuiltInRegistries.MENU.getKey(menu.getType());
             return type != null && type.getNamespace().equals("minecraft");

@@ -125,6 +125,8 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_world_shulker", this::worldShulkerNamed);
             run("openanywhere:screens_world_shulker", this::staleOpener);
             run("openanywhere:screens_world_shulker", this::traderHeads);
+            run("openanywhere:screens_world_shulker", this::villagerTab);
+            run("openanywhere:screens_world_shulker", this::mountTab);
             run("openanywhere:screens_world_shulker", this::wideTallStations);
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
@@ -1065,6 +1067,90 @@ public class ScreenChecks implements FabricClientGameTest {
                 + ", " + mc.getModelManager().getItemModel(Heads.TRADER_HEAD).getClass().getSimpleName());
         if (!models.equals("SpecialModelWrapper, SpecialModelWrapper"))
             throw new AssertionError("the heads' item models are " + models + ", not special models");
+    }
+
+    /**
+     * Trading gets the world tab in both tab modes, showing the villager's own head: the
+     * Inventory tab sets the trade aside, and the villager's tab brings it back with its
+     * trades, not an empty list (SlotKit 2.2.2 sends them again).
+     */
+    private void villagerTab() {
+        BlockPos b = block();
+        command("clear @p");
+        for (Settings.TabMode mode : Settings.TabMode.values()) {
+            ctx.runOnClient(mc -> Settings.setTabs(mode));
+            String what = "the villager (" + mode + ")";
+            command(String.format("tp @p %d %d %d", b.getX(), b.getY() + 1, b.getZ() - 2));
+            command(String.format("summon villager %d %d %d {NoAI:1b,VillagerData:{type:\"minecraft:plains\",profession:\"minecraft:librarian\",level:1}}",
+                    b.getX(), b.getY() + 1, b.getZ()));
+            ctx.waitTicks(3);
+            scene.world().getServer().runOnServer(s -> {
+                // Alive: the last round's, killed, lies dying a second.
+                var villager = player(s).level().getEntitiesOfClass(net.minecraft.world.entity.npc.villager.Villager.class,
+                        new net.minecraft.world.phys.AABB(b).inflate(4), net.minecraft.world.entity.Entity::isAlive).getFirst();
+                player(s).interactOn(villager, net.minecraft.world.InteractionHand.MAIN_HAND, villager.position());
+            });
+            expectScreen(net.minecraft.client.gui.screens.inventory.MerchantScreen.class, what + " opened");
+            expectRow("INVENTORY, WORLD", what + " opened");
+            String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks())
+                    + " " + OpenAnywhereClient.worldIconForChecks().get(DataComponents.ITEM_MODEL));
+            if (!icon.endsWith("openanywhere:villager_head")) throw new AssertionError(what + "'s tab icon is " + icon);
+            int offers = trades();
+            if (offers == 0) throw new AssertionError(what + " opened with no trades");
+            pick(TabId.INVENTORY);
+            expectScreen(InventoryScreen.class, "the Inventory tab at " + what);
+            if (!setAside()) throw new AssertionError(what + "'s trades aren't waiting behind the inventory");
+            pick(TabId.WORLD);
+            expectScreen(net.minecraft.client.gui.screens.inventory.MerchantScreen.class, what + "'s tab");
+            int back = trades();
+            if (back != offers) throw new AssertionError(what + "'s tab came back with " + back + " trades, not " + offers);
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+            command("kill @e[type=villager]");
+        }
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+    }
+
+    /** The trades on the client's trading screen. */
+    private int trades() {
+        return ctx.computeOnClient(mc -> ((net.minecraft.world.inventory.MerchantMenu) screen(mc).getMenu()).getOffers().size());
+    }
+
+    /**
+     * A mount's inventory gets the world tab in both tab modes, showing the mount's spawn egg:
+     * the Inventory tab sets it aside, and the mount's tab brings it back with what's in it.
+     */
+    private void mountTab() {
+        BlockPos b = block();
+        command("clear @p");
+        for (Settings.TabMode mode : Settings.TabMode.values()) {
+            ctx.runOnClient(mc -> Settings.setTabs(mode));
+            String what = "the donkey (" + mode + ")";
+            command(String.format("tp @p %d %d %d", b.getX(), b.getY() + 1, b.getZ() - 2));
+            command(String.format("summon donkey %d %d %d {NoAI:1b,Tame:1b,ChestedHorse:1b}", b.getX(), b.getY() + 1, b.getZ()));
+            ctx.waitTicks(3);
+            command("item replace entity @e[type=donkey,limit=1] horse.0 with minecraft:diamond");
+            scene.world().getServer().runOnServer(s -> player(s).level().getEntitiesOfClass(
+                    net.minecraft.world.entity.animal.equine.Donkey.class, new net.minecraft.world.phys.AABB(b).inflate(4),
+                    net.minecraft.world.entity.Entity::isAlive)
+                    .getFirst().openCustomInventoryScreen(player(s)));
+            expectScreen(net.minecraft.client.gui.screens.inventory.HorseInventoryScreen.class, what + " opened");
+            expectRow("INVENTORY, WORLD", what + " opened");
+            String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+            if (!icon.equals("donkey_spawn_egg")) throw new AssertionError(what + "'s tab icon is " + icon);
+            pick(TabId.INVENTORY);
+            expectScreen(InventoryScreen.class, "the Inventory tab at " + what);
+            if (!setAside()) throw new AssertionError(what + " isn't waiting behind the inventory");
+            pick(TabId.WORLD);
+            expectScreen(net.minecraft.client.gui.screens.inventory.HorseInventoryScreen.class, what + "'s tab");
+            boolean diamond = ctx.computeOnClient(mc -> screen(mc).getMenu().slots.stream()
+                    .anyMatch(sl -> !(sl.container instanceof Inventory) && sl.getItem().is(Items.DIAMOND)));
+            if (!diamond) throw new AssertionError(what + "'s tab came back without its diamond");
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+            command("kill @e[type=donkey]");
+        }
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
     }
 
     /**
