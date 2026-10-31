@@ -135,7 +135,7 @@ public final class ServerTabs {
     private static final Map<ServerPlayer, State> STATES = Collections.synchronizedMap(new WeakHashMap<>());
     // The menus this mod opened: tabs, never the world container.
     private static final Set<AbstractContainerMenu> OURS = Collections.newSetFromMap(new WeakHashMap<>());
-    // Each menu's tab icon, from when it opened ({@link #iconOf}): the world tab's, sent with the row.
+    // Each menu's tab icon, from when it opened (iconOf): the world tab's, sent with the row.
     private static final Map<AbstractContainerMenu, ItemStack> ICONS = new WeakHashMap<>();
 
     private static State state(ServerPlayer player) {

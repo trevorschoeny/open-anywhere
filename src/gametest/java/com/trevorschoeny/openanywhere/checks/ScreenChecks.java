@@ -923,9 +923,9 @@ public class ScreenChecks implements FabricClientGameTest {
     }
 
     /**
-     * Trev's case in game: a placed box he had named. The screen's title is his name, which the
-     * client's copy of the box never hears, so a tab icon guessed from the block under the
-     * crosshair drew a chest. The icon is now the server's: the block the screen was opened on.
+     * A placed box the player has named. The screen's title is that name, which the client's
+     * copy of the box never hears, so a tab icon guessed from the block under the crosshair
+     * drew a chest. The icon is now the server's: the block the screen was opened on.
      */
     private void worldShulkerNamed() {
         BlockPos b = block();
