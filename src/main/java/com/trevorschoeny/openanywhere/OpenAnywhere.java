@@ -18,6 +18,7 @@ public final class OpenAnywhere implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        Heads.register();
         Groups.register();
         ContainerHost.register();
 

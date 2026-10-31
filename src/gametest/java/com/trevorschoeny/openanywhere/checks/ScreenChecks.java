@@ -13,6 +13,7 @@ import com.trevlar.slotkit.api.item.ItemSources;
 import com.trevlar.slotkit.api.menu.MenuSwitch;
 import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
+import com.trevorschoeny.openanywhere.Heads;
 import com.trevorschoeny.openanywhere.OpenC2S;
 import com.trevorschoeny.openanywhere.Openable;
 import com.trevorschoeny.openanywhere.OpenAnywhereClient;
@@ -123,6 +124,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
             run("openanywhere:screens_world_shulker", this::worldShulkerNamed);
             run("openanywhere:screens_world_shulker", this::staleOpener);
+            run("openanywhere:screens_world_shulker", this::traderHeads);
             run("openanywhere:screens_world_shulker", this::wideTallStations);
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
@@ -1030,6 +1032,39 @@ public class ScreenChecks implements FabricClientGameTest {
         int w = got[0], h = got[1];
         if (w != imageWidth || h != imageHeight)
             throw new AssertionError(what + "'s frame is " + w + "x" + h + ", not " + imageWidth + "x" + imageHeight);
+    }
+
+    /**
+     * A villager's tab icon is its own head, its biome and profession with it, and a wandering
+     * trader's its own; on the client each head's item model loads as a special model (a
+     * missing one would draw vanilla's purple cube). Their tabs wait on SlotKit; the icon doesn't.
+     */
+    private void traderHeads() {
+        BlockPos b = block();
+        command(String.format("summon villager %d %d %d {NoAI:1b,VillagerData:{type:\"minecraft:desert\",profession:\"minecraft:farmer\",level:2}}",
+                b.getX(), b.getY() + 1, b.getZ()));
+        command(String.format("summon wandering_trader %d %d %d {NoAI:1b}", b.getX() + 2, b.getY() + 1, b.getZ()));
+        ctx.waitTicks(3);
+        String got = scene.world().getServer().computeOnServer(s -> {
+            var level = player(s).level();
+            var box = new net.minecraft.world.phys.AABB(b).inflate(4);
+            var villager = level.getEntitiesOfClass(net.minecraft.world.entity.npc.villager.Villager.class, box).getFirst();
+            var trader = level.getEntitiesOfClass(net.minecraft.world.entity.npc.wanderingtrader.WanderingTrader.class, box).getFirst();
+            ItemStack v = Heads.of(villager), t = Heads.of(trader);
+            var data = v.get(Heads.VILLAGER);
+            String out = v.get(DataComponents.ITEM_MODEL) + " " + (data == null ? "no villager"
+                    : data.type().unwrapKey().orElseThrow().identifier().getPath() + "/" + data.profession().unwrapKey().orElseThrow().identifier().getPath())
+                    + ", " + t.get(DataComponents.ITEM_MODEL);
+            villager.discard();
+            trader.discard();
+            return out;
+        });
+        String want = "openanywhere:villager_head desert/farmer, openanywhere:wandering_trader_head";
+        if (!got.equals(want)) throw new AssertionError("the traders' icons are " + got + ", not " + want);
+        String models = ctx.computeOnClient(mc -> mc.getModelManager().getItemModel(Heads.VILLAGER_HEAD).getClass().getSimpleName()
+                + ", " + mc.getModelManager().getItemModel(Heads.TRADER_HEAD).getClass().getSimpleName());
+        if (!models.equals("SpecialModelWrapper, SpecialModelWrapper"))
+            throw new AssertionError("the heads' item models are " + models + ", not special models");
     }
 
     /**

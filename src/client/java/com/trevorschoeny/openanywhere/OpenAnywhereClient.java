@@ -88,6 +88,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
             }
             wasOnTabs = onTabs;
         });
+        HeadModels.register();
         ClientPanels.register();
         ClientMarks.register();
         // The host is vanilla's chest menu, so it gets vanilla's chest screen.

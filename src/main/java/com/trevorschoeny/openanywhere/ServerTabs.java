@@ -524,8 +524,7 @@ public final class ServerTabs {
      */
     public static void openedMount(ServerPlayer player, Entity mount) {
         Opener.take();   // the interaction's note: the mount is known here
-        ItemStack item = mount.getPickResult();
-        opened(player, item == null ? ItemStack.EMPTY : item);
+        opened(player, Heads.of(mount));
     }
 
     private static void opened(ServerPlayer player, ItemStack icon) {
@@ -535,8 +534,8 @@ public final class ServerTabs {
 
     /**
      * The one place a world container's tab icon comes from, for every kind: the block of a
-     * block entity (a furnace, a barrel, a placed box, named or not), the item of an entity (a
-     * minecart with a chest, a boat with one), else whatever block or entity the player was
+     * block entity (a furnace, a barrel, a placed box, named or not), an entity's icon
+     * ({@link Heads#of}: a villager's head, a minecart with a chest), else whatever block or entity the player was
      * using as it opened ({@link Opener}: a crafting table, an anvil, a large chest). Empty
      * when none of these is known.
      */
@@ -545,10 +544,7 @@ public final class ServerTabs {
         // clearing it would otherwise be the next screen's icon.
         ItemStack using = Opener.take();
         if (provider instanceof BlockEntity be) return new ItemStack(be.getBlockState().getBlock());
-        if (provider instanceof Entity e) {
-            ItemStack item = e.getPickResult();
-            return item == null ? ItemStack.EMPTY : item;
-        }
+        if (provider instanceof Entity e) return Heads.of(e);
         return using;
     }
 

@@ -9,7 +9,8 @@
     "ItemStateAccessor",
     "ItemTurnMixin",
     "ItemLightMixin",
-    "OversizedItemLightMixin"
+    "OversizedItemLightMixin",
+    "SpecialRenderersAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -96,7 +96,7 @@ final class ClientPanels {
     /** A main tab's icon: the player's head for the inventory, the block for the world container, else its item, lid up. */
     private static void drawMain(GuiGraphicsExtractor g, TabId id, int x, int y, int w, int h) {
         switch (id.type()) {
-            case INVENTORY -> drawHead(g, x, y, w, h);
+            case INVENTORY -> drawHead(g, TabId.INVENTORY, playerHead(), x, y, w, h);
             case WORLD -> drawWorld(g, x, y, w, h);
             case ITEM -> drawOpening(g, item(id), id, Tabs.open(id), x, y, w);
         }
@@ -135,6 +135,11 @@ final class ClientPanels {
 
     private static void drawWorld(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         ItemStack block = worldIcon();
+        // A villager's or a trader's head turns to face front, as the Inventory tab's player head does.
+        if (Heads.is(block)) {
+            drawHead(g, TabId.WORLD, block, x, y, w, h);
+            return;
+        }
         boolean open = Tabs.holds(TabId.WORLD, Tabs.selected());
         String path = BuiltInRegistries.ITEM.getKey(block.getItem()).getPath();
         // Only a lidded block opens; a furnace, a crafting table or a minecart is drawn as it is.
@@ -189,15 +194,19 @@ final class ClientPanels {
      */
     private static final int SHADOW_ALPHA = 0x12, SHADOW_LAYERS = 4;
 
-    private static void drawHead(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-        float t = HEAD_TURN.toward(TabId.INVENTORY, Tabs.holds(TabId.INVENTORY, Tabs.selected()));
+    /**
+     * A head icon: the player's on the Inventory tab, a villager's or a trader's on the world
+     * tab ({@link Heads}). It turns to face front while {@code tab}'s group holds the tab in front.
+     */
+    private static void drawHead(GuiGraphicsExtractor g, TabId tab, ItemStack head, int x, int y, int w, int h) {
+        float t = HEAD_TURN.toward(tab, Tabs.holds(tab, Tabs.selected()));
         float scale = w / 16f * (1f + HEAD_GROWTH * t);
         // The shadow slides out from under the head over the end of the turn, once it's square to the viewer.
         float shadow = Math.clamp((t - 0.8f) / 0.2f, 0f, 1f);
         if (shadow > 0) drawShadow(g, x + w / 2f, y + h / 2f, scale, shadow);
         // Lit from the viewer rather than by vanilla's 3D light from the upper left, which
         // leaves a head dim.
-        drawHeadAt(g, x + w / 2f, y + h / 2f, scale, t, HEAD_LIGHT);
+        drawHeadAt(g, head, x + w / 2f, y + h / 2f, scale, t, HEAD_LIGHT);
     }
 
     /**
@@ -216,15 +225,15 @@ final class ClientPanels {
         g.pose().popMatrix();
     }
 
-    /** The head centred on {@code (cx, cy)}, {@code scale} GUI pixels to its pixel, turned {@code t} of the way to the front. */
-    private static void drawHeadAt(GuiGraphicsExtractor g, float cx, float cy, float scale, float t, ItemTurn.Light light) {
+    /** {@code head} centred on {@code (cx, cy)}, {@code scale} GUI pixels to its pixel, turned {@code t} of the way to the front. */
+    private static void drawHeadAt(GuiGraphicsExtractor g, ItemStack head, float cx, float cy, float scale, float t, ItemTurn.Light light) {
         g.pose().pushMatrix();
         g.pose().translate(cx, cy);
         g.pose().scale(scale, scale);
         g.pose().translate(-8, -8);
         // To 29 degrees, not 30: square on, the head's bottom face stands exactly edge-on, and
         // the GPU draws it as a sliver under the chin, coloured from the skin's next texels.
-        ItemTurn.draw(-29f * t, -45f * t, light, () -> g.item(playerHead(), 0, 0));
+        ItemTurn.draw(-29f * t, -45f * t, light, () -> g.item(head, 0, 0));
         g.pose().popMatrix();
     }
 
