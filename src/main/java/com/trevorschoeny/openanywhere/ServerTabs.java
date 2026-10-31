@@ -193,7 +193,8 @@ public final class ServerTabs {
      */
     private static boolean waits(AbstractContainerMenu menu) {
         if (menu instanceof LecternMenu) return false;
-        if (menu instanceof AbstractMountInventoryMenu) return true;   // vanilla's mount menus have no menu type
+        // Vanilla's mount menus have no menu type: told from another mod's by their package.
+        if (menu instanceof AbstractMountInventoryMenu) return menu.getClass().getName().startsWith("net.minecraft.");
         try {
             var type = BuiltInRegistries.MENU.getKey(menu.getType());
             return type != null && type.getNamespace().equals("minecraft");
