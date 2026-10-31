@@ -171,10 +171,6 @@ public class ScreenChecks implements FabricClientGameTest {
     // Stations
 
     /**
-     * A chest opens on its own tab beside the inventory's, in front from its first frame, its
-     * group open; a box in it opens on vanilla's shulker box screen as a third.
-     */
-    /**
      * Every box tabbed, a chest opened with the inventory's group full of boxes: the row stands
      * still from the chest's first frame, the chest's group open, nothing sliding in.
      */
@@ -194,6 +190,10 @@ public class ScreenChecks implements FabricClientGameTest {
         if (chest.stream().distinct().count() > 1) throw new AssertionError("the row moved as the chest opened: " + chest.stream().distinct().toList());
     }
 
+    /**
+     * A chest opens on its own tab beside the inventory's, in front from its first frame, its
+     * group open; a box in it opens on vanilla's shulker box screen as a third.
+     */
     private void chestTabs() {
         FRAMES.clear();
         recording = true;
@@ -1020,7 +1020,7 @@ public class ScreenChecks implements FabricClientGameTest {
      * A screen's frame, settled after a tab switch: the size vanilla draws it at ({@code imageWidth}
      * x {@code imageHeight}). Not where it sits: MenuKit's own centring can run a frame a little
      * past its margins, even off the edge of a tiny window, when a tall screen's frame and its
-     * rows don't both fit (its {@code FrameCentring} docs say so) -- that's MenuKit's call, not a
+     * rows don't both fit (its {@code FrameCentring} docs say so). That's MenuKit's call, not a
      * bug this check polices. What this mod could get wrong is the size: a switch away and back
      * leaving the frame stuck at the wrong screen's bounds.
      */
@@ -1039,7 +1039,7 @@ public class ScreenChecks implements FabricClientGameTest {
     /**
      * A villager's tab icon is its own head, its biome and profession with it, and a wandering
      * trader's its own; on the client each head's item model loads as a special model (a
-     * missing one would draw vanilla's purple cube). Their tabs wait on SlotKit; the icon doesn't.
+     * missing one would draw vanilla's purple cube).
      */
     private void traderHeads() {
         BlockPos b = block();

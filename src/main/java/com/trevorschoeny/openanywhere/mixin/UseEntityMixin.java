@@ -18,8 +18,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * The entity a player interacts with, noted while the interaction runs: a screen it opens
- * shows the entity's icon on its tab ({@link Heads#of}: a villager's head, else its item). Server side only: the
- * client's player runs this too, on its own thread.
+ * shows the entity's icon on its tab ({@link Heads#of}: a villager's head, else its item).
+ * Server side only: the client's player runs this too, on its own thread.
  */
 @Mixin(Player.class)
 abstract class UseEntityMixin {

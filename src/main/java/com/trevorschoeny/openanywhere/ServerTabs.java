@@ -529,9 +529,9 @@ public final class ServerTabs {
     /**
      * The one place a world container's tab icon comes from, for every kind: the block of a
      * block entity (a furnace, a barrel, a placed box, named or not), an entity's icon
-     * ({@link Heads#of}: a villager's head, a minecart with a chest), else whatever block or entity the player was
-     * using as it opened ({@link Opener}: a crafting table, an anvil, a large chest). Empty
-     * when none of these is known.
+     * ({@link Heads#of}: a villager's head, a minecart with a chest), else whatever block or
+     * entity the player was using as it opened ({@link Opener}: a crafting table, an anvil, a
+     * large chest). Empty when none of these is known.
      */
     private static ItemStack iconOf(MenuProvider provider) {
         // Taken whichever way the icon is found: a note left by a use that threw before
