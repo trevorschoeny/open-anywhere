@@ -18,7 +18,10 @@ public final class Opener {
         using = icon;
     }
 
-    static ItemStack using() {
-        return using;
+    /** What the player is using, cleared: one screen's icon, never the next one's too. */
+    static ItemStack take() {
+        ItemStack icon = using;
+        using = ItemStack.EMPTY;
+        return icon;
     }
 }

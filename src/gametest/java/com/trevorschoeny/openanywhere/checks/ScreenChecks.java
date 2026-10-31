@@ -122,6 +122,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_double_chest", this::doubleChest);
             run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
             run("openanywhere:screens_world_shulker", this::worldShulkerNamed);
+            run("openanywhere:screens_world_shulker", this::staleOpener);
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
@@ -929,7 +930,7 @@ public class ScreenChecks implements FabricClientGameTest {
      */
     private void worldShulkerNamed() {
         BlockPos b = block();
-        command(String.format("data merge block %d %d %d {CustomName:\"Trev's Box\"}", b.getX(), b.getY(), b.getZ()));
+        command(String.format("data merge block %d %d %d {CustomName:\"Ore Box\"}", b.getX(), b.getY(), b.getZ()));
         ctx.waitTicks(3);
         openWorldShulker();
         expectRow("INVENTORY, WORLD", "the named box opened");
@@ -939,41 +940,67 @@ public class ScreenChecks implements FabricClientGameTest {
     }
 
     /**
-     * With every box tabbed, a crafting table, a furnace and a stonecutter each get the world
-     * tab, apart from the inventory's, showing their block: the Inventory tab goes to the
-     * inventory with the station waiting behind, and the station's tab brings it back. Opened
-     * by hand, a crafting table has no row, as before.
+     * In both tab modes, a crafting table, a furnace and a stonecutter each get the world tab,
+     * apart from the inventory's, showing their block: the Inventory tab goes to the inventory
+     * with the station waiting behind, and the station's tab brings it back. Opened by hand is
+     * about the boxes inside a container, never whether the container gets its tab.
      */
     private void everyContainer() {
         command("clear @p");
-        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         Object[][] stations = {
                 {"crafting_table", net.minecraft.client.gui.screens.inventory.CraftingScreen.class},
                 {"furnace", net.minecraft.client.gui.screens.inventory.FurnaceScreen.class},
                 {"stonecutter", net.minecraft.client.gui.screens.inventory.StonecutterScreen.class}};
         BlockPos b = block();
-        for (Object[] s : stations) {
-            String id = (String) s[0];
-            Class<?> type = (Class<?>) s[1];
-            command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
-            ctx.waitTicks(3);
-            openAt(b, type, "the " + id);
-            expectRow("INVENTORY, WORLD", "the " + id + " opened");
-            String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
-            if (!icon.equals(id)) throw new AssertionError("the " + id + "'s tab icon is " + icon);
-            pick(TabId.INVENTORY);
-            expectScreen(InventoryScreen.class, "the Inventory tab at the " + id);
-            if (!setAside()) throw new AssertionError("the " + id + " isn't waiting behind the inventory");
-            pick(TabId.WORLD);
-            expectScreen(type, "the " + id + "'s tab");
+        for (Settings.TabMode mode : Settings.TabMode.values()) {
+            ctx.runOnClient(mc -> Settings.setTabs(mode));
+            for (Object[] s : stations) {
+                String id = (String) s[0];
+                Class<?> type = (Class<?>) s[1];
+                String what = "the " + id + " (" + mode + ")";
+                command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
+                ctx.waitTicks(3);
+                openAt(b, type, what);
+                expectRow("INVENTORY, WORLD", what + " opened");
+                String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+                if (!icon.equals(id)) throw new AssertionError(what + "'s tab icon is " + icon);
+                pick(TabId.INVENTORY);
+                expectScreen(InventoryScreen.class, "the Inventory tab at " + what);
+                if (!setAside()) throw new AssertionError(what + " isn't waiting behind the inventory");
+                pick(TabId.WORLD);
+                expectScreen(type, what + "'s tab");
+                ctx.runOnClient(mc -> mc.player.closeContainer());
+                ctx.waitTicks(5);
+            }
+        }
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+    }
+
+    /**
+     * A use that threw leaves its note behind (the Use mixins clear it on return). The next
+     * screen takes it as its icon, but the one after must not: here a crafting table opened
+     * twice with no block clicked shows no stone on its second opening.
+     */
+    private void staleOpener() {
+        command("clear @p");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        for (int i = 0; i < 2; i++) {
+            final int round = i;
+            scene.world().getServer().runOnServer(s -> {
+                if (round == 0) com.trevorschoeny.openanywhere.Opener.using(new ItemStack(Items.STONE));
+                player(s).openMenu(new net.minecraft.world.SimpleMenuProvider((id, inv, p) ->
+                        new net.minecraft.world.inventory.CraftingMenu(id, inv), net.minecraft.network.chat.Component.literal("Crafting")));
+            });
+            ctx.waitTicks(5);
+            expectScreen(net.minecraft.client.gui.screens.inventory.CraftingScreen.class, "the crafting screen, round " + i);
+            if (round == 1) {
+                String icon = ctx.computeOnClient(mc -> name(OpenAnywhereClient.worldIconForChecks()));
+                if (icon.equals("stone")) throw new AssertionError("the second crafting screen's tab icon is the stale stone");
+            }
             ctx.runOnClient(mc -> mc.player.closeContainer());
             ctx.waitTicks(5);
         }
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
-        command(String.format("setblock %d %d %d minecraft:crafting_table", b.getX(), b.getY(), b.getZ()));
-        ctx.waitTicks(3);
-        openAt(b, net.minecraft.client.gui.screens.inventory.CraftingScreen.class, "the crafting table, opened by hand");
-        expectRow("", "the crafting table opened, boxes opened by hand");
     }
 
     /** Stands two blocks north of the station's placed shulker box and opens it. */

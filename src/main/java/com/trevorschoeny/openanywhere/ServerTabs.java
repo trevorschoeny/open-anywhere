@@ -171,29 +171,35 @@ public final class ServerTabs {
 
     // The world container
 
+    // ponytail: off until SlotKit's MenuSwitch brings these back whole (a villager's trades
+    // resent by back(), a mount's screen set aside at all). Turn on with the SlotKit floor
+    // raised to that release in fabric.mod.json; icons and the mount's row already work.
+    private static final boolean TRADES_AND_MOUNTS = false;
+
     /**
      * The container the player opened in the world, waiting behind or in front, or null: a
      * chest's menu (a chest, a large chest, a barrel, a placed ender chest, a minecart) or a
-     * placed shulker box's; with every box tabbed, any other screen of vanilla's that can wait
-     * behind ({@link #waits}): a crafting table, a furnace, an anvil, a hopper.
+     * placed shulker box's; or any other screen of vanilla's that can wait behind
+     * ({@link #waits}): a crafting table, a furnace, an anvil, a hopper. Both tab modes: with
+     * boxes opened by hand, opening by hand is about the boxes inside, not the container.
      */
     static @Nullable AbstractContainerMenu world(ServerPlayer player) {
         AbstractContainerMenu menu = MenuSwitch.setAside(player).orElse(player.containerMenu);
         if (menu == player.inventoryMenu || OURS.contains(menu) || ContainerHost.is(menu)) return null;
         if (menu instanceof ChestMenu || menu instanceof ShulkerBoxMenu) return menu;
-        return state(player).prefs.everyBox() && waits(menu) ? menu : null;
+        return waits(menu) ? menu : null;
     }
 
     /**
      * Whether {@code menu}, not a chest's or a box's, can be the world container: one of
      * vanilla's that SlotKit's {@link MenuSwitch} sets aside and brings back whole. Not a
-     * villager's (its trades come in a packet of their own, which {@code back} doesn't send
-     * again), a horse's (no {@code openMenu} opens it, so it can't be set aside) or a
-     * lectern's (not a container screen, so it has no row). Another mod's menu isn't assumed
-     * to come back whole.
+     * lectern's (not a container screen, so it has no row), and a villager's or a mount's
+     * only once {@link #TRADES_AND_MOUNTS} is on. Another mod's menu isn't assumed to come
+     * back whole.
      */
     private static boolean waits(AbstractContainerMenu menu) {
-        if (menu instanceof AbstractMountInventoryMenu || menu instanceof MerchantMenu || menu instanceof LecternMenu) return false;
+        if (menu instanceof LecternMenu) return false;
+        if (!TRADES_AND_MOUNTS && (menu instanceof AbstractMountInventoryMenu || menu instanceof MerchantMenu)) return false;
         try {
             var type = BuiltInRegistries.MENU.getKey(menu.getType());
             return type != null && type.getNamespace().equals("minecraft");
@@ -509,7 +515,21 @@ public final class ServerTabs {
      * screen's first frame with its tab in front. A tab switch sends its own.
      */
     public static void opened(ServerPlayer player, MenuProvider provider) {
-        ICONS.put(player.containerMenu, iconOf(provider));
+        opened(player, iconOf(provider));
+    }
+
+    /**
+     * The player opened a mount's inventory ({@code ServerPlayer.openHorseInventory}, no
+     * {@code openMenu}): its tab shows the mount's own item, as any entity's does.
+     */
+    public static void openedMount(ServerPlayer player, Entity mount) {
+        Opener.take();   // the interaction's note: the mount is known here
+        ItemStack item = mount.getPickResult();
+        opened(player, item == null ? ItemStack.EMPTY : item);
+    }
+
+    private static void opened(ServerPlayer player, ItemStack icon) {
+        ICONS.put(player.containerMenu, icon);
         if (!switching) sync(player, state(player));
     }
 
@@ -521,12 +541,15 @@ public final class ServerTabs {
      * when none of these is known.
      */
     private static ItemStack iconOf(MenuProvider provider) {
+        // Taken whichever way the icon is found: a note left by a use that threw before
+        // clearing it would otherwise be the next screen's icon.
+        ItemStack using = Opener.take();
         if (provider instanceof BlockEntity be) return new ItemStack(be.getBlockState().getBlock());
         if (provider instanceof Entity e) {
             ItemStack item = e.getPickResult();
             return item == null ? ItemStack.EMPTY : item;
         }
-        return Opener.using().copy();
+        return using;
     }
 
     /** Sends the row when it or the tab in front changed. */
