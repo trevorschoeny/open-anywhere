@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "CloseScreenMixin",
+    "HoldForBundleMixin",
     "OpenMenuMixin",
     "UseBlockMixin",
     "UseEntityMixin"
