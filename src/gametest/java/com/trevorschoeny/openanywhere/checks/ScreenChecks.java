@@ -123,6 +123,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
             run("openanywhere:screens_world_shulker", this::worldShulkerNamed);
             run("openanywhere:screens_world_shulker", this::staleOpener);
+            run("openanywhere:screens_world_shulker", this::wideTallStations);
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
@@ -974,6 +975,61 @@ public class ScreenChecks implements FabricClientGameTest {
             }
         }
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+    }
+
+    /**
+     * The beacon (230x219: taller and wider than vanilla's standard 176x166) and the anvil
+     * (standard size) each get a correct frame on their world tab, and switching from one to
+     * Inventory and back resizes the frame to the right bounds rather than getting stuck at
+     * the old screen's size.
+     */
+    private void wideTallStations() {
+        command("clear @p");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        Object[][] stations = {
+                {"beacon", net.minecraft.client.gui.screens.inventory.BeaconScreen.class, 230, 219},
+                {"anvil", net.minecraft.client.gui.screens.inventory.AnvilScreen.class, 176, 166}};
+        BlockPos b = block();
+        for (Object[] s : stations) {
+            String id = (String) s[0];
+            Class<?> type = (Class<?>) s[1];
+            int imageWidth = (int) s[2];
+            int imageHeight = (int) s[3];
+            command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
+            ctx.waitTicks(3);
+            openAt(b, type, "the " + id);
+            expectRow("INVENTORY, WORLD", "the " + id + " opened");
+            expectFrame(imageWidth, imageHeight, "the " + id + "'s own screen");
+            pick(TabId.INVENTORY);
+            expectScreen(InventoryScreen.class, "the Inventory tab at the " + id);
+            expectFrame(176, 166, "the Inventory tab at the " + id);
+            pick(TabId.WORLD);
+            expectScreen(type, "the " + id + "'s tab");
+            expectFrame(imageWidth, imageHeight, "back on the " + id + "'s tab");
+            ctx.runOnClient(mc -> mc.player.closeContainer());
+            ctx.waitTicks(5);
+        }
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+    }
+
+    /**
+     * A screen's frame, settled after a tab switch: the size vanilla draws it at ({@code imageWidth}
+     * x {@code imageHeight}). Not where it sits: MenuKit's own centring can run a frame a little
+     * past its margins, even off the edge of a tiny window, when a tall screen's frame and its
+     * rows don't both fit (its {@code FrameCentring} docs say so) -- that's MenuKit's call, not a
+     * bug this check polices. What this mod could get wrong is the size: a switch away and back
+     * leaving the frame stuck at the wrong screen's bounds.
+     */
+    private void expectFrame(int imageWidth, int imageHeight, String what) {
+        ctx.waitTicks(5);
+        int[] got = ctx.computeOnClient(mc -> {
+            var screen = mc.gui.screen();
+            var acc = (com.trevorschoeny.openanywhere.mixin.ScreenAccessor) screen;
+            return new int[] {acc.openanywhere$imageWidth(), acc.openanywhere$imageHeight()};
+        });
+        int w = got[0], h = got[1];
+        if (w != imageWidth || h != imageHeight)
+            throw new AssertionError(what + "'s frame is " + w + "x" + h + ", not " + imageWidth + "x" + imageHeight);
     }
 
     /**
