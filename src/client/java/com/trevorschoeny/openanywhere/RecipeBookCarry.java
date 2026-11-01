@@ -129,8 +129,9 @@ public final class RecipeBookCarry {
         book = new CraftingRecipeBookComponent(player.inventoryMenu);
         type = RecipeBookType.CRAFTING;
         home = TabId.INVENTORY;
-        // ponytail: the inventory's frame at vanilla's place (MenuKit keeps it there unless its
-        // rows don't fit the window); on a window that short the book drops to it on the switch.
+        // Assumes the inventory's frame sits at vanilla's place. If MenuKit's tab row doesn't
+        // fit the window, the real offset differs and the book shifts a few pixels on the
+        // first switch to the Inventory tab; a known gap, not yet worth tracking the real value.
         taller = 0;
     }
 
