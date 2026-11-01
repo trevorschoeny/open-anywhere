@@ -123,6 +123,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_every_box", this::fastWheel);
             run("openanywhere:screens_every_box", this::treeEvery);
             run("openanywhere:screens_every_box", this::treeHand);
+            run("openanywhere:screens_every_box", this::sizesDeep);
             run("openanywhere:screens_no_flash", this::noFlash);
             run("openanywhere:screens_double_chest", this::doubleChest);
             run("openanywhere:screens_world_shulker", this::worldShulkerIcon);
@@ -418,13 +419,13 @@ public class ScreenChecks implements FabricClientGameTest {
     /**
      * Every box tabbed: each container's boxes are its sub-tabs, by where they sit, not the
      * order they opened. The wheel walks the same line: up from the chest is the inventory's
-     * last box, down from the chest is into its first, which then stands as a main tab.
+     * last box, down from the chest is into its first, selected and small: it holds no boxes.
      */
     private void order() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         ctx.waitTicks(3);
         openBlock();
-        expectTree("INVENTORY[lime_shulker_box, ender_chest, bundle] WORLD[red_shulker_box, orange_shulker_box]", "the chest opened");
+        expectTree("INVENTORY WORLD*[red_shulker_box, orange_shulker_box]", "the chest opened");
         ctx.getInput().setCursorPos(2, 2);
         ctx.getInput().scroll(1);
         ctx.waitTicks(5);
@@ -435,7 +436,7 @@ public class ScreenChecks implements FabricClientGameTest {
         expectSelected(TabId.WORLD, "the wheel down from the bundle");
         ctx.getInput().scroll(-1);
         ctx.waitTicks(5);
-        expectTree("INVENTORY[lime_shulker_box, ender_chest, bundle] WORLD[red_shulker_box[], orange_shulker_box]", "the wheel down from the chest");
+        expectTree("INVENTORY WORLD[red_shulker_box*, orange_shulker_box]", "the wheel down from the chest");
     }
 
     /** The ender chest opens on vanilla's own ender chest screen over the player's own ender chest. */
@@ -481,19 +482,19 @@ public class ScreenChecks implements FabricClientGameTest {
     /**
      * Every box tabbed, Pocket Ender Chest's ender chest: a sub-tab of the inventory until it's
      * opened, then a group tab after the inventory's that stays open when something else is
-     * selected, its lid up on the tab and in its slot alike.
+     * selected, its lid up on the tab and in its slot alike, its boxes in under it then.
      */
     private void carriedEnderTabs() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         command("item replace entity @p hotbar.1 with minecraft:air");
         pocket(new ItemStack(Items.ENDER_CHEST));
         openInventory();
-        expectTree("INVENTORY[lime_shulker_box, bundle, ender_chest]", "an ender chest in the carried slot, not yet opened");
+        expectTree("INVENTORY*[lime_shulker_box, bundle, ender_chest]", "an ender chest in the carried slot, not yet opened");
         pick(tabOf("ender_chest"));
         expectScreen(ContainerScreen.class, "the carried ender chest's tab");
-        expectTree("INVENTORY[lime_shulker_box, bundle] ender_chest[green_shulker_box]", "the carried ender chest opened");
+        expectTree("INVENTORY ender_chest*[green_shulker_box]", "the carried ender chest opened");
         pick(TabId.INVENTORY);
-        expectTree("INVENTORY[lime_shulker_box, bundle] ender_chest[green_shulker_box]", "the inventory selected after the carried ender chest");
+        expectTree("INVENTORY*[lime_shulker_box, bundle] ender_chest", "the inventory selected after the carried ender chest");
         String look = ctx.computeOnClient(mc -> {
             for (Slot slot : mc.player.containerMenu.slots) {
                 ItemPath path = ItemSources.pathOf(mc.player, slot);
@@ -504,9 +505,9 @@ public class ScreenChecks implements FabricClientGameTest {
         });
         if (!look.equals("true true")) throw new AssertionError("the carried ender chest, open behind the inventory: slot open, tab open = " + look);
         pick(tabOf("green_shulker_box"));
-        expectTree("INVENTORY[lime_shulker_box, bundle] ender_chest[green_shulker_box[]]", "the green box in the ender chest selected");
+        expectTree("INVENTORY ender_chest[green_shulker_box*]", "the green box in the ender chest selected");
         pick(TabId.INVENTORY);
-        expectTree("INVENTORY[lime_shulker_box, bundle] ender_chest[green_shulker_box]", "back on the inventory from the green box");
+        expectTree("INVENTORY*[lime_shulker_box, bundle] ender_chest", "back on the inventory from the green box");
     }
 
     /** Every box tabbed, the ender chest in front moved into the carried slot and back: its screen stays, following it. */
@@ -988,7 +989,12 @@ public class ScreenChecks implements FabricClientGameTest {
         String[] colours = {"white", "light_gray", "gray", "black", "brown", "yellow", "lime", "pink", "magenta", "blue"};
         for (int i = 0; i < 20; i++) command("item replace entity @p inventory." + (i + 1) + " with minecraft:" + colours[i % 10] + "_shulker_box");
         ctx.waitTicks(10);
-        int last = ctx.computeOnClient(mc -> Tabs.row().size()) - 1;
+        // The inventory's last box: the row's far end while the inventory's boxes are out (a chest's box would slide them in).
+        int last = ctx.computeOnClient(mc -> {
+            int at = -1;
+            for (int i = 0; i < Tabs.row().size(); i++) if (TabId.INVENTORY.equals(Tabs.row().get(i).parent())) at = i;
+            return at;
+        });
         TabId early = ctx.computeOnClient(mc -> Tabs.row().get(4).id());
         pick(early);
         ctx.waitTicks(10);
@@ -1659,23 +1665,58 @@ public class ScreenChecks implements FabricClientGameTest {
     private void treeEvery() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
         ctx.waitTicks(3);
-        String start = "INVENTORY[lime_shulker_box, ender_chest, bundle] WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box]";
+        String start = "INVENTORY WORLD*[red_shulker_box, orange_shulker_box, cyan_shulker_box]";
         openBlock();
         expectTree(start, "the chest opened");
         pick(tabOf("cyan_shulker_box"));
         expectScreen(ShulkerBoxScreen.class, "the cyan box's tab");
-        expectTree("INVENTORY[lime_shulker_box, ender_chest, bundle] WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box[bundle]]", "the cyan box selected");
+        expectTree("INVENTORY WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box*[bundle]]", "the cyan box selected");
         pick(tabIn("cyan_shulker_box", "bundle"));
         expectScreen(ContainerScreen.class, "the bundle in the cyan box");
-        expectTree("INVENTORY[lime_shulker_box, ender_chest, bundle] WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box[bundle[]]]", "the bundle in the cyan box selected");
+        expectTree("INVENTORY WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box[bundle*]]", "the bundle in the cyan box selected");
         pick(TabId.INVENTORY);
-        expectTree(start, "the inventory selected");
+        expectTree("INVENTORY*[lime_shulker_box, ender_chest, bundle] WORLD", "the inventory selected");
         pick(tabIn("INVENTORY", "ender_chest"));
         expectScreen(ContainerScreen.class, "the ender chest's tab");
-        expectTree("INVENTORY[lime_shulker_box, ender_chest[green_shulker_box], bundle] WORLD[red_shulker_box, orange_shulker_box, cyan_shulker_box]", "the ender chest selected");
+        expectTree("INVENTORY[lime_shulker_box, ender_chest*[green_shulker_box], bundle] WORLD", "the ender chest selected");
         pick(TabId.WORLD);
         expectTree(start, "the chest selected again");
         expectChestOpen(true, "the tree walked");
+    }
+
+    /**
+     * Every box tabbed, a line four tabs deep (the inventory, the ender chest, the green box in
+     * it, the bundle in that): a box's own boxes are out only while it holds the tab in front;
+     * the inventory and every box with boxes on the line are full size; the rest are small,
+     * the selected box too when it holds none; and stepping across to a sibling closes the
+     * line below the one left.
+     */
+    private void sizesDeep() {
+        command("item replace entity @p enderchest.4 with minecraft:green_shulker_box[container=[{slot:0,item:{id:\"minecraft:bundle\",count:1,components:{\"minecraft:bundle_contents\":[{id:\"minecraft:stone\",count:4}]}}}]]");
+        command("item replace entity @p enderchest.5 with minecraft:red_shulker_box");
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openInventory();
+        expectTree("INVENTORY*[lime_shulker_box, ender_chest, bundle]", "the inventory opened");
+        expectSizes("B* s s s", "the inventory opened");
+        pick(tabIn("INVENTORY", "ender_chest"));
+        expectTree("INVENTORY[lime_shulker_box, ender_chest*[green_shulker_box, red_shulker_box], bundle]", "the ender chest selected");
+        expectSizes("B s B* s s s", "the ender chest selected");
+        pick(tabIn("ender_chest", "green_shulker_box"));
+        expectScreen(ShulkerBoxScreen.class, "the green box's tab");
+        expectTree("INVENTORY[lime_shulker_box, ender_chest[green_shulker_box*[bundle], red_shulker_box], bundle]", "the green box selected");
+        expectSizes("B s B B* s s s", "the green box selected");
+        pick(tabIn("green_shulker_box", "bundle"));
+        expectScreen(ContainerScreen.class, "the bundle in the green box");
+        expectTree("INVENTORY[lime_shulker_box, ender_chest[green_shulker_box[bundle*], red_shulker_box], bundle]", "the bundle in the green box selected");
+        expectSizes("B s B B s* s s", "the bundle in the green box selected");
+        pick(tabIn("ender_chest", "red_shulker_box"));
+        expectScreen(ShulkerBoxScreen.class, "the red box's tab");
+        expectTree("INVENTORY[lime_shulker_box, ender_chest[green_shulker_box, red_shulker_box*], bundle]", "the red box selected");
+        expectSizes("B s B s s* s", "the red box selected");
+        pick(TabId.INVENTORY);
+        expectTree("INVENTORY*[lime_shulker_box, ender_chest, bundle]", "back on the inventory");
+        expectSizes("B* s s s", "back on the inventory");
     }
 
     /**
@@ -1684,31 +1725,32 @@ public class ScreenChecks implements FabricClientGameTest {
      */
     private void treeHand() {
         openBlock();
-        expectTree("INVENTORY WORLD", "the chest opened");
+        expectTree("INVENTORY WORLD*", "the chest opened");
         doubleClick(containerSlot(4), "the cyan box");
         expectScreen(ShulkerBoxScreen.class, "double-click on the cyan box");
-        expectTree("INVENTORY WORLD[cyan_shulker_box[]]", "the cyan box opened");
+        expectTree("INVENTORY WORLD[cyan_shulker_box*]", "the cyan box opened");
         doubleClick(s -> !(s.container instanceof Inventory) && s.getContainerSlot() == 0, "the bundle in the cyan box");
         expectScreen(ContainerScreen.class, "double-click on the bundle in the cyan box");
-        expectTree("INVENTORY WORLD[cyan_shulker_box[bundle[]]]", "the bundle in the cyan box opened");
+        expectTree("INVENTORY WORLD[cyan_shulker_box[bundle*]]", "the bundle in the cyan box opened");
         pick(tabOf("cyan_shulker_box"));
-        expectTree("INVENTORY WORLD[cyan_shulker_box[]]", "the cyan box selected over its bundle");
+        expectTree("INVENTORY WORLD[cyan_shulker_box*]", "the cyan box selected over its bundle");
         pick(TabId.WORLD);
-        expectTree("INVENTORY WORLD", "the chest selected");
+        expectTree("INVENTORY WORLD*", "the chest selected");
         doubleClick(hotbar(0), "the lime box");
         expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
-        expectTree("INVENTORY[lime_shulker_box[]] WORLD", "the lime box opened from the chest's screen");
+        expectTree("INVENTORY[lime_shulker_box*] WORLD", "the lime box opened from the chest's screen");
         pick(TabId.INVENTORY);
         expectScreen(InventoryScreen.class, "the Inventory tab");
-        expectTree("INVENTORY WORLD", "the inventory selected");
+        expectTree("INVENTORY* WORLD", "the inventory selected");
         expectChestOpen(true, "the tree walked");
     }
 
     // Reads
 
     /**
-     * The row as its tree: top main tabs in order, each with what's in it in brackets, an open
-     * box in place with its own brackets, empty or not ({@code INVENTORY[lime_shulker_box[], ender_chest] WORLD}).
+     * The row as the player sees it: top main tabs in order, a main tab's boxes in brackets
+     * while they're out, a box that's a main tab in place with its own, the selected tab
+     * starred ({@code INVENTORY[lime_shulker_box*[bundle], ender_chest] WORLD}). Sizes: {@link #sizes}.
      */
     private String tree() {
         return ctx.computeOnClient(mc -> {
@@ -1720,10 +1762,34 @@ public class ScreenChecks implements FabricClientGameTest {
 
     private static String branch(TabId id) {
         List<String> inside = new ArrayList<>();
-        if (Tabs.open(id)) for (TabId sub : Tabs.subs(id)) inside.add(branch(sub));
-        // An open box shows its brackets even when empty, so it reads open; the top tabs only when full.
-        boolean brackets = !inside.isEmpty() || Tabs.open(id) && id.type() == TabId.Type.ITEM;
-        return tabName(id) + (brackets ? "[" + String.join(", ", inside) + "]" : "");
+        if (Tabs.mains().contains(id) && Tabs.holds(id, Tabs.selected())) for (TabId sub : Tabs.subs(id)) inside.add(branch(sub));
+        return tabName(id) + (id.equals(Tabs.selected()) ? "*" : "") + (inside.isEmpty() ? "" : "[" + String.join(", ", inside) + "]");
+    }
+
+    /**
+     * The tabs MenuKit draws, left to right, by size: {@code B} full size, {@code s} small, starred
+     * when selected ({@code B* s s B}). Only the ones in view and taking clicks: a group's boxes
+     * slid in under it aren't.
+     */
+    private String sizes() {
+        return ctx.computeOnClient(mc -> {
+            List<String> out = new ArrayList<>();
+            var placed = new ArrayList<>(com.trevlar.menukit.inject.ContainerTabRows.placedForChecks(com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP));
+            placed.removeIf(p -> p.index() < 0);
+            placed.sort(java.util.Comparator.comparingInt(p -> p.x()));
+            for (var p : placed) {
+                String size = p.height() == com.trevlar.menukit.api.panel.ContainerTabs.TAB_HEIGHT ? "B"
+                        : p.height() == com.trevlar.menukit.api.panel.ContainerTabs.SUB_HEIGHT ? "s" : "?" + p.height();
+                out.add(size + (p.shown().selected() ? "*" : ""));
+            }
+            return String.join(" ", out);
+        });
+    }
+
+    private void expectSizes(String expected, String after) {
+        ctx.waitTicks(8);
+        String got = sizes();
+        if (!got.equals(expected)) throw new AssertionError("after " + after + " the tabs' sizes read [" + got + "], not [" + expected + "]");
     }
 
     /** Where the hotbar's first slot draws, from the top of the window. */
