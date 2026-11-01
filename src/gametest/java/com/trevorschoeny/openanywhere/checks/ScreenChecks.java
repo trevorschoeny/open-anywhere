@@ -135,6 +135,7 @@ public class ScreenChecks implements FabricClientGameTest {
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
             run("openanywhere:screens_world_shulker", this::recipeBookAtTable);
+            run("openanywhere:screens_world_shulker", this::everyScreen);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
             if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
                 run("openanywhere:screens_lock", this::ipnBox);
@@ -1160,6 +1161,246 @@ public class ScreenChecks implements FabricClientGameTest {
             }
         }
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+    }
+
+    /** A vanilla container screen to open from the world: what it is, its screen, and how it opens. */
+    private record Station(String what, Class<?> type, Runnable open) {}
+
+    /**
+     * Every vanilla container screen, opened from the world with every box tabbed, the tabs
+     * work alike: the wheel over its frame moves to the next tab and back (the merchant's,
+     * stonecutter's and loom's lists once took every turn), a click on a tab switches to it,
+     * the Open key opens a box from its hotbar and the settings key opens the settings and
+     * comes back, Escape closes it and it opens again on its tab. Then with the recipe book
+     * open on the Inventory tab, its tab shows the frame whole beside the borrowed book (the
+     * chest's image once stayed where it was, half under the book, while its slots moved).
+     */
+    private void everyScreen() {
+        command("recipe give @p minecraft:crafting_table");
+        BlockPos b = block();
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        List<Station> stations = new ArrayList<>();
+        for (Object[] s : new Object[][] {
+                {"chest", ContainerScreen.class}, {"barrel", ContainerScreen.class}, {"ender_chest", ContainerScreen.class},
+                {"green_shulker_box", ShulkerBoxScreen.class}, {"hopper", net.minecraft.client.gui.screens.inventory.HopperScreen.class},
+                {"dispenser", net.minecraft.client.gui.screens.inventory.DispenserScreen.class},
+                {"dropper", net.minecraft.client.gui.screens.inventory.DispenserScreen.class},
+                {"crafter", net.minecraft.client.gui.screens.inventory.CrafterScreen.class},
+                {"crafting_table", net.minecraft.client.gui.screens.inventory.CraftingScreen.class},
+                {"furnace", net.minecraft.client.gui.screens.inventory.FurnaceScreen.class},
+                {"blast_furnace", net.minecraft.client.gui.screens.inventory.BlastFurnaceScreen.class},
+                {"smoker", net.minecraft.client.gui.screens.inventory.SmokerScreen.class},
+                {"brewing_stand", net.minecraft.client.gui.screens.inventory.BrewingStandScreen.class},
+                {"enchanting_table", net.minecraft.client.gui.screens.inventory.EnchantmentScreen.class},
+                {"anvil", net.minecraft.client.gui.screens.inventory.AnvilScreen.class},
+                {"grindstone", net.minecraft.client.gui.screens.inventory.GrindstoneScreen.class},
+                {"smithing_table", net.minecraft.client.gui.screens.inventory.SmithingScreen.class},
+                {"stonecutter", net.minecraft.client.gui.screens.inventory.StonecutterScreen.class},
+                {"loom", net.minecraft.client.gui.screens.inventory.LoomScreen.class},
+                {"cartography_table", net.minecraft.client.gui.screens.inventory.CartographyTableScreen.class},
+                {"beacon", net.minecraft.client.gui.screens.inventory.BeaconScreen.class}}) {
+            String id = (String) s[0];
+            Class<?> type = (Class<?>) s[1];
+            stations.add(new Station("the " + id, type, () -> {
+                if (ctx.computeOnClient(mc -> !BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(b).getBlock()).getPath().equals(id))) {
+                    command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
+                    ctx.waitTicks(3);
+                }
+                openAt(b, type, "the " + id);
+            }));
+        }
+        stations.add(new Station("the villager", net.minecraft.client.gui.screens.inventory.MerchantScreen.class, () -> {
+            command(String.format("tp @p %d %d %d", b.getX(), b.getY() + 1, b.getZ() - 2));
+            scene.world().getServer().runOnServer(sv -> {
+                var level = player(sv).level();
+                var box = new net.minecraft.world.phys.AABB(b).inflate(4);
+                var found = level.getEntitiesOfClass(net.minecraft.world.entity.npc.villager.Villager.class, box, net.minecraft.world.entity.Entity::isAlive);
+                if (found.isEmpty()) sv.getCommands().performPrefixedCommand(sv.createCommandSourceStack(), String.format(
+                        "summon villager %d %d %d {NoAI:1b,VillagerData:{type:\"minecraft:plains\",profession:\"minecraft:librarian\",level:1}}",
+                        b.getX(), b.getY() + 1, b.getZ()));
+                var villager = level.getEntitiesOfClass(net.minecraft.world.entity.npc.villager.Villager.class, box, net.minecraft.world.entity.Entity::isAlive).getFirst();
+                player(sv).interactOn(villager, net.minecraft.world.InteractionHand.MAIN_HAND, villager.position());
+            });
+            ctx.waitTicks(5);
+        }));
+        stations.add(new Station("the donkey", net.minecraft.client.gui.screens.inventory.HorseInventoryScreen.class, () -> {
+            command(String.format("tp @p %d %d %d", b.getX(), b.getY() + 1, b.getZ() - 2));
+            scene.world().getServer().runOnServer(sv -> {
+                var level = player(sv).level();
+                var box = new net.minecraft.world.phys.AABB(b).inflate(4);
+                if (level.getEntitiesOfClass(net.minecraft.world.entity.animal.equine.Donkey.class, box, net.minecraft.world.entity.Entity::isAlive).isEmpty())
+                    sv.getCommands().performPrefixedCommand(sv.createCommandSourceStack(), String.format(
+                            "summon donkey %d %d %d {NoAI:1b,Tame:1b,ChestedHorse:1b}", b.getX(), b.getY() + 1, b.getZ()));
+                level.getEntitiesOfClass(net.minecraft.world.entity.animal.equine.Donkey.class, box, net.minecraft.world.entity.Entity::isAlive)
+                        .getFirst().openCustomInventoryScreen(player(sv));
+            });
+            ctx.waitTicks(5);
+        }));
+
+        var open = OpenAnywhereClient.OPEN;
+        var settings = OpenAnywhereClient.OPEN_SETTINGS;
+        ctx.runOnClient(mc -> {
+            open.setKey(InputConstants.Type.KEYBOARD.getOrCreate(InputConstants.KEY_O));
+            settings.setKey(InputConstants.Type.KEYBOARD.getOrCreate(InputConstants.KEY_P));
+            net.minecraft.client.KeyMapping.resetMapping();
+        });
+        List<String> borrowed = new ArrayList<>(), broken = new ArrayList<>();
+        try {
+            for (Station s : stations) {
+                if (s.what().equals("the villager")) {
+                    command(String.format("setblock %d %d %d minecraft:air", b.getX(), b.getY(), b.getZ()));
+                    command(String.format("setblock %d %d %d minecraft:air", b.getX(), b.getY() + 1, b.getZ()));
+                }
+                // Each screen on its own, so one that fails doesn't hide the rest.
+                try {
+                    tabsWork(s);
+                } catch (AssertionError e) {
+                    broken.add(e.getMessage());
+                    ctx.runOnClient(mc -> { if (mc.player != null) mc.player.closeContainer(); });
+                    ctx.waitTicks(5);
+                }
+                try {
+                    if (bookBeside(s)) borrowed.add(s.what());
+                } catch (AssertionError e) {
+                    broken.add(e.getMessage());
+                }
+                command("kill @e[type=!player]");
+                ctx.waitTicks(3);
+            }
+        } finally {
+            ctx.runOnClient(mc -> {
+                open.setKey(InputConstants.UNKNOWN);
+                settings.setKey(InputConstants.UNKNOWN);
+                net.minecraft.client.KeyMapping.resetMapping();
+            });
+            bookOpen(false);
+            ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+        }
+        for (String need : new String[] {"the chest", "the ender_chest", "the green_shulker_box", "the hopper", "the dispenser"})
+            if (!borrowed.contains(need)) broken.add(need + " never showed the borrowed recipe book; it did on " + borrowed);
+        if (!broken.isEmpty()) throw new AssertionError(broken.size() + " screens failed:\n    " + String.join("\n    ", broken));
+    }
+
+    /** {@code s}'s tabs, by wheel, click, keys, and closing and opening again. */
+    private void tabsWork(Station s) {
+        s.open().run();
+        expectScreen(s.type(), s.what() + " opened");
+        TabId home = ctx.computeOnClient(mc -> Tabs.selected());
+        // The wheel over the frame's middle: up a tab, then back down from the corner (the
+        // tab up may be a bundle, whose list keeps the wheel over its frame).
+        ctx.getInput().setCursorPos(ctx.computeOnClient(mc -> {
+            ScreenAccessor f = (ScreenAccessor) screen(mc);
+            return (f.openanywhere$leftPos() + f.openanywhere$imageWidth() / 2.0) * scale(mc);
+        }), ctx.computeOnClient(mc -> {
+            ScreenAccessor f = (ScreenAccessor) screen(mc);
+            return (f.openanywhere$topPos() + f.openanywhere$imageHeight() / 2.0) * scale(mc);
+        }));
+        ctx.waitTick();
+        ctx.getInput().scroll(1);
+        ctx.waitTicks(5);
+        TabId up = ctx.computeOnClient(mc -> Tabs.selected());
+        if (up.equals(home)) throw new AssertionError("the wheel over " + s.what() + "'s frame stayed on its tab");
+        ctx.getInput().setCursorPos(2, 2);
+        ctx.waitTick();
+        ctx.getInput().scroll(-1);
+        expectScreen(s.type(), "the wheel back down to " + s.what());
+        expectSelected(home, "the wheel back down to " + s.what());
+        // A click on the first tab, the Inventory's, where MenuKit draws it.
+        clickTab(0, s.what());
+        expectScreen(InventoryScreen.class, "a click on the Inventory tab at " + s.what());
+        pick(home);
+        expectScreen(s.type(), s.what() + "'s tab picked again");
+        // The Open key held over the lime box in the hotbar.
+        hover(hotbar(0), "the lime box at " + s.what());
+        ctx.getInput().holdKey(OpenAnywhereClient.OPEN);
+        ctx.waitTick();
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.getInput().releaseKey(OpenAnywhereClient.OPEN);
+        expectScreen(ShulkerBoxScreen.class, "the Open key on the lime box at " + s.what());
+        pick(home);
+        expectScreen(s.type(), s.what() + "'s tab after the lime box");
+        // The settings key, and Escape back.
+        ctx.getInput().pressKey(OpenAnywhereClient.OPEN_SETTINGS);
+        ctx.waitTicks(3);
+        if (ctx.computeOnClient(mc -> s.type().isInstance(mc.gui.screen()) || mc.gui.screen() == null))
+            throw new AssertionError("the settings key at " + s.what() + " left " + ctx.computeOnClient(mc -> String.valueOf(mc.gui.screen())));
+        ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        expectScreen(s.type(), "Escape from the settings at " + s.what());
+        // Closed, and opened again on its tab.
+        ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        ctx.waitTicks(5);
+        if (ctx.computeOnClient(mc -> mc.gui.screen() != null)) throw new AssertionError("Escape didn't close " + s.what());
+        s.open().run();
+        expectScreen(s.type(), s.what() + " opened again");
+        TabId again = ctx.computeOnClient(mc -> Tabs.selected());
+        if (again.type() != home.type()) throw new AssertionError(s.what() + " opened again on " + again + ", not " + home);
+        ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+        ctx.waitTicks(5);
+    }
+
+    /**
+     * The recipe book open on the Inventory tab, then {@code s}'s tab: where it borrows the
+     * book, its frame is drawn whole at its slots' place, its right edge the frame's grey, not
+     * the world behind. Whether it borrowed it.
+     */
+    private boolean bookBeside(Station s) {
+        bookOpen(true);
+        try {
+            s.open().run();
+            TabId home = ctx.computeOnClient(mc -> Tabs.selected());
+            pick(TabId.INVENTORY);
+            expectScreen(InventoryScreen.class, "the Inventory tab at " + s.what() + " with the book open");
+            pick(home);
+            expectScreen(s.type(), s.what() + "'s tab with the book open");
+            if (ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.RecipeBookCarry.shownOn(mc.gui.screen()) == null)) return false;
+            ctx.getInput().setCursorPos(2, 2);
+            ctx.waitTicks(10);
+            int[] at = ctx.computeOnClient(mc -> {
+                ScreenAccessor f = (ScreenAccessor) screen(mc);
+                return new int[] {f.openanywhere$leftPos() + f.openanywhere$imageWidth() - 6, f.openanywhere$topPos() + 6, mc.getWindow().getGuiScaledWidth()};
+            });
+            java.nio.file.Path shot = ctx.takeScreenshot("screens-book-" + s.what().substring(4));
+            try {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(shot.toFile());
+                double f = (double) img.getWidth() / at[2];
+                int rgb = img.getRGB((int) ((at[0] + 0.5) * f), (int) ((at[1] + 0.5) * f)) & 0xFFFFFF;
+                if (rgb != 0xC6C6C6) throw new AssertionError(s.what() + "'s frame beside the borrowed book isn't drawn at its right edge: "
+                        + String.format("#%06X", rgb) + " at " + at[0] + "," + at[1]);
+            } catch (java.io.IOException e) {
+                throw new AssertionError("reading " + shot + ": " + e);
+            }
+            return true;
+        } finally {
+            ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+            ctx.waitTicks(5);
+            bookOpen(false);
+        }
+    }
+
+    /** A click on the tab row's tab {@code index}, where MenuKit draws it; fails if something else is there. */
+    private void clickTab(int index, String what) {
+        var edge = com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP;
+        double[] at = ctx.computeOnClient(mc -> {
+            var l = com.trevlar.menukit.inject.ContainerTabRows.lineForChecks(edge);
+            if (l == null) throw new AssertionError("no tab row on " + what);
+            for (var p : com.trevlar.menukit.inject.ContainerTabRows.placedForChecks(edge)) {
+                if (p.index() != index) continue;
+                double x = p.x() + p.width() / 2.0, y = l.rowTop() + l.height() - p.height() / 2.0;
+                int hit = com.trevlar.menukit.inject.ContainerTabRows.hitForChecks(edge, x, y);
+                if (hit != index) throw new AssertionError("tab " + index + " on " + what + " isn't at " + x + "," + y + " (hit " + hit + ")");
+                return new double[] {x * scale(mc), y * scale(mc)};
+            }
+            throw new AssertionError("no tab " + index + " on " + what);
+        });
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
+    }
+
+    private static double scale(Minecraft mc) {
+        var w = mc.getWindow();
+        return (double) w.getScreenWidth() / w.getGuiScaledWidth();
     }
 
     /**
