@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.Reference;
+import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -11,6 +12,9 @@ import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.inventory.LoomMenu;
+import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.inventory.StonecutterMenu;
 
 /**
  * The wheel moves between tabs, one tab a notch, up to the left and down to the right,
@@ -20,7 +24,7 @@ import net.minecraft.resources.Identifier;
  * it runs after the screen and every other mod's scroll handler (Mouse Tweaks, a bundle's
  * own wheel), and before MenuKit's list scroll, which comes last of all.
  */
-final class TabWheel {
+public final class TabWheel {
 
     private TabWheel() {}
 
@@ -40,18 +44,43 @@ final class TabWheel {
 
     /** One turn of the wheel at {@code (x, y)}: the next or previous tab, unless over the list. Whether it was used. */
     private static boolean turn(Screen screen, double x, double y, double amount) {
-        if (amount == 0 || !Settings.wheel()) return false;
+        if (!takes(screen, x, y, amount)) return false;
         List<TabId> walk = Tabs.walk();
-        if (walk.size() < 2) return false;
-        // Over the container, the wheel is the container's only while it has a scrollbar:
-        // the list's own, or a shown grid's.
-        boolean scrollable = ContainerRegion.scrolls(screen);
-        Reference list = ContainerRegion.CONTAINERS.box(screen);
-        if (scrollable && list != null && x >= list.leftPos() && x < list.leftPos() + list.imageWidth()
-                && y >= list.topPos() && y < list.topPos() + list.imageHeight()) return false;
         int i = Math.max(0, walk.indexOf(Tabs.selected()));
         int next = amount < 0 ? i + 1 : i - 1;
         if (next >= 0 && next < walk.size()) Tabs.pick(walk.get(next));
         return true;
+    }
+
+    /**
+     * Whether a turn at {@code (x, y)} is the tabs': the wheel's on, there's a tab to go to, and
+     * the mouse isn't over a list that scrolls. Over the container, the wheel is the
+     * container's only while it has a scrollbar (the list's own, or a shown grid's); over a
+     * vanilla screen's own list (the merchant's offers, the stonecutter's recipes, the loom's
+     * patterns), only while there are more than it shows, anywhere on the frame, as vanilla scrolls it.
+     */
+    public static boolean takes(Screen screen, double x, double y, double amount) {
+        if (amount == 0 || !Settings.wheel() || Tabs.walk().size() < 2) return false;
+        if (ContainerRegion.scrolls(screen) && over(ContainerRegion.CONTAINERS.box(screen), x, y)) return false;
+        if (screen instanceof AbstractContainerScreen<?> acs && ownListScrolls(acs)) {
+            ScreenAccessor f = (ScreenAccessor) acs;
+            return !over(new Reference(f.openanywhere$leftPos(), f.openanywhere$topPos(), f.openanywhere$imageWidth(), f.openanywhere$imageHeight()), x, y);
+        }
+        return true;
+    }
+
+    /** Whether the screen's own list has more than it shows, as each screen works it out. */
+    private static boolean ownListScrolls(AbstractContainerScreen<?> screen) {
+        return switch (screen.getMenu()) {
+            case MerchantMenu m -> m.getOffers().size() > 7;
+            case StonecutterMenu m -> m.getNumberOfVisibleRecipes() > 12;
+            case LoomMenu m -> m.getSelectablePatterns().size() > 16;
+            default -> false;
+        };
+    }
+
+    private static boolean over(Reference box, double x, double y) {
+        return box != null && x >= box.leftPos() && x < box.leftPos() + box.imageWidth()
+                && y >= box.topPos() && y < box.topPos() + box.imageHeight();
     }
 }

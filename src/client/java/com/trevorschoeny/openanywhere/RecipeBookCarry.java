@@ -2,6 +2,7 @@ package com.trevorschoeny.openanywhere;
 
 import com.trevorschoeny.openanywhere.mixin.RecipeBookAccessor;
 import com.trevorschoeny.openanywhere.mixin.RecipeBookScreenAccessor;
+import com.trevorschoeny.openanywhere.mixin.ScreenAccessor;
 
 import org.jspecify.annotations.Nullable;
 
@@ -113,6 +114,17 @@ public final class RecipeBookCarry {
     /** The book {@code screen} has borrowed and shows now, or null. */
     public static @Nullable RecipeBookComponent<?> shownOn(Screen screen) {
         return borrower == screen && book != null && book.isVisible() ? book : null;
+    }
+
+    /**
+     * The window's {@code width} as {@code screen}'s own code reads it ({@code BorrowedBookWidthMixin}):
+     * with a borrowed book, wider by twice the frame's move, so vanilla's {@code (width - imageWidth) / 2}
+     * is the moved {@code leftPos}, rounding included (the move is added whole). As is, without one.
+     */
+    public static int width(AbstractContainerScreen<?> screen, int width) {
+        if (shownOn(screen) == null) return width;
+        ScreenAccessor frame = (ScreenAccessor) screen;
+        return width + 2 * (frame.openanywhere$leftPos() - (width - frame.openanywhere$imageWidth()) / 2);
     }
 
     /**

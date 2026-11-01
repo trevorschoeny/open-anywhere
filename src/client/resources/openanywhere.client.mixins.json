@@ -14,7 +14,9 @@
     "BorrowedBookMixin",
     "RecipeBookAccessor",
     "RecipeBookScreenAccessor",
-    "RecipeBookPlaceMixin"
+    "RecipeBookPlaceMixin",
+    "BorrowedBookWidthMixin",
+    "ListWheelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
