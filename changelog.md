@@ -1,3 +1,24 @@
+## 1.2.0
+
+#### Added
+
+- Crafting tables, furnaces, smokers, blast furnaces, brewing stands, anvils, grindstones, stonecutters, looms, hoppers, and the other block screens get tabs, in both tab modes. The block you opened gets its own tab next to the Inventory tab. With Only boxes I open, it's there before you open a box inside it.
+- Villager trading gets a tab, showing the head of the villager you're trading with, in its own biome and profession, turning to face you like the Inventory tab's head does. A wandering trader shows its own head. Switch away and back and the trades are still there.
+- Horse, donkey, mule, llama, camel, and nautilus inventories get a tab, showing the animal's spawn egg.
+- The mouse wheel moves tabs on every container screen, including trading, the stonecutter, and the loom, not only chests.
+- The recipe book stays open moving between tabs and boxes instead of closing, and a screen opened from the world starts with it open if it was open on the Inventory tab.
+- A tab sizing rule holds at every depth: the top tabs are always full size; a box's tab is full size only while it's on the line to the selected tab and has boxes of its own showing, small otherwise; a box's children stay hidden until it's selected.
+
+#### Fixed
+
+- A placed shulker box's tab shows the box in its colour, even after you've named it, instead of a chest.
+- A bundle holding more than 65 stacks crashed the server on load; it now keeps the extra items and writes them back.
+- A tab click the server refused left the wrong tab highlighted and threw off the scroll wheel's count.
+
+#### Changed
+
+- Requires MenuKit 7.5.1 or newer and SlotKit 2.3.0 or newer.
+
 ## 1.1.0
 
 #### Added
