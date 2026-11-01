@@ -315,7 +315,7 @@ final class ClientPanels {
         var player = Minecraft.getInstance().player;
         var contents = player == null ? null : BundleView.contents(player);
         if (contents == null) return 0;
-        return contents.size() + (BundleView.addSlot(contents) >= 0 ? 1 : 0);
+        return BundleView.liveCount(contents);
     }
 
     private static Component bundleName() {

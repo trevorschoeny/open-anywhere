@@ -27,6 +27,15 @@ final class BundleView {
         return bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
     }
 
+    /**
+     * How many of the bundle's slots are live: its stacks, plus the add slot unless it's full.
+     * Never more than the group declares: a bundle can hold more stacks than that (items that
+     * stack to 99, a command, another mod), and those past it aren't shown ({@link BundleStorage}).
+     */
+    static int liveCount(BundleContents contents) {
+        return Math.min(Openable.BUNDLE.slots, addSlot(contents) >= 0 ? contents.size() + 1 : contents.size());
+    }
+
     /** The slot that adds to the bundle (the plus), or -1 when it's full. */
     static int addSlot(@Nullable BundleContents contents) {
         return contents == null || full(contents) ? -1 : contents.size();

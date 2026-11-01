@@ -1,5 +1,7 @@
 package com.trevorschoeny.openanywhere;
 
+import java.util.List;
+
 
 import com.trevlar.slotkit.api.slot.OnDemandGroup;
 import com.trevlar.slotkit.api.storage.Storage;
@@ -17,7 +19,7 @@ import net.minecraft.world.item.component.BundleContents;
  * bundle's own order, then the slot that adds one. Live like {@link ShulkerStorage}:
  * every change is written straight back into the bundle's {@code minecraft:bundle_contents},
  * and the group's live count follows, so the add slot appears and moves as things go
- * in ({@link Groups#liveCount}).
+ * in ({@link BundleView#liveCount}).
  *
  * <p>Writing back drops the emptied slots, so taking a stack from the middle moves the
  * ones after it up by one, as in the bundle itself, and vanilla's slot sync shows the
@@ -28,6 +30,8 @@ final class BundleStorage implements Storage {
 
     private final ItemStack bundle;
     private BundleContents loadedFrom = null;
+    // Stacks past the last slot, never shown: kept as loaded, written back after the slots'.
+    private List<ItemStack> past = List.of();
     private final NonNullList<ItemStack> live = NonNullList.withSize(Openable.BUNDLE.slots, ItemStack.EMPTY);
     // The slots it shows in, whose live count follows the bundle. Set right after they're added.
     private OnDemandGroup.@Nullable Instance shownIn;
@@ -39,24 +43,21 @@ final class BundleStorage implements Storage {
     /** The slots this storage shows in, now added: sized to the bundle from here on. */
     void shownIn(OnDemandGroup.Instance instance) {
         shownIn = instance;
-        instance.setActiveCount(liveCount(contents(bundle)));
+        instance.setActiveCount(BundleView.liveCount(contents(bundle)));
     }
 
     private static BundleContents contents(ItemStack bundle) {
         return bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
     }
 
-    /** How many of the bundle's slots are live: its stacks, plus the add slot unless it's full. */
-    static int liveCount(BundleContents contents) {
-        return BundleView.addSlot(contents) >= 0 ? contents.size() + 1 : contents.size();
-    }
-
     private ItemStack bundle() {
         BundleContents contents = contents(bundle);
         if (contents != loadedFrom) {
-            for (int i = 0; i < live.size(); i++) live.set(i, ItemStack.EMPTY);
-            int i = 0;
-            for (ItemStack stack : (Iterable<ItemStack>) contents.itemCopies()::iterator) live.set(i++, stack);
+            // The first stacks fill the slots; any past them are kept as they are and written
+            // back after the rest, so nothing in the bundle is lost by opening it here.
+            List<ItemStack> all = contents.itemCopies().toList();
+            for (int i = 0; i < live.size(); i++) live.set(i, i < all.size() ? all.get(i) : ItemStack.EMPTY);
+            past = all.size() > live.size() ? List.copyOf(all.subList(live.size(), all.size())) : List.of();
             loadedFrom = contents;
         }
         return bundle;
@@ -108,10 +109,10 @@ final class BundleStorage implements Storage {
                 moving.shrink(n);
             }
         }
-        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(live.stream()
+        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(java.util.stream.Stream.concat(live.stream(), past.stream())
                 .filter(s -> !s.isEmpty()).map(ItemStackTemplate::fromNonEmptyStack).toList()));
         // Reloaded on the next read, which also packs the emptied slots out.
         loadedFrom = null;
-        if (shownIn != null) shownIn.setActiveCount(liveCount(contents(bundle)));
+        if (shownIn != null) shownIn.setActiveCount(BundleView.liveCount(contents(bundle)));
     }
 }

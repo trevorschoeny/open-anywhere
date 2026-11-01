@@ -103,6 +103,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_ender", this::carriedBox);
             run("openanywhere:screens_bundle", this::bundle);
             run("openanywhere:screens_bundle", this::bundleHalf);
+            run("openanywhere:screens_bundle", this::bundleOverfull);
             run("openanywhere:screens_nested", this::nested);
             run("openanywhere:screens_cursor", this::cursor);
             run("openanywhere:screens_lock", this::handPickup);
@@ -451,6 +452,41 @@ public class ScreenChecks implements FabricClientGameTest {
             return String.join(", ", shown);
         });
         if (!slots.equals("4 stone, 2 granite, +")) throw new AssertionError("the bundle's slots show [" + slots + "], not [4 stone, 2 granite, +]");
+    }
+
+    /**
+     * A bundle holding more stacks than it has slots (70 items that stack to 99, one each,
+     * which vanilla's weight rule lets in): it opens on its 65 slots, and taking one out
+     * keeps the 5 it doesn't show.
+     */
+    private void bundleOverfull() {
+        scene.world().getServer().runOnServer(server -> {
+            List<net.minecraft.world.item.ItemStackTemplate> items = new ArrayList<>();
+            for (var item : BuiltInRegistries.ITEM) {
+                if (items.size() == 70) break;
+                ItemStack one = new ItemStack(item);
+                if (one.isEmpty() || one.getMaxStackSize() != 64 || Openable.of(one) != null) continue;
+                one.set(DataComponents.MAX_STACK_SIZE, 99);
+                items.add(net.minecraft.world.item.ItemStackTemplate.fromNonEmptyStack(one));
+            }
+            ItemStack bundle = new ItemStack(Items.BUNDLE);
+            bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(items));
+            player(server).getInventory().setItem(2, bundle);
+        });
+        ctx.waitTicks(3);
+        openInventory();
+        doubleClick(hotbar(2), "the bundle of 70 stacks");
+        expectScreen(ContainerScreen.class, "double-click on the bundle of 70 stacks");
+        int shown = ctx.computeOnClient(mc -> {
+            int n = 0;
+            for (Slot s : screen(mc).getMenu().slots) if (Groups.bundleIndex(s) >= 0 && s.isActive() && s.hasItem()) n++;
+            return n;
+        });
+        if (shown != Openable.BUNDLE.slots) throw new AssertionError("the bundle of 70 stacks shows " + shown + " of them, not " + Openable.BUNDLE.slots);
+        shiftClick(s -> Groups.bundleIndex(s) == 0, "the bundle's first stack");
+        int left = scene.world().getServer().computeOnServer(server ->
+                player(server).getInventory().getItem(2).getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).size());
+        if (left != 69) throw new AssertionError("after taking one of its 70 stacks the bundle holds " + left);
     }
 
     /**
