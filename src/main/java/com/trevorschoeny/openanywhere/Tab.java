@@ -18,7 +18,8 @@ import net.minecraft.world.item.ItemStack;
  *
  * @param parent the tab of the container the item sits in; null for a top-level tab: the
  *               inventory, the world container, and Pocket Ender Chest's ender chest while open
- * @param sub    true for a closed box under its container's tab; false for a main tab (an open one)
+ * @param sub    true for a small tab under its container's tab: a closed box, or the open one in
+ *               front with no boxes of its own on the row; false for a main tab, a big one
  */
 public record Tab(TabId id, ItemStack item, @Nullable TabId parent, boolean sub) {
 

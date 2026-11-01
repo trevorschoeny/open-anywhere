@@ -67,8 +67,9 @@ final class ClientPanels {
 
     /**
      * The row, as the server lays it out ({@link Tabs#mains}): each main tab a group's header,
-     * the closed boxes in it its smaller sub-tabs, always out. A tab shows its own screen when
-     * clicked. MenuKit draws the row and the slide as groups come and go; the icons are ours.
+     * full size, the boxes in it its smaller sub-tabs, out while the group holds the tab in
+     * front. A tab shows its own screen when clicked. MenuKit draws the row and the slide as
+     * groups come, go, open and close; the icons are ours.
      */
     private static void tabs() {
         ContainerTabs.<TabId, TabId>groups(TABS, ModeScope.BOTH, Tabs::mains, Tabs::subs)
@@ -80,10 +81,13 @@ final class ClientPanels {
                         .pinnedWhen(() -> Tabs.selected().equals(main))
                         .onClick(() -> Tabs.pick(main)))
                 .tab((main, sub, tab) -> tab
-                        .icon((g, x, y, w, h) -> drawOpening(g, item(sub), sub, false, x, y, w))
+                        .icon((g, x, y, w, h) -> drawOpening(g, item(sub), sub, Tabs.open(sub), x, y, w))
                         .tooltip(() -> tooltip(sub))
                         .selectedWhen(() -> Tabs.selected().equals(sub))
                         .onClick(() -> Tabs.pick(sub)))
+                // A tab's boxes are out only while it holds the tab in front: the line down to
+                // it stays open, everything else's boxes slide in under their tab.
+                .expandedWhen(main -> Tabs.holds(main, Tabs.selected()))
                 .on(SCREENS)
                 .declare();
         // Opened by hand, the row comes and goes with the boxes opened: the frame keeps

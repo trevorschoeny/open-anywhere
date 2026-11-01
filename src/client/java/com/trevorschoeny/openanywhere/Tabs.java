@@ -96,10 +96,13 @@ public final class Tabs {
         return ids;
     }
 
-    /** Whether {@code id} is a main tab on the row: an open container, its lid drawn up. */
+    /**
+     * Whether {@code id} is open, its lid drawn up: a main tab on the row, or the sub-tab of the
+     * box in front, open with nothing open inside it.
+     */
     public static boolean open(TabId id) {
         Tab tab = tab(id);
-        return tab != null && !tab.sub();
+        return tab != null && (!tab.sub() || id.equals(shown));
     }
 
     /** Whether {@code id} is {@code container}, or sits in it, however deep. */

@@ -309,7 +309,10 @@ public final class ServerTabs {
      *       tab in front ({@link #line}); and, with every box tabbed, Pocket Ender Chest's
      *       ender chest once it has been opened. Each open tab is a main tab.</li>
      *   <li><b>Sub-tabs</b>, with every box tabbed: each box in an open container that isn't
-     *       open itself, under that container's tab. Opened by hand, there are none.</li>
+     *       open itself, under that container's tab. Opened by hand, there are none. An open
+     *       box with no boxes of its own on the row (the one in front, at the end of its line)
+     *       is a sub-tab too: a main tab is one with sub-tabs. The client shows a main tab's
+     *       sub-tabs only while it holds the tab in front ({@code ClientPanels}).</li>
      *   <li><b>Order:</b> the inventory, the world container, then Pocket Ender Chest's ender
      *       chest when it's open. Each main tab is followed by what's in it, by where it
      *       sits ({@link #ORDER}): a closed box as a sub-tab, an open one as its own main tab
@@ -369,15 +372,19 @@ public final class ServerTabs {
     }
 
     /**
-     * Main tab {@code id}, then what's in it by place: a closed box as a sub-tab, an open one as
-     * a main tab followed by what's in it, so an opened box stays where its sub-tab was.
+     * Main tab {@code id}, then what's in it by place: a box as a sub-tab, or, open with boxes
+     * of its own on the row, as a main tab followed by what's in it, so it stays where its
+     * sub-tab was. The open box in front with none in it stays a sub-tab.
      */
     private static void place(List<Tab> row, TabId id, @Nullable TabId parent, Map<TabId, ItemStack> items,
                               Map<TabId, List<TabId>> children, Set<TabId> open, @Nullable TabId pocket) {
         row.add(new Tab(id, items.getOrDefault(id, ItemStack.EMPTY), parent, false));
         for (TabId c : children.getOrDefault(id, List.of())) {
-            if (!open.contains(c)) row.add(new Tab(c, items.get(c), id, true));
-            else if (!c.equals(pocket)) place(row, c, id, items, children, open, pocket);
+            if (c.equals(pocket)) continue;
+            // A box is a main tab (a big one) only while it's open with boxes of its own on the
+            // row; else a sub-tab (a small one), selected or not.
+            if (open.contains(c) && children.containsKey(c)) place(row, c, id, items, children, open, pocket);
+            else row.add(new Tab(c, items.get(c), id, true));
         }
     }
 
