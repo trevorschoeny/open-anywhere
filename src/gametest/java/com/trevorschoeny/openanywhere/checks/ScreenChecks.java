@@ -291,7 +291,7 @@ public class ScreenChecks implements FabricClientGameTest {
     /**
      * A box opened from the inventory names its own slots via {@code ItemSources.pathOf}
      * (SlotKit's {@code ItemContents}), the same path a shift-click out of it resolves
-     * through: {@code box.child(i)}, not the box's own slot again (QuickShulker #next).
+     * through: {@code box.child(i)}, not the box's own slot again.
      */
     private void boxSlotPath() {
         openInventory();
