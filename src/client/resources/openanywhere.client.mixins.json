@@ -10,7 +10,11 @@
     "ItemTurnMixin",
     "ItemLightMixin",
     "OversizedItemLightMixin",
-    "SpecialRenderersAccessor"
+    "SpecialRenderersAccessor",
+    "BorrowedBookMixin",
+    "RecipeBookAccessor",
+    "RecipeBookScreenAccessor",
+    "RecipeBookPlaceMixin"
   ],
   "injectors": {
     "defaultRequire": 1

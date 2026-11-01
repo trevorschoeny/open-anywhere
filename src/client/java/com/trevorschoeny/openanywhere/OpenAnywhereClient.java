@@ -90,6 +90,7 @@ public final class OpenAnywhereClient implements ClientModInitializer {
         });
         HeadModels.register();
         ClientPanels.register();
+        RecipeBookCarry.register();
         ClientMarks.register();
         // The host is vanilla's chest menu, so it gets vanilla's chest screen.
         MenuScreens.register(ContainerHost.TYPE, ContainerScreen::new);

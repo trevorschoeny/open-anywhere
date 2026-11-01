@@ -96,6 +96,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_inventory_tab", this::refusedPick);
             run("openanywhere:screens_box_edits", this::boxEdits);
             run("openanywhere:screens_from_inventory", this::fromInventory);
+            run("openanywhere:screens_from_inventory", this::recipeBookStays);
             run("openanywhere:screens_order", this::order);
             run("openanywhere:screens_ender", this::ender);
             run("openanywhere:screens_ender", this::carriedEnder);
@@ -133,6 +134,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_world_shulker", this::wideTallStations);
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
+            run("openanywhere:screens_world_shulker", this::recipeBookAtTable);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
             if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
                 run("openanywhere:screens_lock", this::ipnBox);
@@ -279,6 +281,137 @@ public class ScreenChecks implements FabricClientGameTest {
         pick(TabId.INVENTORY);
         expectScreen(InventoryScreen.class, "the Inventory tab");
         expectRow("", "back on the inventory, the box no longer selected");
+    }
+
+    /**
+     * The recipe book open on the inventory: a box opened stands beside it, the frame's left
+     * edge where it was; a click on the book with an item on the cursor isn't a throw; a recipe
+     * picked on it brings the Inventory tab back with the grid filled, the book still open.
+     */
+    private void recipeBookStays() {
+        command("recipe give @p minecraft:crafting_table");
+        command("item replace entity @p inventory.1 with minecraft:oak_planks 4");
+        bookOpen(true);
+        try {
+            openInventory();
+            int left = leftPos();
+            doubleClick(hotbar(0), "the lime box");
+            expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+            expectBook("the box opened over the open book", left);
+            click(slot(9), "the dirt");
+            clickBookEdge();
+            String dirt = ctx.computeOnClient(mc -> name(mc.player.containerMenu.getCarried()));
+            if (!dirt.equals("dirt")) throw new AssertionError("a click on the recipe book with dirt on the cursor left " + dirt + " there");
+            click(slot(9), "the dirt's slot");
+            clickRecipe(Items.CRAFTING_TABLE, "the crafting table's recipe");
+            expectScreen(InventoryScreen.class, "a recipe picked on the box's screen");
+            ctx.waitTicks(5);
+            int planks = scene.world().getServer().computeOnServer(sv -> {
+                int n = 0;
+                for (Slot g : player(sv).inventoryMenu.getInputGridSlots()) if (g.getItem().is(Items.OAK_PLANKS)) n += g.getItem().getCount();
+                return n;
+            });
+            if (planks != 4) throw new AssertionError("the inventory's grid holds " + planks + " planks after the recipe was picked, not 4");
+            if (ctx.computeOnClient(mc -> !net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen.class.isInstance(mc.gui.screen())
+                    || !((com.trevorschoeny.openanywhere.mixin.RecipeBookScreenAccessor) mc.gui.screen()).openanywhere$book().isVisible()))
+                throw new AssertionError("the recipe book closed on the way back to the inventory");
+            if (leftPos() != left) throw new AssertionError("back on the inventory the frame is at " + leftPos() + ", not " + left);
+        } finally {
+            bookOpen(false);
+        }
+    }
+
+    /**
+     * The recipe book open on a crafting table: a box from the inventory keeps it, and a recipe
+     * picked there brings the crafting table's tab back with its grid filled.
+     */
+    private void recipeBookAtTable() {
+        command("recipe give @p minecraft:crafting_table");
+        command("item replace entity @p inventory.1 with minecraft:oak_planks 4");
+        BlockPos b = block();
+        command(String.format("setblock %d %d %d minecraft:crafting_table", b.getX(), b.getY(), b.getZ()));
+        ctx.waitTicks(3);
+        bookOpen(true);
+        try {
+            openAt(b, net.minecraft.client.gui.screens.inventory.CraftingScreen.class, "the crafting table");
+            int left = leftPos();
+            doubleClick(hotbar(0), "the lime box");
+            expectScreen(ShulkerBoxScreen.class, "double-click on the lime box at the crafting table");
+            expectBook("the box opened over the crafting table's open book", left);
+            clickRecipe(Items.CRAFTING_TABLE, "the crafting table's recipe");
+            expectScreen(net.minecraft.client.gui.screens.inventory.CraftingScreen.class, "a recipe picked on the box's screen");
+            ctx.waitTicks(5);
+            int planks = scene.world().getServer().computeOnServer(sv -> {
+                if (!(player(sv).containerMenu instanceof net.minecraft.world.inventory.CraftingMenu table)) return -1;
+                int n = 0;
+                for (Slot g : table.getInputGridSlots()) if (g.getItem().is(Items.OAK_PLANKS)) n += g.getItem().getCount();
+                return n;
+            });
+            if (planks != 4) throw new AssertionError("the crafting table's grid holds " + planks + " planks after the recipe was picked, not 4");
+        } finally {
+            bookOpen(false);
+        }
+    }
+
+    /** The crafting book open or closed, showing only what can be crafted. */
+    private void bookOpen(boolean open) {
+        ctx.runOnClient(mc -> {
+            mc.player.getRecipeBook().setOpen(net.minecraft.world.inventory.RecipeBookType.CRAFTING, open);
+            mc.player.getRecipeBook().setFiltering(net.minecraft.world.inventory.RecipeBookType.CRAFTING, open);
+        });
+        ctx.waitTick();
+    }
+
+    private int leftPos() {
+        return ctx.computeOnClient(mc -> ((ScreenAccessor) screen(mc)).openanywhere$leftPos());
+    }
+
+    private void expectBook(String after, int left) {
+        boolean shown = ctx.computeOnClient(mc -> com.trevorschoeny.openanywhere.RecipeBookCarry.shownOn(mc.gui.screen()) != null);
+        if (!shown) throw new AssertionError("after " + after + " the recipe book is gone");
+        if (leftPos() != left) throw new AssertionError("after " + after + " the frame is at " + leftPos() + ", not " + left + " beside the book");
+    }
+
+    /** A click on the recipe book's bottom left corner, clear of its buttons. */
+    private void clickBookEdge() {
+        double[] at = ctx.computeOnClient(mc -> {
+            ScreenAccessor edge = (ScreenAccessor) screen(mc);
+            var w = mc.getWindow();
+            double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
+            return new double[] {(edge.openanywhere$leftPos() - 140) * f, (edge.openanywhere$topPos() + 160) * f};
+        });
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
+    }
+
+    /** A click on the borrowed recipe book's button for {@code result}, where the page draws it. */
+    @SuppressWarnings("unchecked")
+    private void clickRecipe(net.minecraft.world.item.Item result, String what) {
+        double[] at = ctx.computeOnClient(mc -> {
+            var book = com.trevorschoeny.openanywhere.RecipeBookCarry.shownOn(mc.gui.screen());
+            if (book == null) throw new AssertionError("no recipe book on " + mc.gui.screen() + " for " + what);
+            try {
+                var pageField = net.minecraft.client.gui.screens.recipebook.RecipeBookComponent.class.getDeclaredField("recipeBookPage");
+                pageField.setAccessible(true);
+                Object page = pageField.get(book);
+                var buttonsField = page.getClass().getDeclaredField("buttons");
+                buttonsField.setAccessible(true);
+                var w = mc.getWindow();
+                double f = (double) w.getScreenWidth() / w.getGuiScaledWidth();
+                for (var b : (List<net.minecraft.client.gui.screens.recipebook.RecipeButton>) buttonsField.get(page))
+                    if (b.visible && b.getDisplayStack().is(result))
+                        return new double[] {(b.getX() + b.getWidth() / 2.0) * f, (b.getY() + b.getHeight() / 2.0) * f};
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("reading the recipe book's page: " + e);
+            }
+            throw new AssertionError("no button for " + what + " on the recipe book's page");
+        });
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
     }
 
     /**

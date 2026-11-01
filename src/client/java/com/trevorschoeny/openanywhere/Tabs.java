@@ -43,14 +43,16 @@ public final class Tabs {
         shown = payload.shown();
         frozen = payload.frozen();
         clicked = null;
+        RecipeBookCarry.answered(shown);
     }
 
-    /** Back in the world: the row is gone with the screens. */
+    /** Back in the world: the row is gone with the screens, and the book carried across them. */
     static void clear() {
         row = List.of();
         shown = TabId.INVENTORY;
         frozen = false;
         clicked = null;
+        RecipeBookCarry.clear();
     }
 
     /** Whether the item in front is off its place (on the cursor): its screen's slots are locked and greyed. */
