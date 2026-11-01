@@ -93,6 +93,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_chest_tabs", this::chestTabs);
             run("openanywhere:screens_chest_tabs", this::openStill);
             run("openanywhere:screens_inventory_tab", this::inventoryTab);
+            run("openanywhere:screens_inventory_tab", this::refusedPick);
             run("openanywhere:screens_box_edits", this::boxEdits);
             run("openanywhere:screens_from_inventory", this::fromInventory);
             run("openanywhere:screens_order", this::order);
@@ -233,6 +234,16 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(ContainerScreen.class, "the Chest tab");
         boolean cobble = ctx.computeOnClient(mc -> screen(mc).getMenu().getSlot(0).getItem().is(Items.COBBLESTONE));
         if (!cobble) throw new AssertionError("the chest came back without its cobblestone");
+    }
+
+    /**
+     * A tab click the server refuses (the tab is no longer on its row: an item just moved,
+     * another player has it open): the tab drawn selected goes back to the one in front.
+     */
+    private void refusedPick() {
+        openInventory();
+        pick(TabId.item(new ItemPath(ItemRef.Source.INVENTORY, 30, List.of())));
+        expectSelected(TabId.INVENTORY, "a click on a tab the server doesn't have");
     }
 
     /**

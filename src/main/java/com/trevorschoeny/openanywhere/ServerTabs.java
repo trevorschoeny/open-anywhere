@@ -712,18 +712,22 @@ public final class ServerTabs {
         st.sentShown = null;
     }
 
-    /** A tab click: its screen comes up, if the tab is on the player's row. */
+    /**
+     * A tab click: its screen comes up, if the tab is on the player's row. Always answered,
+     * refused or not: the client draws the tab it clicked selected until it hears back.
+     */
     static void pick(ServerPlayer player, TabId id) {
         State st = state(player);
-        if (id.equals(shown(player, st))) return;
         boolean onRow = false;
         for (Tab tab : row(player, st)) onRow |= tab.id().equals(id);
-        if (!onRow) return;
-        switch (id.type()) {
-            case INVENTORY -> MenuSwitch.openInventory(player);
-            case WORLD -> MenuSwitch.back(player);
-            case ITEM -> openItem(player, st, id.path());
+        if (onRow && !id.equals(shown(player, st))) {
+            switch (id.type()) {
+                case INVENTORY -> MenuSwitch.openInventory(player);
+                case WORLD -> MenuSwitch.back(player);
+                case ITEM -> openItem(player, st, id.path());
+            }
         }
+        st.sentShown = null;
         sync(player, st);
     }
 
