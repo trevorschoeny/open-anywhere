@@ -113,6 +113,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::takenAway);
             run("openanywhere:screens_lock", this::twoEnderChests);
             run("openanywhere:screens_box_edits", this::walkedAway);
+            run("openanywhere:screens_box_edits", this::hopperTook);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_every_box", this::inventoryAlone);
@@ -1519,6 +1520,24 @@ public class ScreenChecks implements FabricClientGameTest {
         expectScreen(InventoryScreen.class, "walking out of the chest's reach");
         String box = ctx.computeOnClient(mc -> String.valueOf(Tabs.shownItem()));
         if (!box.equals("null")) throw new AssertionError("a box tab is still in front after walking away: " + box);
+    }
+
+    /**
+     * A box from a chest in front, and a hopper takes it out of the chest: vanilla's
+     * {@code removeItem} empties the box's stack in place, leaving the same object in the
+     * slot. Its screen goes, back to the chest; left open, whatever was put in it would be
+     * written into a box that is no longer there.
+     */
+    private void hopperTook() {
+        openBlock();
+        doubleClick(containerSlot(4), "the purple box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the purple box");
+        ItemStack taken = scene.world().getServer().computeOnServer(s -> chest(s).removeItem(4, 1));
+        try {
+            expectScreen(ContainerScreen.class, "a hopper taking the open box out of the chest");
+        } finally {
+            scene.world().getServer().runOnServer(s -> chest(s).setItem(4, taken));
+        }
     }
 
     /**
