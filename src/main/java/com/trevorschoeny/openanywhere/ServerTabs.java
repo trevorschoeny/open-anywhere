@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Predicate;
 
+import com.trevlar.slotkit.api.item.ItemContents;
 import com.trevlar.slotkit.api.item.ItemPath;
 import com.trevlar.slotkit.api.item.ItemRef;
 import com.trevlar.slotkit.api.item.ItemScope;
@@ -987,7 +988,7 @@ public final class ServerTabs {
      * item, so once the box has moved vanilla refuses clicks into it and closes it, and the
      * box item for other mods ({@link OpenItems.Box}).
      */
-    private static final class BoxContainer extends StorageContainerAdapter implements OpenItems.Box {
+    private static final class BoxContainer extends StorageContainerAdapter implements OpenItems.Box, ItemContents {
         private final ServerPlayer player;
         private final Anchor anchor;
 
@@ -1000,6 +1001,10 @@ public final class ServerTabs {
         @Override public boolean stillValid(Player p) { return stillOpen(player, anchor); }
 
         @Override public ItemStack stack() { return anchor.live.isStale() ? anchor.seen : anchor.live.stack(); }
+
+        @Override public @Nullable ItemPath itemPath(Player p) {
+            return p == player && !anchor.live.isStale() ? anchor.live.path() : null;
+        }
     }
 
     private static <M extends AbstractContainerMenu> M ours(M menu) {

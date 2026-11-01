@@ -11,6 +11,7 @@ import com.trevlar.slotkit.api.item.ItemPath;
 import com.trevlar.slotkit.api.item.ItemRef;
 import com.trevlar.slotkit.api.item.ItemSources;
 import com.trevlar.slotkit.api.menu.MenuSwitch;
+import com.trevlar.slotkit.api.storage.StorageContainerAdapter;
 import com.trevorschoeny.openanywhere.ContainerHost;
 import com.trevorschoeny.openanywhere.Groups;
 import com.trevorschoeny.openanywhere.Heads;
@@ -96,6 +97,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_inventory_tab", this::refusedPick);
             run("openanywhere:screens_box_edits", this::boxEdits);
             run("openanywhere:screens_from_inventory", this::fromInventory);
+            run("openanywhere:screens_from_inventory", this::boxSlotPath);
             run("openanywhere:screens_from_inventory", this::recipeBookStays);
             run("openanywhere:screens_order", this::order);
             run("openanywhere:screens_ender", this::ender);
@@ -284,6 +286,29 @@ public class ScreenChecks implements FabricClientGameTest {
         pick(TabId.INVENTORY);
         expectScreen(InventoryScreen.class, "the Inventory tab");
         expectRow("", "back on the inventory, the box no longer selected");
+    }
+
+    /**
+     * A box opened from the inventory names its own slots via {@code ItemSources.pathOf}
+     * (SlotKit's {@code ItemContents}), the same path a shift-click out of it resolves
+     * through: {@code box.child(i)}, not the box's own slot again (QuickShulker #next).
+     */
+    private void boxSlotPath() {
+        openInventory();
+        doubleClick(hotbar(0), "the lime box");
+        expectScreen(ShulkerBoxScreen.class, "double-click on the lime box");
+        String got = scene.world().getServer().computeOnServer(s -> {
+            ServerPlayer p = player(s);
+            ItemPath box = new ItemPath(ItemRef.Source.INVENTORY, 0, List.of());
+            for (Slot slot : p.containerMenu.slots) {
+                if (slot.container instanceof StorageContainerAdapter) {
+                    ItemPath path = ItemSources.pathOf(p, slot);
+                    return String.valueOf(box.child(slot.getContainerSlot()).equals(path));
+                }
+            }
+            return "no box slot found";
+        });
+        if (!got.equals("true")) throw new AssertionError("a box slot's path from ItemSources.pathOf was " + got + ", not box.child(i)");
     }
 
     /**
