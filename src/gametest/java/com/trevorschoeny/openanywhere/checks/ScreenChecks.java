@@ -136,6 +136,7 @@ public class ScreenChecks implements FabricClientGameTest {
             // Last at this station: it builds other blocks over the box.
             run("openanywhere:screens_world_shulker", this::everyContainer);
             run("openanywhere:screens_world_shulker", this::recipeBookAtTable);
+            run("openanywhere:screens_world_shulker", this::bookFromWorld);
             run("openanywhere:screens_world_shulker", this::everyScreen);
             // With -Popenanywhere.ipn: Inventory Profiles Next's sort on our screens.
             if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("inventoryprofilesnext")) {
@@ -353,6 +354,63 @@ public class ScreenChecks implements FabricClientGameTest {
         } finally {
             bookOpen(false);
         }
+    }
+
+    /**
+     * The inventory's recipe book open, then a chest, a box, a crafting table and a furnace
+     * (its own book closed) opened from the world: each starts with the book open, and the
+     * Inventory tab has the frame where it was. With the inventory's book closed, a chest opens
+     * without one.
+     */
+    private void bookFromWorld() {
+        BlockPos b = block();
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        List<String> broken = new ArrayList<>();
+        try {
+            for (Object[] s : new Object[][] {
+                    {"chest", ContainerScreen.class}, {"green_shulker_box", ShulkerBoxScreen.class},
+                    {"crafting_table", net.minecraft.client.gui.screens.inventory.CraftingScreen.class},
+                    {"furnace", net.minecraft.client.gui.screens.inventory.FurnaceScreen.class}}) {
+                String id = (String) s[0];
+                command(String.format("setblock %d %d %d minecraft:%s", b.getX(), b.getY(), b.getZ(), id));
+                ctx.waitTicks(3);
+                bookOpen(true);
+                ctx.runOnClient(mc -> mc.player.getRecipeBook().setOpen(net.minecraft.world.inventory.RecipeBookType.FURNACE, false));
+                try {
+                    openAt(b, (Class<?>) s[1], "the " + id);
+                    if (!ctx.computeOnClient(mc -> bookShown(mc.gui.screen()))) {
+                        broken.add("the " + id + " opened from the world without the inventory's open book");
+                        continue;
+                    }
+                    int left = leftPos();
+                    pick(TabId.INVENTORY);
+                    expectScreen(InventoryScreen.class, "the Inventory tab at the " + id);
+                    if (!ctx.computeOnClient(mc -> bookShown(mc.gui.screen()))) broken.add("the Inventory tab at the " + id + " has its book closed");
+                    if (leftPos() != left) broken.add("the Inventory tab at the " + id + " has the frame at " + leftPos() + ", not " + left);
+                } finally {
+                    ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+                    ctx.waitTicks(5);
+                }
+            }
+            command(String.format("setblock %d %d %d minecraft:chest", b.getX(), b.getY(), b.getZ()));
+            ctx.waitTicks(3);
+            bookOpen(false);
+            openAt(b, ContainerScreen.class, "the chest");
+            if (ctx.computeOnClient(mc -> bookShown(mc.gui.screen()))) broken.add("the chest opened with a book though the inventory's was closed");
+            ctx.getInput().pressKey(InputConstants.KEY_ESCAPE);
+            ctx.waitTicks(5);
+        } finally {
+            bookOpen(false);
+            ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.HAND));
+        }
+        if (!broken.isEmpty()) throw new AssertionError(String.join("\n    ", broken));
+    }
+
+    /** Whether {@code screen} shows a recipe book: its own open, or a borrowed one. */
+    private static boolean bookShown(net.minecraft.client.gui.screens.Screen screen) {
+        if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen<?> rb)
+            return ((com.trevorschoeny.openanywhere.mixin.RecipeBookScreenAccessor) rb).openanywhere$book().isVisible();
+        return com.trevorschoeny.openanywhere.RecipeBookCarry.shownOn(screen) != null;
     }
 
     /** The crafting book open or closed, showing only what can be crafted. */

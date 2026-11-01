@@ -11,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
+import net.minecraft.client.gui.screens.recipebook.CraftingRecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.RecipeBookType;
@@ -30,6 +31,10 @@ import net.minecraft.world.item.crafting.display.RecipeDisplayId;
  *       on a window too narrow for the book beside the frame (vanilla lays it over the frame
  *       there, and nothing slides), nor where the frame wouldn't fit beside it (the beacon on a
  *       small window).</li>
+ *   <li><b>From the world with the inventory's book open:</b> the first screen starts as if
+ *       the Inventory tab had just been left with it open, so a book screen's book is open and
+ *       a screen without one borrows a fresh inventory book, and switching to the Inventory
+ *       tab slides nothing. With it closed, the first screen opens as vanilla's.</li>
  *   <li><b>A recipe picked</b> on a borrowed book: the book's own tab comes to the front (the
  *       Inventory tab, or the world tab's crafting table or furnace) and the recipe is placed
  *       there once its screen is up, so the player sees the grid fill.</li>
@@ -97,18 +102,36 @@ public final class RecipeBookCarry {
      */
     public static int initialised(AbstractContainerScreen<?> screen, int imageWidth, boolean first) {
         if (borrower == screen) borrower = null;
+        if (open == null && first && Tabs.isTabScreen(screen)) startFromInventory();
         if (open == null || !Tabs.isTabScreen(screen) || screen.width < NARROW) return -1;
         if (screen instanceof AbstractRecipeBookScreen<?> rb) {
             if (first) Minecraft.getInstance().player.getRecipeBook().setOpen(rb.getMenu().getRecipeBookType(), open);
             return -1;
         }
         if (book == null) return -1;
-        int left = book.updateScreenPosition(screen.width, BOOK_SCREEN_WIDTH);
-        if (left + imageWidth > screen.width) return -1;
+        // Laid out first, as vanilla's book screens do: a fresh book isn't visible until then, so it would place nothing.
         book.init(screen.width, screen.height + taller, Minecraft.getInstance(), false);
         if (!book.isVisible()) return -1;
+        int left = book.updateScreenPosition(screen.width, BOOK_SCREEN_WIDTH);
+        if (left + imageWidth > screen.width) return -1;
         borrower = screen;
         return left;
+    }
+
+    /**
+     * A session's first screen with the inventory's book open: carry it as if the Inventory
+     * tab had just been left. Closed, nothing is carried, so a furnace keeps its own book's switch.
+     */
+    private static void startFromInventory() {
+        var player = Minecraft.getInstance().player;
+        if (!player.getRecipeBook().isOpen(RecipeBookType.CRAFTING)) return;
+        open = true;
+        book = new CraftingRecipeBookComponent(player.inventoryMenu);
+        type = RecipeBookType.CRAFTING;
+        home = TabId.INVENTORY;
+        // ponytail: the inventory's frame at vanilla's place (MenuKit keeps it there unless its
+        // rows don't fit the window); on a window that short the book drops to it on the switch.
+        taller = 0;
     }
 
     /** The book {@code screen} has borrowed and shows now, or null. */
