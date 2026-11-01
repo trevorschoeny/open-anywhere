@@ -111,7 +111,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_lock", this::lockedWhileCarried);
             run("openanywhere:screens_lock", this::twins);
             run("openanywhere:screens_lock", this::takenAway);
-            run("openanywhere:screens_lock", this::twoEnderChests);
+            for (int i = 0; i < 25; i++) run("openanywhere:screens_lock", this::twoEnderChests);
             run("openanywhere:screens_box_edits", this::walkedAway);
             run("openanywhere:screens_escape", this::escape);
             run("openanywhere:screens_every_box", this::everyBox);

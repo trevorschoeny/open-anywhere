@@ -22,8 +22,8 @@ abstract class HoldForBundleMixin {
 
     @Shadow @Final protected MinecraftServer server;
 
-    // ponytail: a packet sent with a listener goes straight out, ahead of the held ones; nothing
-    // sends one while a screen opens. Hold it too (and keep its listener) if something starts to.
+    // A packet sent with a listener still goes straight out, ahead of the held ones. Nothing
+    // sends one while a screen opens; hold it too, with its listener, if something starts to.
     @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V", at = @At("HEAD"), cancellable = true)
     private void openanywhere$hold(Packet<?> packet, @Nullable ChannelFutureListener listener, CallbackInfo ci) {
         if (listener == null && server.isSameThread() && ScreenBundle.hold((ServerCommonPacketListenerImpl) (Object) this, packet)) ci.cancel();
