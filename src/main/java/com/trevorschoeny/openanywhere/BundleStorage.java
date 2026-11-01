@@ -2,7 +2,6 @@ package com.trevorschoeny.openanywhere;
 
 import java.util.List;
 
-
 import com.trevlar.slotkit.api.slot.OnDemandGroup;
 import com.trevlar.slotkit.api.storage.Storage;
 
