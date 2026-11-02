@@ -15,11 +15,15 @@
 - A bundle holding more than 65 stacks crashed the server on load; it now keeps the extra items and writes them back.
 - A tab click the server refused left the wrong tab highlighted and threw off the scroll wheel's count.
 
+#### Fixed
+
+- Shift-click out of a shulker box or bundle opened from the inventory could drop the item back into the box it came from, since the shift-click used the box's own slots instead of what it held.
+
 #### Changed
 
 - Requires MenuKit 7.5.1 or newer and SlotKit 2.3.0 or newer.
 
-## 1.1.0
+### 1.1.0
 
 #### Added
 
