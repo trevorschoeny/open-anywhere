@@ -1,4 +1,10 @@
-## 1.2.0
+## 1.2.1
+
+#### Changed
+
+- Rebuilt against MenuKit 8.0.0 and SlotKit 3.0.0. Requires MenuKit 8.0.0 or newer and SlotKit 3.0.0 or newer.
+
+### 1.2.0
 
 #### Added
 

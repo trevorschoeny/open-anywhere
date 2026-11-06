@@ -40,8 +40,8 @@ I kept it separate from Inventory Plus on purpose. Some servers count opening co
 ### Requirements
 
 - [Fabric API](https://modrinth.com/mod/fabric-api)
-- [MenuKit](https://modrinth.com/mod/menukit) 7.5.1 or newer, below 8.0.0, which draws the tabs and the bundle's screen, moves the frame between screens, and fixes a crash when scrolling quickly through them.
-- [SlotKit](https://modrinth.com/mod/slotkit) 2.3.0 or newer, below 3.0.0, which switches between screens while the chest stays open, writes every change back into the box, and checks that a joining player has the mod.
+- [MenuKit](https://modrinth.com/mod/menukit) 8.0.0 or newer, below 9.0.0, which draws the tabs and the bundle's screen, moves the frame between screens, and fixes a crash when scrolling quickly through them.
+- [SlotKit](https://modrinth.com/mod/slotkit) 3.0.0 or newer, below 4.0.0, which switches between screens while the chest stays open, writes every change back into the box, and checks that a joining player has the mod.
 - [Keybindery](https://modrinth.com/mod/keybindery) 1.3.0 or newer, below 2.0.0, which lets the Open key be a combination like Ctrl+X and puts its key button in the settings.
 
 ### Pairs well with
