@@ -43,9 +43,9 @@ public final class TabWheel {
 
     /**
      * Whether Mouse Tweaks is loaded with its wheel tweak on, read once at start-up from its
-     * config ({@code yalter.mousetweaks.Main.config.wheelTweak}).
+     * config ({@code yalter.mousetweaks.Main.config.wheelTweak}). A change in Mouse Tweaks' own
+     * settings takes a restart to reach here.
      */
-    // ponytail: read once; a change in Mouse Tweaks' own settings takes a restart to reach here.
     private static final boolean MOUSE_TWEAKS_WHEEL = mouseTweaksWheel();
 
     private static boolean mouseTweaksWheel() {
