@@ -1100,6 +1100,7 @@ public class ScreenChecks implements FabricClientGameTest {
     /**
      * The wheel switches tabs wherever it's turned on the screen: over a slot, a gap in the
      * frame, a tab, and the tab row's strip past its last tab. Each place a turn down and back up.
+     * Over a bundle's own slot the wheel stays vanilla's: no tab switch.
      */
     private void wheelEverywhere() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
@@ -1136,6 +1137,15 @@ public class ScreenChecks implements FabricClientGameTest {
             ctx.waitTicks(5);
             expectSelected(home, "the wheel back up over " + names[i]);
         }
+        // The one exception: over the bundle's own slot, the wheel stays vanilla's (picks its item), no tab switch.
+        hover(hotbar(2), "the bundle");
+        TabId home = ctx.computeOnClient(mc -> Tabs.selected());
+        ctx.getInput().scroll(-1);
+        ctx.waitTicks(5);
+        expectSelected(home, "the wheel over the bundle's slot");
+        ctx.getInput().scroll(1);
+        ctx.waitTicks(5);
+        expectSelected(home, "the wheel back up over the bundle's slot");
     }
 
     /** Every box gets a tab: all of them in reach, in order, the bundle inside the cyan box too; the wheel moves between them. */
