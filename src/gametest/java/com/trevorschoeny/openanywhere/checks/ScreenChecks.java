@@ -110,8 +110,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_bundle", this::bundleOverfull);
             run("openanywhere:screens_nested", this::nested);
             run("openanywhere:screens_cursor", this::cursor);
-            // Off until MenuKit's on-frame tab panel claims only its tabs: it fails today, the click eaten.
-            if (Boolean.getBoolean("openanywhere.dropBesideTabs")) run("openanywhere:screens_cursor", this::dropBesideTabs);
+            run("openanywhere:screens_cursor", this::dropBesideTabs);
             run("openanywhere:screens_lock", this::handPickup);
             run("openanywhere:screens_lock", this::everyPickup);
             run("openanywhere:screens_lock", this::quickClose);
@@ -924,6 +923,8 @@ public class ScreenChecks implements FabricClientGameTest {
         openBlock();
         click(slot(9), "the dirt");
         dropPastTabs("the chest");
+        ctx.runOnClient(mc -> mc.player.closeContainer());
+        ctx.waitTicks(5);
         command("item replace entity @p inventory.0 with minecraft:dirt 64");
         openInventory();
         click(slot(9), "the dirt");
