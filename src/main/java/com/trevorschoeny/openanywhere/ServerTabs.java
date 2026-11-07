@@ -1005,6 +1005,10 @@ public final class ServerTabs {
         @Override public @Nullable ItemPath itemPath(Player p) {
             return p == player && !anchor.live.isStale() ? anchor.live.path() : null;
         }
+
+        @Override public @Nullable ItemStack item(@Nullable Player p) {
+            return p == player ? stack() : null;
+        }
     }
 
     private static <M extends AbstractContainerMenu> M ours(M menu) {
