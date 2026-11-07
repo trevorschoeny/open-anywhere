@@ -125,6 +125,7 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_every_box", this::everyBox);
             run("openanywhere:screens_every_box", this::inventoryAlone);
             run("openanywhere:screens_every_box", this::fastWheel);
+            run("openanywhere:screens_every_box", this::wheelEverywhere);
             run("openanywhere:screens_every_box", this::treeEvery);
             run("openanywhere:screens_every_box", this::treeHand);
             run("openanywhere:screens_every_box", this::sizesDeep);
@@ -1096,6 +1097,47 @@ public class ScreenChecks implements FabricClientGameTest {
         expectRow("", "opened by hand, with no boxes");
     }
 
+    /**
+     * The wheel switches tabs wherever it's turned on the screen: over a slot, a gap in the
+     * frame, a tab, and the tab row's strip past its last tab. Each place a turn down and back up.
+     */
+    private void wheelEverywhere() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openBlock();
+        var edge = com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP;
+        double[][] places = ctx.computeOnClient(mc -> {
+            ScreenAccessor f = (ScreenAccessor) screen(mc);
+            var l = com.trevlar.menukit.inject.ContainerTabRows.lineForChecks(edge);
+            if (l == null) throw new AssertionError("no tab row on the chest");
+            Slot first = screen(mc).getMenu().slots.getFirst();
+            var tabs = com.trevlar.menukit.inject.ContainerTabRows.placedForChecks(edge);
+            int end = 0;
+            for (var p : tabs) end = Math.max(end, p.x() + p.width());
+            var tab = tabs.getFirst();
+            double rowY = l.rowTop() + l.height() / 2.0;
+            return new double[][] {
+                    {f.openanywhere$leftPos() + first.x + 8, f.openanywhere$topPos() + first.y + 8},
+                    {f.openanywhere$leftPos() + 4, f.openanywhere$topPos() + 4},
+                    {tab.x() + tab.width() / 2.0, l.rowTop() + l.height() - tab.height() / 2.0},
+                    {end + 12, rowY}};
+        });
+        String[] names = {"a slot", "a gap in the frame", "a tab", "the strip past the last tab"};
+        for (int i = 0; i < places.length; i++) {
+            double[] at = places[i];
+            ctx.getInput().setCursorPos(ctx.computeOnClient(mc -> at[0] * scale(mc)), ctx.computeOnClient(mc -> at[1] * scale(mc)));
+            ctx.waitTick();
+            TabId home = ctx.computeOnClient(mc -> Tabs.selected());
+            ctx.getInput().scroll(-1);
+            ctx.waitTicks(5);
+            TabId down = ctx.computeOnClient(mc -> Tabs.selected());
+            if (down.equals(home)) throw new AssertionError("the wheel over " + names[i] + " stayed on " + home);
+            ctx.getInput().scroll(1);
+            ctx.waitTicks(5);
+            expectSelected(home, "the wheel back up over " + names[i]);
+        }
+    }
+
     /** Every box gets a tab: all of them in reach, in order, the bundle inside the cyan box too; the wheel moves between them. */
     private void everyBox() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
@@ -1433,8 +1475,7 @@ public class ScreenChecks implements FabricClientGameTest {
         s.open().run();
         expectScreen(s.type(), s.what() + " opened");
         TabId home = ctx.computeOnClient(mc -> Tabs.selected());
-        // The wheel over the frame's middle: up a tab, then back down from the corner (the
-        // tab up may be a bundle, whose list keeps the wheel over its frame).
+        // The wheel over the frame's middle: up a tab, then back down from the corner.
         ctx.getInput().setCursorPos(ctx.computeOnClient(mc -> {
             ScreenAccessor f = (ScreenAccessor) screen(mc);
             return (f.openanywhere$leftPos() + f.openanywhere$imageWidth() / 2.0) * scale(mc);

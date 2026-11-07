@@ -59,7 +59,6 @@ final class ClientPanels {
     private static boolean worldDouble;
 
     static void register() {
-        TabWheel.register();
         tabs();
         bundle();
         com.trevorschoeny.openanywhere.api.ShownItem.declare();
