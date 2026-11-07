@@ -110,6 +110,8 @@ public class ScreenChecks implements FabricClientGameTest {
             run("openanywhere:screens_bundle", this::bundleOverfull);
             run("openanywhere:screens_nested", this::nested);
             run("openanywhere:screens_cursor", this::cursor);
+            // Off until MenuKit's on-frame tab panel claims only its tabs: it fails today, the click eaten.
+            if (Boolean.getBoolean("openanywhere.dropBesideTabs")) run("openanywhere:screens_cursor", this::dropBesideTabs);
             run("openanywhere:screens_lock", this::handPickup);
             run("openanywhere:screens_lock", this::everyPickup);
             run("openanywhere:screens_lock", this::quickClose);
@@ -564,8 +566,9 @@ public class ScreenChecks implements FabricClientGameTest {
 
     /**
      * Every box tabbed, Pocket Ender Chest's ender chest: a sub-tab of the inventory until it's
-     * opened, then a group tab after the inventory's that stays open when something else is
-     * selected, its lid up on the tab and in its slot alike, its boxes in under it then.
+     * opened, then a group tab after the inventory's that stays on the row when something else
+     * is selected, its boxes in under it then; its lid, on the tab and in its slot alike, up only
+     * while it holds the tab in front.
      */
     private void carriedEnderTabs() {
         ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
@@ -586,9 +589,20 @@ public class ScreenChecks implements FabricClientGameTest {
             }
             return "no carried slot";
         });
-        if (!look.equals("true true")) throw new AssertionError("the carried ender chest, open behind the inventory: slot open, tab open = " + look);
+        // It keeps its tab, but its lid shuts as a left box's does.
+        if (!look.equals("false false")) throw new AssertionError("the carried ender chest, kept behind the inventory: slot open, tab open = " + look);
         pick(tabOf("green_shulker_box"));
         expectTree("INVENTORY ender_chest[green_shulker_box*]", "the green box in the ender chest selected");
+        // Holding the box in front, it's open again.
+        String inside = ctx.computeOnClient(mc -> {
+            for (Slot slot : mc.player.containerMenu.slots) {
+                ItemPath path = ItemSources.pathOf(mc.player, slot);
+                if (path != null && path.source() == ItemRef.Source.CARRIED)
+                    return Tabs.looksOpen(slot) + " " + Tabs.open(TabId.item(path));
+            }
+            return "no carried slot";
+        });
+        if (!inside.equals("true true")) throw new AssertionError("the carried ender chest, holding the box in front: slot open, tab open = " + inside);
         pick(TabId.INVENTORY);
         expectTree("INVENTORY*[lime_shulker_box, bundle] ender_chest", "back on the inventory from the green box");
     }
@@ -896,6 +910,50 @@ public class ScreenChecks implements FabricClientGameTest {
         if (carried != 40) throw new AssertionError("the cursor holds " + carried + " cobblestone on the box's screen, not 40");
         int server = scene.world().getServer().computeOnServer(s -> player(s).containerMenu.getCarried().getCount());
         if (server != 40) throw new AssertionError("the server's cursor holds " + server + " on the box's menu, not 40");
+    }
+
+    /**
+     * A click with an item held in the tab row's strip past its last tab, outside the frame,
+     * drops the item into the world as it would without the row: only the tabs take a click.
+     * On a chest and on the inventory, whose recipe book decides what's outside its own way.
+     */
+    private void dropBesideTabs() {
+        ctx.runOnClient(mc -> Settings.setTabs(Settings.TabMode.EVERY));
+        ctx.waitTicks(3);
+        openBlock();
+        click(slot(9), "the dirt");
+        dropPastTabs("the chest");
+        command("item replace entity @p inventory.0 with minecraft:dirt 64");
+        openInventory();
+        click(slot(9), "the dirt");
+        dropPastTabs("the inventory");
+    }
+
+    /** A left click on the strip past the row's last tab, the item on the cursor dropped by it. */
+    private void dropPastTabs(String what) {
+        var edge = com.trevlar.menukit.api.panel.ContainerTabs.Edge.CONTAINERS_TOP;
+        double[] at = ctx.computeOnClient(mc -> {
+            var l = com.trevlar.menukit.inject.ContainerTabRows.lineForChecks(edge);
+            if (l == null) throw new AssertionError("no tab row on " + what);
+            int end = 0;
+            for (var p : com.trevlar.menukit.inject.ContainerTabRows.placedForChecks(edge)) end = Math.max(end, p.x() + p.width());
+            double x = end + 12, y = l.rowTop() + l.height() / 2.0;
+            int top = ((ScreenAccessor) screen(mc)).openanywhere$topPos();
+            if (y >= top) throw new AssertionError("the strip at y " + y + " isn't above " + what + "'s frame top " + top);
+            int hit = com.trevlar.menukit.inject.ContainerTabRows.hitForChecks(edge, x, y);
+            if (hit != com.trevlar.menukit.inject.TabRowLayout.NONE) throw new AssertionError("past the last tab on " + what + " at " + x + "," + y + " is " + hit + ", not empty");
+            return new double[] {x * scale(mc), y * scale(mc)};
+        });
+        int held = ctx.computeOnClient(mc -> screen(mc).getMenu().getCarried().getCount());
+        if (held == 0) throw new AssertionError("nothing on the cursor on " + what);
+        ctx.getInput().setCursorPos(at[0], at[1]);
+        ctx.waitTick();
+        ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        ctx.waitTicks(3);
+        int carried = ctx.computeOnClient(mc -> screen(mc).getMenu().getCarried().getCount());
+        int server = scene.world().getServer().computeOnServer(s -> player(s).containerMenu.getCarried().getCount());
+        if (carried != 0 || server != 0)
+            throw new AssertionError("a click beside the tabs on " + what + " kept " + carried + " on the cursor (server " + server + "), not dropped");
     }
 
     /**

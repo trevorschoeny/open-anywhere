@@ -97,12 +97,12 @@ public final class Tabs {
     }
 
     /**
-     * Whether {@code id} is open, its lid drawn up: a main tab on the row, or the sub-tab of the
-     * box in front, open with nothing open inside it.
+     * Whether {@code id} is open, its lid drawn up: it's on the row and holds the tab in front,
+     * as the world tab's lid follows its group. The line's boxes and the one in front are;
+     * Pocket Ender Chest's ender chest, kept on the row once opened, shuts as it's left.
      */
     public static boolean open(TabId id) {
-        Tab tab = tab(id);
-        return tab != null && (!tab.sub() || id.equals(shown));
+        return tab(id) != null && holds(id, shown);
     }
 
     /** Whether {@code id} is {@code container}, or sits in it, however deep. */

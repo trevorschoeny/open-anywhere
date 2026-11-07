@@ -122,6 +122,10 @@ if (project.hasProperty('openanywhere.capture')) {
 if (project.hasProperty('openanywhere.walk')) {
     tasks.matching { it.name == 'runClientGameTest' }.configureEach { systemProperty 'openanywhere.walk', 'true' }
 }
+// -Popenanywhere.dropBesideTabs: ScreenChecks' drop past the tab row, off until MenuKit's fix.
+if (project.hasProperty('openanywhere.dropBesideTabs')) {
+    tasks.matching { it.name == 'runClientGameTest' }.configureEach { systemProperty 'openanywhere.dropBesideTabs', 'true' }
+}
 dependencies {
     gametestImplementation sourceSets.client.output
     gametestImplementation rootProject.project(':menukit').sourceSets.client.output

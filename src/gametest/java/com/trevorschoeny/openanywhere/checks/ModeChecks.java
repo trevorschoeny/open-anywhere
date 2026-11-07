@@ -110,10 +110,47 @@ public class ModeChecks implements FabricClientGameTest {
         frames("anim-ender-open");
         expectScreen(ContainerScreen.class, "double-click on the ender chest");
         expectServerSession(Openable.ENDER_CHEST, true);
-        // Again: it closes, back to the inventory, and its lid shuts.
+        // Again: it closes, back to the inventory, and its lid shuts, played closed rather than snapped.
         doubleClickNow(hotbar(1), "the open ender chest");
+        expectLidClosing(1, InventoryScreen.class, "the ender chest closed");
         frames("anim-ender-close");
         expectServerSession(Openable.ENDER_CHEST, false);
+    }
+
+    /**
+     * Once {@code screen} is in front and has drawn a few frames, well inside the quarter
+     * second a lid takes, the item in hotbar slot {@code i} is on its way shut, in its slot and
+     * on its tab alike: between closed and open, not snapped to either. Read from the open
+     * animation's own progress ({@code ClientMarks.OPENING}), asked closing, as they're drawn.
+     */
+    private void expectLidClosing(int i, Class<?> screen, String what) {
+        long start = System.currentTimeMillis();
+        while (!ctx.computeOnClient(mc -> screen.isInstance(mc.gui.screen()))) {
+            if (System.currentTimeMillis() - start > 2000) throw new AssertionError(what + ": no " + screen.getSimpleName() + " came");
+            ctx.waitTick();
+        }
+        ctx.waitTicks(2);
+        float[] lids = ctx.computeOnClient(mc -> {
+            try {
+                var field = Class.forName("com.trevorschoeny.openanywhere.ClientMarks").getDeclaredField("OPENING");
+                field.setAccessible(true);
+                var opening = (com.trevlar.menukit.api.element.Transition) field.get(null);
+                for (Slot slot : mc.player.containerMenu.slots) {
+                    if (!hotbar(i).test(slot)) continue;
+                    var path = com.trevlar.slotkit.api.item.ItemSources.pathOf(mc.player, slot);
+                    if (path == null) throw new AssertionError(what + ": hotbar " + i + " has no path");
+                    var tab = com.trevorschoeny.openanywhere.TabId.item(path);
+                    return new float[] {opening.toward(path, false), opening.toward(tab, false)};
+                }
+                throw new AssertionError(what + ": no hotbar slot " + i);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError(e);
+            }
+        });
+        if (!(lids[0] > 0f && lids[0] < 1f)) throw new AssertionError(what + ": its lid in its slot at " + lids[0] + ", not closing");
+        // Its tab is drawn only while the row shows; then its lid shuts with the slot's.
+        boolean row = ctx.computeOnClient(mc -> !com.trevorschoeny.openanywhere.Tabs.row().isEmpty());
+        if (row && !(lids[1] > 0f && lids[1] < 1f)) throw new AssertionError(what + ": its lid on its tab at " + lids[1] + ", not closing");
     }
 
     /**
